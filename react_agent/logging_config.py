@@ -7,5 +7,6 @@ def setup_logging(level: int = logging.INFO, run_name: str = "run") -> Logger:
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         filename=f"{run_name}.log",
         filemode="w",
+        
     )
     return logging.getLogger(__name__)

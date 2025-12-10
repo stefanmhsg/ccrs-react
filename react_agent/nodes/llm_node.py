@@ -24,7 +24,11 @@ def llm_node(
 
     chain = react_prompt | model
 
-    response = chain.invoke(state["messages"], config)
+    print(f"DEBUG: llm_node using agent_name: {settings.agent_name}")
+    response = chain.invoke({
+        "messages": state["messages"],
+        "agent_name": settings.agent_name,
+    }, config)
     return {
         "messages": [response],
         "number_of_cycles": state.get("number_of_cycles", 0) + 1,

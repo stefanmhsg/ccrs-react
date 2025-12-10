@@ -1,8 +1,8 @@
 from react_agent.state import AgentState
-from react_agent.logging_config import setup_logging
+import logging
 from langchain_core.messages import ToolMessage
 
-logger = setup_logging()
+logger = logging.getLogger(__name__)
 
 def should_continue(state: AgentState):
     messages = state["messages"]

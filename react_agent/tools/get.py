@@ -3,6 +3,9 @@ from pydantic import BaseModel, Field
 from typing import Mapping
 import requests
 
+from react_agent.settings import settings
+
+
 class GetInput(BaseModel):
     url:str = Field(description="The URL to perform the GET request on")
     headers:Mapping[str, str] = Field(default=None, description="Optional headers to include in the GET request")
@@ -12,7 +15,7 @@ class GetInput(BaseModel):
 def http_get(url: str, headers: Mapping[str, str] = None) -> str:
     """Dereferece a URI. Returns text/turtle."""
     try:
-        default = {"Authorization" : "Agent React"}
+        default = {"Authorization" : f"Agent {settings.agent_name}"}
         if headers:
             headers = {**headers, **default}  # Custom headers first, then default (default overwrites)
         else:
