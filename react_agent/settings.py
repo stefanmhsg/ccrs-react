@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     agent_name: str = Field("React")
     langchain_project: str = Field("react")
 
-    llm_model: str = Field("gpt-5-mini")
+    llm_model: str = Field("gpt-5-mini") # gpt-5 or gpt-5-mini
     llm_temperature: float = Field(1.0) # gpt 5 only accepts 1.0
 
     recursion_limit: int = Field(10000)

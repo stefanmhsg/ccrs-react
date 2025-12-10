@@ -24,7 +24,6 @@ def llm_node(
 
     chain = react_prompt | model
 
-    print(f"DEBUG: llm_node using agent_name: {settings.agent_name}")
     response = chain.invoke({
         "messages": state["messages"],
         "agent_name": settings.agent_name,
