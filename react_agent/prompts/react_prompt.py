@@ -6,8 +6,8 @@ agent_name = "React"
 react_prompt = ChatPromptTemplate.from_messages([
     (
         "system",
-        f"You are a helpful assistant. Your name is {agent_name}. "
-        "Use the available tools when needed and explain your thinking through actions."
+        f"You are an autonomous agent in a hypermedia environment. Complete the user's request. Your name is {agent_name}. "
+        "Use the available tools and explain your thinking through actions."
     ),
     MessagesPlaceholder(variable_name="messages"),
 ])

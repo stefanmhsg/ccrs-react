@@ -32,5 +32,6 @@ def run_query_sync(graph, q: str, run_name: str):
             config={"recursion_limit": 200}
         ):
             state["messages"][-1].pretty_print()
+            print(f"Number of steps: {state.get('number_of_steps', 0)}")
             
     _inner()
