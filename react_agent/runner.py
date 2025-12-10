@@ -6,7 +6,7 @@ async def run_query_async(graph, q: str, run_name: str, recursion_limit: int):
     async def _inner():
         initial= {
             "messages": [HumanMessage(content=q)],
-            "number_of_steps": 0,
+            "number_of_cycles": 0,
         }
         async for step in graph.astream(
             initial,
@@ -15,6 +15,7 @@ async def run_query_async(graph, q: str, run_name: str, recursion_limit: int):
         ):
             last = step["messages"][-1]
             last.pretty_print()
+            print(f"Number of cycles: {step.get('number_of_cycles', 0)}")
 
     await _inner()
 
@@ -24,7 +25,7 @@ def run_query_sync(graph, q: str, run_name: str, recursion_limit: int):
     def _inner():
         initial = {
             "messages": [HumanMessage(content=q)],
-            "number_of_steps": 0,
+            "number_of_cycles": 0,
         }
         for state in graph.stream(
             initial, 
@@ -32,6 +33,6 @@ def run_query_sync(graph, q: str, run_name: str, recursion_limit: int):
             config={"recursion_limit": recursion_limit}
         ):
             state["messages"][-1].pretty_print()
-            print(f"Number of steps: {state.get('number_of_steps', 0)}")
+            print(f"Number of cycles: {state.get('number_of_cycles', 0)}")
             
     _inner()

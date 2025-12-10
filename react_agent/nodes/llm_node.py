@@ -9,7 +9,6 @@ from react_agent.prompts.react_prompt import react_prompt
 
 
 # Create model and bind tools
-
 def llm_node(
     state: AgentState,
     config: RunnableConfig,
@@ -28,5 +27,5 @@ def llm_node(
     response = chain.invoke(state["messages"], config)
     return {
         "messages": [response],
-        "number_of_steps": state.get("number_of_steps", 0) + 1,
+        "number_of_cycles": state.get("number_of_cycles", 0) + 1,
     }
