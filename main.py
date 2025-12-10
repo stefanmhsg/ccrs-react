@@ -58,7 +58,10 @@ def main():
 
     # Define the query
     query = (
-        "you need to navigate a linked data maze: entrypoint is = http://127.0.1.1:8080/maze (look for xhv:start to see where to enter the maze) and if you perform a get request it will return RDF triples describing the cell (only allowed for current cell), what it contains and what connections it has. reach the exit by navigating (allowed only to adjacent cells) the maze. "
+        "You need to navigate a linked data maze: entrypoint is = http://127.0.1.1:8080/maze (look for xhv:start to see where to enter the maze). "
+        "If you perform a get request it will return RDF triples describing the cell, what it contains and what connections it has. "
+        "GET is only allowed on cells you are currently in. POST requests are used to move between cells - only allowed to adjacent cells. POST is also used to interact cells - only allowed for cells you are currently in. "
+        "Reach the exit by navigating the maze. "
         "POST for moving from a cell to another expects text/turtle, with RDF format body. "
         "Example format for moving: "
         "POST <TargetCellURI> "
@@ -69,6 +72,7 @@ def main():
         "POST <RequestURI> "
         "Body: "
         "<Same as <RequestURI>> <NeededPropertyIRI> \"Value\" . "
+        "So typically you would GET current, POST to move to adjacent cell, GET new cell, POST to interact if needed, etc., until you reach the exit."
     )
 
     if config.run_mode == "async":
