@@ -1,24 +1,55 @@
+import argparse
 import os
 import asyncio
 from dotenv import load_dotenv
 load_dotenv(dotenv_path=".env", override=True)
-
 from datetime import datetime
-
+from react_agent.settings import Settings
 from react_agent.logging_config import setup_logging
-
 from react_agent.graph import build_graph
 from react_agent.runner import run_query_async, run_query_sync
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(description="Run the ReAct CCRS Agent")
+
+    parser.add_argument("--recursion_limit", type=int, help="Override recursion limit")
+    parser.add_argument("--agent_name", type=str, help="Name of the agent run")
+    parser.add_argument("--log_level", type=str, help="Logging level")
+    parser.add_argument("--query", type=str, help="User query")
+
+    return parser.parse_args()
+
+
 def main():
 
-    # Load environment variables
-    os.environ["LANGCHAIN_PROJECT"] = "react"
-    run_name = f"ReAct_CCRS_{datetime.now():%Y%m%d_%H%M%S}"
+    # Parse command-line arguments
+    args = parse_args()
+
+    # Load .env and environment settings first
+    base_settings = Settings()
+
+    # Merge CLI overrides
+    config = Settings(
+        recursion_limit = args.recursion_limit or base_settings.recursion_limit,
+        agent_name      = args.agent_name or base_settings.agent_name,
+        log_level       = args.log_level or base_settings.log_level,
+
+
+        # values required by BaseSettings must still be filled
+        llm_model       = base_settings.llm_model,
+        llm_temperature = base_settings.llm_temperature,
+        langchain_project = base_settings.langchain_project,
+    )
+
+    # Set environment variable
+    os.environ["LANGCHAIN_PROJECT"] = config.langchain_project
+
+
+    run_name = f"{config.agent_name}_{datetime.now():%Y%m%d_%H%M%S}"
 
     # Configure logging
-    logger = setup_logging()
+    logger = setup_logging(level=config.log_level, run_name=run_name)
     logger.info("Starting agent")
 
 
@@ -40,12 +71,15 @@ def main():
         "<Same as <RequestURI>> <NeededPropertyIRI> \"Value\" . "
     )
 
-    # Run the query asynchronously
-    #asyncio.run(run_query_async(graph, query, run_name))
-
-    # Alternatively, run the query synchronously
-    run_query_sync(graph, query, run_name)
-
+    if config.run_mode == "async":
+        # Run the query asynchronously
+        logger.info("Running in async mode")
+        asyncio.run(run_query_async(graph, query, run_name, config.recursion_limit))
+    else:
+        # Alternatively, run the query synchronously
+        logger.info("Running in sync mode")
+        run_query_sync(graph, query, run_name, config.recursion_limit)
+    
     logger.info("Agent finished")
 
 
