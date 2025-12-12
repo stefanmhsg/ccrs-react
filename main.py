@@ -1,14 +1,10 @@
 import argparse
-import os
 import asyncio
+import os
 from dotenv import load_dotenv
+from react_agent.api import launch_agent
+
 load_dotenv(dotenv_path=".env", override=True)
-from datetime import datetime
-from IPython.display import Image, display
-from react_agent.settings import Settings, settings
-from react_agent.logging_config import setup_logging
-from react_agent.graph import build_graph
-from react_agent.runner import run_query_async, run_query_sync
 
 QUERY_V1 = (
     "You need to navigate a linked data maze: entrypoint is = http://127.0.1.1:8080/maze (look for xhv:start to see where to enter the maze). "
@@ -68,68 +64,28 @@ def parse_args():
     parser.add_argument("--agent-name", type=str, help="Name of the agent run")
     parser.add_argument("--log-level", type=str, help="Logging level")
     parser.add_argument("--query", type=str, help="User query")
+    parser.add_argument("--graph-name", type=str, default="graph", help="Name of the graph module to use (default: graph)")
+    parser.add_argument("--run-mode", type=str, choices=["sync", "async"], help="Execution mode")
 
     return parser.parse_args()
 
 
 def main():
-
     # Parse command-line arguments
     args = parse_args()
-
-    # Update global settings with CLI overrides
-    if args.recursion_limit:
-        settings.recursion_limit = args.recursion_limit
-    if args.agent_name:
-        settings.agent_name = args.agent_name
-    if args.log_level:
-        settings.log_level = args.log_level
-
-    # Set environment variable
-    os.environ["LANGCHAIN_PROJECT"] = settings.langchain_project
-
-
-    run_name = f"{settings.agent_name}_{datetime.now():%Y%m%d_%H%M%S}"
-
-    # Configure logging
-    logger = setup_logging(level=settings.log_level, run_name=run_name)
-    logger.info("Starting agent")
-
-
-    # Build the graph
-    graph = build_graph()
-
-    # Save the graph visualization
-    try:
-        with open("graph.png", "wb") as f:
-            f.write(graph.get_graph().draw_mermaid_png())
-        logger.info("Graph visualization saved to graph.png")
-    except Exception as e:
-        logger.warning(f"Could not save graph visualization: {e}")
 
     # Define the query
     query = args.query or QUERY_V2
 
-    # Prepare configuration for the run
-    run_config = {
-        "recursion_limit": settings.recursion_limit,
-        "configurable": {
-            "agent_name": settings.agent_name,
-            "llm_model": settings.llm_model,
-            "llm_temperature": settings.llm_temperature,
-        }
-    }
-
-    if settings.run_mode == "async":
-        # Run the query asynchronously
-        logger.info("Running in async mode")
-        asyncio.run(run_query_async(graph, query, run_name, run_config))
-    else:
-        # Alternatively, run the query synchronously
-        logger.info("Running in sync mode")
-        run_query_sync(graph, query, run_name, run_config)
-    
-    logger.info("Agent finished")
+    # Launch the agent
+    asyncio.run(launch_agent(
+        query=query,
+        agent_name=args.agent_name,
+        graph_name=args.graph_name,
+        recursion_limit=args.recursion_limit,
+        log_level=args.log_level,
+        run_mode=args.run_mode
+    ))
 
 
 if __name__ == "__main__":
