@@ -63,8 +63,8 @@ async def launch_agent(
 
     # Save the graph visualization
     try:
-        # Use run_name for unique graph files if running multiple
-        graph_filename = f"{graph_name}_graph.png"
+        # Use graph_name for unique files per graph type
+        graph_filename = f"{graph_name}.png"
         with open(graph_filename, "wb") as f:
             f.write(graph.get_graph().draw_mermaid_png())
         logger.info(f"Graph visualization saved to {graph_filename}")
