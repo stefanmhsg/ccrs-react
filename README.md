@@ -1,15 +1,23 @@
 # React Agent
 
+## Configurations (Graphs)
+
+[graph](react_agent/graph.py) - Basic graph configuration without CCRS-specific nodes.
+
+[graph_ccrs](react_agent/graph_ccrs.py) - Graph configuration with CCRS-specific nodes.
+
 ## Run
 
-```powershell
-python main.py
-```
+Can be run either via the commandline tool or the notebook.
+
+### Notebook
+
+[Notebook](./test_agent.ipynb)
 
 ### Commandline tool
 
 ```powershell
-python main.py --agent-name "TestAgent" --log-level "DEBUG"
+python main.py --graph-name graph_ccrs --agent-name "CCRSAgent" --log-level "DEBUG"
 ```
 
 Options
@@ -19,6 +27,8 @@ Options
     --log-level             Logging level (default: "INFO")
 
     --run-mode              sync or async (default: "sync")
+
+    --graph-name            (default: "graph")
 
     --langchain-project     (default: "react")
 
