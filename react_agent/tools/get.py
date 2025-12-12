@@ -1,9 +1,8 @@
 from langchain_core.tools import tool
+from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field
-from typing import Mapping
+from typing import Mapping, Optional
 import requests
-
-from react_agent.settings import settings
 
 
 class GetInput(BaseModel):
@@ -12,10 +11,12 @@ class GetInput(BaseModel):
 
 
 @tool("http_get", args_schema=GetInput)
-def http_get(url: str, headers: Mapping[str, str] = None) -> str:
+def http_get(url: str, config: RunnableConfig, headers: Mapping[str, str] = None) -> str:
     """Dereferece a URI. Returns text/turtle."""
     try:
-        default = {"Authorization" : f"Agent {settings.agent_name}"}
+        configuration = config.get("configurable", {})
+        agent_name = configuration.get("agent_name", "React")
+        default = {"Authorization" : f"Agent {agent_name}"}
         if headers:
             headers = {**headers, **default}  # Custom headers first, then default (default overwrites)
         else:

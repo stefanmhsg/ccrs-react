@@ -1,9 +1,9 @@
 from langchain_core.tools import tool
+from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field
 from typing import Mapping
 import requests
 
-from react_agent.settings import settings
 
 class PostInput(BaseModel):
     url:str = Field(description="The URL to perform the POST request on")
@@ -12,10 +12,12 @@ class PostInput(BaseModel):
 
 
 @tool("http_post", args_schema=PostInput)
-def http_post(url: str, data: str, headers: Mapping[str, str] = None) -> str:
+def http_post(url: str, data: str, config: RunnableConfig, headers: Mapping[str, str] = None) -> str:
     """Post data to a URL."""
     try:
-        default = {"Authorization" : f"Agent {settings.agent_name}"}
+        configuration = config.get("configurable", {})
+        agent_name = configuration.get("agent_name", "React")
+        default = {"Authorization" : f"Agent {agent_name}"}
         if headers:
             headers = {**headers, **default}  # Custom headers first, then default (default overwrites)
         else:

@@ -101,14 +101,24 @@ def main():
     # Define the query
     query = args.query or QUERY_V2
 
+    # Prepare configuration for the run
+    run_config = {
+        "recursion_limit": settings.recursion_limit,
+        "configurable": {
+            "agent_name": settings.agent_name,
+            "llm_model": settings.llm_model,
+            "llm_temperature": settings.llm_temperature,
+        }
+    }
+
     if settings.run_mode == "async":
         # Run the query asynchronously
         logger.info("Running in async mode")
-        asyncio.run(run_query_async(graph, query, run_name, settings.recursion_limit))
+        asyncio.run(run_query_async(graph, query, run_name, run_config))
     else:
         # Alternatively, run the query synchronously
         logger.info("Running in sync mode")
-        run_query_sync(graph, query, run_name, settings.recursion_limit)
+        run_query_sync(graph, query, run_name, run_config)
     
     logger.info("Agent finished")
 

@@ -1,7 +1,7 @@
 from langchain_core.messages import HumanMessage
 from langsmith import traceable
 
-async def run_query_async(graph, q: str, run_name: str, recursion_limit: int):
+async def run_query_async(graph, q: str, run_name: str, config: dict):
     @traceable(name=run_name)
     async def _inner():
         initial= {
@@ -10,7 +10,7 @@ async def run_query_async(graph, q: str, run_name: str, recursion_limit: int):
         }
         async for step in graph.astream(
             initial,
-            config={"recursion_limit": recursion_limit},
+            config=config,
             stream_mode="values",
         ):
             last = step["messages"][-1]
@@ -20,7 +20,7 @@ async def run_query_async(graph, q: str, run_name: str, recursion_limit: int):
     await _inner()
 
 
-def run_query_sync(graph, q: str, run_name: str, recursion_limit: int):
+def run_query_sync(graph, q: str, run_name: str, config: dict):
     @traceable(name=run_name)
     def _inner():
         initial = {
@@ -30,7 +30,7 @@ def run_query_sync(graph, q: str, run_name: str, recursion_limit: int):
         for state in graph.stream(
             initial, 
             stream_mode="values", 
-            config={"recursion_limit": recursion_limit}
+            config=config
         ):
             state["messages"][-1].pretty_print()
             print(f"Number of cycles: {state.get('number_of_cycles', 0)}")
