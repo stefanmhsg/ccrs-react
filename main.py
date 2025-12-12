@@ -4,6 +4,7 @@ import asyncio
 from dotenv import load_dotenv
 load_dotenv(dotenv_path=".env", override=True)
 from datetime import datetime
+from IPython.display import Image, display
 from react_agent.settings import Settings, settings
 from react_agent.logging_config import setup_logging
 from react_agent.graph import build_graph
@@ -97,6 +98,14 @@ def main():
 
     # Build the graph
     graph = build_graph()
+
+    # Save the graph visualization
+    try:
+        with open("graph.png", "wb") as f:
+            f.write(graph.get_graph().draw_mermaid_png())
+        logger.info("Graph visualization saved to graph.png")
+    except Exception as e:
+        logger.warning(f"Could not save graph visualization: {e}")
 
     # Define the query
     query = args.query or QUERY_V2
