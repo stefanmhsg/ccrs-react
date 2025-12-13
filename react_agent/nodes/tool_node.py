@@ -1,6 +1,6 @@
 from langchain_core.messages import ToolMessage
 from langchain_core.runnables import RunnableConfig
-from react_agent.state import AgentState
+from react_agent.state.state import AgentState
 from react_agent.tools import tools_by_name
 
 def tool_node(state: AgentState, config: RunnableConfig):

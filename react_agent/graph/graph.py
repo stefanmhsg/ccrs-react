@@ -1,5 +1,5 @@
 from langgraph.graph import StateGraph, END
-from react_agent.state import AgentState
+from react_agent.state.state import AgentState
 from react_agent.nodes.llm_node import llm_node
 from react_agent.nodes.tool_node import tool_node
 from react_agent.nodes.decision_node import should_continue

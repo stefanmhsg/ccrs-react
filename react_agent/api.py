@@ -4,18 +4,18 @@ import importlib
 from datetime import datetime
 from typing import Optional, Any
 
-from react_agent.settings import settings
-from react_agent.logging_config import setup_logging
+from react_agent.utils.settings import settings
+from react_agent.utils.logging_config import setup_logging
 from react_agent.runner import run_query_async, run_query_sync
 
 def get_graph_builder(graph_name: str):
     try:
-        module = importlib.import_module(f"react_agent.{graph_name}")
+        module = importlib.import_module(f"react_agent.graph.{graph_name}")
         return getattr(module, "build_graph")
     except ImportError:
-        raise ValueError(f"Graph module 'react_agent.{graph_name}' not found.")
+        raise ValueError(f"Graph module 'react_agent.graph.{graph_name}' not found.")
     except AttributeError:
-        raise ValueError(f"Module 'react_agent.{graph_name}' does not have a 'build_graph' function.")
+        raise ValueError(f"Module 'react_agent.graph.{graph_name}' does not have a 'build_graph' function.")
 
 async def launch_agent(
     query: str,
