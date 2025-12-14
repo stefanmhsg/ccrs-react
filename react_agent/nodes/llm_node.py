@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 from langchain_core.runnables import RunnableConfig
 from langchain_core.messages import BaseMessage
@@ -32,6 +33,10 @@ def llm_node(
         "messages": state["messages"],
         "agent_name": agent_name,
     }, config)
+    
+    logging.debug(f"LLM node received response: {response}")
+    logging.info(f"LLM node tool calls: {response.tool_calls}")
+
     return {
         "messages": [response],
         "number_of_cycles": state.get("number_of_cycles", 0) + 1,

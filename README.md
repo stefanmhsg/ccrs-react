@@ -37,3 +37,11 @@ Options
     --llm-temperature       (default: 1.0)
 
     --query                 (default: Maze Prompt)
+
+## References
+
+- [Google Gemini LangGraph Example](https://ai.google.dev/gemini-api/docs/langgraph-example)
+
+> "LangGraph provides a convenient helper, add_messages, for updating message lists in the state. It functions as a reducer, meaning it takes the current list and new messages, then returns a combined list. It smartly handles updates by message ID and defaults to an "append-only" behavior for new, unique messages."
+
+- [LangGraph Documentation](https://docs.langchain.com/oss/python/langgraph/graph-api#reducers)

@@ -18,11 +18,13 @@ def should_continue(state: AgentState):
         if isinstance(second_last, ToolMessage):
             if exit_verification in second_last.content:
                 logger.info("Exit verification succeeded in previous step. Ending process.")
+                logger.debug(f"Second last message content: {second_last.content}")
                 return "end"
 
     # Safety check
     if not getattr(last, "tool_calls", None):
         logger.warning("No tool calls found in the last message. Ending the process.")
+        logger.debug(f"Last message content: {last.content}")
         return "end" # Should not happen with tool_choice="any"
         
     return "continue"

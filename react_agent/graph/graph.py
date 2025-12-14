@@ -24,7 +24,7 @@ def build_graph():
         # Mapping for where to go next, keys are strings from the function return, and the values are other nodes.
         # END is a special node marking that the graph is finish.
         {
-            # If `tools`, then we call the tool node.
+            # If `continue`, then we call the tool node.
             "continue": "tools",
             # Otherwise we finish.
             "end": END,
