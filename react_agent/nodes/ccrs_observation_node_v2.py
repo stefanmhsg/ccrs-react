@@ -33,10 +33,12 @@ def ccrs_observation_node(
     content = last.content
     tool_call_id = last.tool_call_id
 
+    logging.info(f"Extracting CCRS from last tool message: {content}")
+
     ccrs_entries: list[dict] = []
 
     # Mock example for Signifier detection
-    if isinstance(content, str) and "vocab#green" in content:
+    if isinstance(content, str) and "maze:green" in content:
         ccrs_entries.append(
             {
                 "ccrs_type": "Signifier",
