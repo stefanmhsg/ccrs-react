@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import Any
 from langchain_core.runnables import RunnableConfig
@@ -35,22 +36,28 @@ def llm_node(
     latest_tool_call_ids = get_latest_tool_call_ids(state["messages"])
 
     # Filter CCRS entries to only include those related to the latest tool calls
+    ccrs_text = "[]"  # Default to empty list if no relevant CCRS entries found
     ccrs_context = [
         entry
         for entry in state.get("ccrs", [])
         if entry.get("tool_call_id") in latest_tool_call_ids
     ]
 
+    if ccrs_context:
+        ccrs_text = json.dumps(ccrs_context, ensure_ascii=False, indent=2) # Do not pass raw Python dicts into {ccrs}. Convert to compact JSON so the model sees a stable schema.
+        logging.info(f"[LLM_NODE_CCRS_V2]: Injecting {len(ccrs_context)} relevant CCRS entries to LLM.")
+        logging.info(f"[LLM_NODE_CCRS_V2]: CCRS Context: {ccrs_text}")
+
     # ------
 
     response = chain.invoke({
         "messages": state["messages"],
         "agent_name": agent_name,
-        "ccrs" : ccrs_context, # Provide filtered CCRS context to the LLM
+        "ccrs" : ccrs_text, # Provide filtered CCRS context to the LLM
     }, config)
     
-    logging.debug(f"LLM node received response: {response}")
-    logging.info(f"LLM node tool calls: {response.tool_calls}")
+    logging.debug(f"[LLM_NODE_CCRS_V2]: LLM node received response: {response}")
+    logging.info(f"[LLM_NODE_CCRS_V2]: LLM node tool calls: {response.tool_calls}")
 
     return {
         "messages": [response],
@@ -63,6 +70,6 @@ def get_latest_tool_call_ids(messages):
     for msg in reversed(messages):
         if isinstance(msg, AIMessage) and msg.tool_calls:
             # An AIMessage can contain multiple tool calls
-            logging.debug(f"Last AIMessage with tool calls found: {msg}")
+            logging.debug(f"[LLM_NODE_CCRS_V2]: Last AIMessage with tool calls found: {msg}")
             return {call["id"] for call in msg.tool_calls}
     return set()

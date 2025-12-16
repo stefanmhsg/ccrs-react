@@ -8,15 +8,15 @@ def tool_node(state: AgentState, config: RunnableConfig):
     last = state["messages"][-1]
     outputs = []
 
-    logging.debug(f"Tool node received message: {last}")
+    logging.debug(f"[TOOL_NODE] Tool node received message: {last}")
 
     # Iterate over the tool calls in the last message
     for call in last.tool_calls:
         tool = tools_by_name[call["name"]]
-        logging.info(f"Invoking tool: {call['name']} with args: {call['args']}")
+        logging.info(f"[TOOL_NODE] Invoking tool: {call['name']} with args: {call['args']}")
         # Pass the config to the tool invocation
         result = tool.invoke(call["args"], config)
-        logging.debug(f"Tool result: {result}")
+        logging.debug(f"[TOOL_NODE] Tool result: {result}")
 
         outputs.append(
             ToolMessage(
