@@ -6,6 +6,15 @@ react_prompt = ChatPromptTemplate.from_messages([
         "You are an autonomous agent. Complete the user's request. Your name is {agent_name}. "
         "Use the available tools and explain your thinking through actions."
     ),
+    MessagesPlaceholder(variable_name="messages"),
+])
+
+react_prompt_ccrs = ChatPromptTemplate.from_messages([
+    (
+        "system",
+        "You are an autonomous agent. Complete the user's request. Your name is {agent_name}. "
+        "Use the available tools and explain your thinking through actions."
+    ),
     (
     "system",
     "Course Check and Revision Strategy (CCRS) annotations derived from the most recent tool observations are provided below. "

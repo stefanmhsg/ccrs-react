@@ -2,16 +2,16 @@ import json
 import logging
 from typing import Any
 from langchain_core.runnables import RunnableConfig
-from langchain_core.messages import ToolMessage, AIMessage
+from langchain_core.messages import AIMessage
 from langchain_openai import ChatOpenAI
-from react_agent.state.state_ccrs_v2 import AgentState # Use CCRS v2 state
+from react_agent.ccrs import CcrsAgentState
 from react_agent.tools import tools
-from react_agent.prompts.react_prompt import react_prompt
+from react_agent.prompts.react_prompt import react_prompt_ccrs
 
 
 # Create model and bind tools
 def llm_node(
-    state: AgentState,
+    state: CcrsAgentState,
     config: RunnableConfig,
 ) -> dict[str, Any]:
     
@@ -28,7 +28,7 @@ def llm_node(
     # Bind tools to the model. Force at least one tool to be called.
     model = llm.bind_tools(tools, tool_choice="any")
 
-    chain = react_prompt | model
+    chain = react_prompt_ccrs | model
 
     # --- CCRS filtering logic ---
 

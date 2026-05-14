@@ -2,22 +2,36 @@
 
 ## Configurations (Graphs)
 
-[graph](react_agent/graph.py) - Basic graph configuration without CCRS-specific nodes.
+[graph](react_agent/graph/graph.py) - Basic graph configuration without CCRS-specific nodes.
 
-[graph_ccrs](react_agent/graph_ccrs.py) - Graph configuration with CCRS-specific nodes.
+[graph_opportunistic_ccrs](react_agent/graph/graph_opportunistic_ccrs.py) - Graph configuration with opportunistic CCRS.
 
 ## Run
 
 Can be run either via the commandline tool or the notebook.
 
+### Install dependencies
+
+```powershell
+python -m pip install -r requirements.txt
+```
+
+For opportunistic CCRS, also make sure the sibling CCRS Java libraries have
+been published to local Maven as described in
+[CCRS_README.md](CCRS_README.md).
+
 ### Notebook
 
 [Notebook](./test_agent.ipynb)
 
+Use the notebook as the maintained easy-to-run place for predefined agent run
+configurations and implementation variants, including the baseline graph,
+opportunistic CCRS graph, and future contingency CCRS variants.
+
 ### Commandline tool
 
 ```powershell
-python main.py --graph-name graph_ccrs --agent-name "CCRSAgent" --log-level "DEBUG"
+python main.py --graph-name graph_opportunistic_ccrs --agent-name "CCRSAgent" --log-level "DEBUG"
 ```
 
 Options

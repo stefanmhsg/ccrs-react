@@ -1,7 +1,6 @@
 import logging
 from typing import Any
 from langchain_core.runnables import RunnableConfig
-from langchain_core.messages import BaseMessage
 from langchain_openai import ChatOpenAI
 from react_agent.state.state import AgentState
 from react_agent.tools import tools

@@ -1,4 +1,4 @@
-from typing import Annotated,Sequence, TypedDict
+from typing import Annotated, Sequence, TypedDict
 
 from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages # helper function to add messages to the state
