@@ -16,11 +16,13 @@ def llm_node(
     configuration = config.get("configurable", {})
     llm_model = configuration.get("llm_model", "gpt-5-mini")
     llm_temperature = configuration.get("llm_temperature", 1.0)
+    llm_reasoning_effort = configuration.get("llm_reasoning_effort", "minimal")
     agent_name = configuration.get("agent_name", "React")
 
     llm = ChatOpenAI(
         model=llm_model,
         temperature=llm_temperature,
+        reasoning_effort=llm_reasoning_effort,
     ) 
 
     # Bind tools to the model. Force at least one tool to be called.

@@ -78,6 +78,7 @@ async def launch_agent(
             "agent_name": current_agent_name,
             "llm_model": settings.llm_model,
             "llm_temperature": settings.llm_temperature,
+            "llm_reasoning_effort": settings.llm_reasoning_effort,
             **kwargs
         }
     }
