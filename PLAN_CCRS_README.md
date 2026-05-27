@@ -20,6 +20,7 @@ The goal is to make the Python ReAct/LangGraph agent consume the reusable Java C
 - [x] (2026-05-27) Added stable adapter audit events for opportunistic CCRS evaluation, detection, no-annotation, skipped, failed, runtime, and classpath events.
 - [x] (2026-05-27) Renamed React adapter audit events to `[REACT-CCRS-EVENT] event=react.ccrs...` so they are distinguishable from Java library `[CCRS-EVENT] event=ccrs...` lines.
 - [x] (2026-05-27) Classified invalid/non-RDF tool output as `react.ccrs.opportunistic.skipped reason=invalid_turtle` instead of an opportunistic CCRS evaluation failure.
+- [x] (2026-05-27) Added a React adapter Java logging bridge that writes Java `ccrs-core` JUL records to a per-run `logs/<run>.java.log` companion file.
 - [ ] Add focused tests or smoke scripts for the adapter boundary so Java-backed scans and state merge behavior can be validated without a full LLM/maze run.
 - [x] (2026-05-27) Updated root documentation links so `README.md` points to the React CCRS adapter documentation in `react_agent/ccrs/README.md` and this plan.
 - [x] (2026-05-27) Established `react_agent/ccrs/README.md` as the React-specific CCRS documentation file while this file remains the executable implementation plan.
@@ -48,6 +49,9 @@ The goal is to make the Python ReAct/LangGraph agent consume the reusable Java C
 
 - Observation: `http_post` responses in the maze run are not necessarily Turtle observations.
   Evidence: `logs/react_opportunistic_1_20260527_163125.log` shows `http_post` tool messages with content lengths 44 and 46 raising `rdflib.plugins.parsers.notation3.BadSyntax` when opportunistic CCRS tried to parse them as Turtle. This should be a skipped non-RDF observation, not an adapter failure.
+
+- Observation: Java CCRS logs were not missing because Java failed to log; they were missing from the Python file because Java JUL handlers and Python file handlers are separate logging systems.
+  Evidence: `ccrs-core` uses `java.util.logging.Logger` in classes such as `CcrsVocabularyLoader`, `CcrsVocabulary`, and `VocabularyMatcher`, while `react_agent/utils/logging_config.py` writes only Python logging records to `logs/<run>.log`.
 
 ## Decision Log
 
@@ -81,6 +85,10 @@ The goal is to make the Python ReAct/LangGraph agent consume the reusable Java C
 
 - Decision: Use `react_agent/ccrs/README.md` as the React-specific CCRS adapter documentation file, and use `PLAN_CCRS_README.md` as the long-running executable plan.
   Rationale: The old root `CCRS_README.md` is no longer the right target for React adapter documentation. Keeping package documentation near the adapter and implementation state in this plan makes future sessions easier to resume.
+  Date/Author: 2026-05-27 / User direction and Codex implementation
+
+- Decision: Capture Java CCRS library logs in a per-run companion file named `logs/<run>.java.log`.
+  Rationale: The Java library uses `java.util.logging`, while the React agent uses Python logging. Writing both runtimes into one file risks handler conflicts and interleaving, especially on Windows. A companion file keeps Java library logs auditable and tied to the same run name without coupling Java logging to Python internals.
   Date/Author: 2026-05-27 / User direction and Codex implementation
 
 ## Outcomes & Retrospective
@@ -186,7 +194,7 @@ Expected output is empty.
 
 ## Validation and Acceptance
 
-The opportunistic CCRS adapter is acceptable when all of the following are true. The package compiles with `S:\anaconda\agent\python.exe -m compileall react_agent`. Both graph builders return `CompiledStateGraph`. A Java-backed Turtle scan returns at least one opportunistic CCRS dictionary for the default green signifier pattern. The scan path emits `[REACT-CCRS-EVENT]` lines for adapter classpath/runtime/evaluation/detection when logging is enabled. Non-RDF tool output emits `react.ccrs.opportunistic.skipped reason=invalid_turtle` instead of an error stack trace. The `ccrs` state channel remains append-only, and the prompt path filters by latest tool call IDs rather than clearing state. No deprecated runtime aliases named `scan_turtle` or `scan_triples` remain.
+The opportunistic CCRS adapter is acceptable when all of the following are true. The package compiles with `S:\anaconda\agent\python.exe -m compileall react_agent`. Both graph builders return `CompiledStateGraph`. A Java-backed Turtle scan returns at least one opportunistic CCRS dictionary for the default green signifier pattern. The scan path emits `[REACT-CCRS-EVENT]` lines for adapter classpath/runtime/evaluation/detection when logging is enabled. A Java-backed scan launched after `setup_logging(...)` creates a `logs/<run>.java.log` companion file with `[JAVA-CCRS]` Java library records. Non-RDF tool output emits `react.ccrs.opportunistic.skipped reason=invalid_turtle` instead of an error stack trace. The `ccrs` state channel remains append-only, and the prompt path filters by latest tool call IDs rather than clearing state. No deprecated runtime aliases named `scan_turtle` or `scan_triples` remain.
 
 Full maze success is not required for opportunistic adapter acceptance because it depends on the external maze server and live LLM calls. A later experiment validation can run `python main.py --graph-name graph_opportunistic_ccrs --agent-name "CCRSAgent" --log-level "DEBUG"` once the maze server and OpenAI credentials are available.
 
@@ -218,6 +226,11 @@ Important log events to preserve:
     [REACT-CCRS-EVENT] event=react.ccrs.opportunistic.evaluate ...
     [REACT-CCRS-EVENT] event=react.ccrs.opportunistic.detected ...
     [REACT-CCRS-EVENT] event=react.ccrs.opportunistic.cycle_annotations ...
+
+Java CCRS library log companion:
+
+    logs/<run>.java.log
+    2026-05-27 17:08:31,622 [JAVA-CCRS] ccrs.core.rdf.CcrsVocabulary: Detected simple pattern: ...
 
 Current documentation boundary:
 
@@ -266,3 +279,5 @@ The Java dependency is the Maven-local artifact `io.github.stefanmhsg.ccrs:ccrs-
 2026-05-27: Updated React adapter log naming after user direction. Python adapter logs now use `[React CCRS][Opportunistic]`, and adapter audit events use `[REACT-CCRS-EVENT] event=react.ccrs...` so they can be separated from Java CCRS library events.
 
 2026-05-27: Updated invalid RDF handling after log analysis. Non-Turtle tool outputs are now skipped with `reason=invalid_turtle` instead of being logged as opportunistic CCRS evaluation failures.
+
+2026-05-27: Added Java CCRS companion logging after user direction. `setup_logging(...)` now publishes per-run log paths, and `react_agent.ccrs.java_logging` configures Java JUL records from `ccrs-core` into `logs/<run>.java.log`.

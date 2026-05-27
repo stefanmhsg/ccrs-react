@@ -58,6 +58,8 @@ test or smoke-script coverage.
   context to the LLM.
 - [audit.py](audit.py) emits stable `[REACT-CCRS-EVENT]` key-value log lines
   for React adapter runtime verification.
+- [java_logging.py](java_logging.py) configures Java `java.util.logging`
+  records from `ccrs-core` into a per-run companion log file.
 - [__init__.py](__init__.py) exposes compact public imports while keeping
   heavy dependencies lazy.
 
@@ -86,8 +88,12 @@ runtime failure. This is expected for tool responses such as successful
 `http_post` acknowledgements that are not Turtle observations.
 
 The JPype runtime configures Java CCRS logger levels for verbose output. If
-Java library messages do not appear in the Python run log, add a dedicated
-Java-to-Python logging bridge before expanding contingency CCRS.
+the React run log is `logs/<run>.log`, Java CCRS library messages are written
+to the companion file `logs/<run>.java.log`. The companion file uses the
+`[JAVA-CCRS]` prefix and captures Java library events such as vocabulary
+loading, pattern compilation, matches, warnings, and Java-side `[CCRS-EVENT]`
+records. Keeping Java logs in a companion file avoids cross-runtime file
+handler conflicts while preserving the same run name for experiment analysis.
 
 Use the names `opportunistic CCRS` and `contingency CCRS` consistently when
 describing CCRS approaches. Terms such as observation node, scanner, error

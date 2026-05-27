@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, ClassVar, Iterable, Mapping
 
 from react_agent.ccrs.audit import log_ccrs_event
+from react_agent.ccrs.java_logging import configure_java_ccrs_logging
 from react_agent.ccrs.rdf_adapter import RdfTripleValue, parse_turtle_triples
 
 
@@ -263,18 +264,12 @@ class CcrsRuntime:
             ) from exc
 
     def _configure_java_logging(self, jpype: Any) -> None:
-        # Java CCRS uses java.util.logging; keep its loggers verbose for traces.
         try:
-            java_logger = jpype.JClass("java.util.logging.Logger")
-            java_level = jpype.JClass("java.util.logging.Level")
-            ccrs_logger = java_logger.getLogger("ccrs")
-            ccrs_logger.setLevel(java_level.FINE)
-            root_logger = java_logger.getLogger("")
-            for handler in root_logger.getHandlers():
-                handler.setLevel(java_level.FINE)
+            java_log_path = configure_java_ccrs_logging(jpype, logger)
             logger.info(
-                "%s Configured Java CCRS library logging level through JPype.",
+                "%s Configured Java CCRS library logging through JPype; path=%s",
                 LOG_PREFIX,
+                java_log_path,
             )
         except Exception:
             logger.exception(
