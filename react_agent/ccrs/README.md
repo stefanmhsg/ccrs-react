@@ -8,6 +8,18 @@ The baseline ReAct graph is intentionally free of imports, state keys, and
 prompt variables from this package. Use this adapter only in CCRS-specific graph
 variants.
 
+For the broader CCRS concept, start with
+[CCRS_LIBRARY.md](../../../ccrs-bdi/CCRS_LIBRARY.md). It focuses on BDI agents
+and the JaCaMo adapter, but it explains the generic CCRS intention and points
+to further resources. The Java behavior most directly relevant to this adapter
+is documented in the opportunistic CCRS
+[README.md](../../../ccrs-bdi/ccrs-core/src/main/java/ccrs/core/opportunistic/README.md)
+and contingency CCRS
+[README.md](../../../ccrs-bdi/ccrs-core/src/main/java/ccrs/core/contingency/README.md).
+
+The active implementation plan for this package is
+[PLAN_CCRS_README.md](../../PLAN_CCRS_README.md).
+
 ## Current Scope
 
 The implemented scope is opportunistic CCRS:
@@ -18,7 +30,7 @@ ToolMessage Turtle
 -> Java RdfTriple values
 -> Java VocabularyMatcher.scanAll(...)
 -> Python CCRS annotation dictionaries
--> LangGraph ccrs state channel
+-> append-only LangGraph ccrs state channel
 ```
 
 The public one-line import target is:
@@ -26,6 +38,10 @@ The public one-line import target is:
 ```python
 from react_agent.ccrs import opportunistic_ccrs_node
 ```
+
+Contingency CCRS is intentionally not implemented in this package yet. It
+should be added only after the opportunistic adapter boundary has focused
+test or smoke-script coverage.
 
 ## Files
 
@@ -37,14 +53,37 @@ from react_agent.ccrs import opportunistic_ccrs_node
 - [opportunistic.py](opportunistic.py) provides LangGraph node factories for
   opportunistic CCRS.
 - [state.py](state.py) provides the reusable CCRS-aware LangGraph state shape.
+  Its `ccrs` channel appends opportunistic CCRS annotations. Prompt injection
+  filters that history by the latest tool call IDs before presenting advisory
+  context to the LLM.
+- [audit.py](audit.py) emits stable `[REACT-CCRS-EVENT]` key-value log lines
+  for React adapter runtime verification.
 - [__init__.py](__init__.py) exposes compact public imports while keeping
   heavy dependencies lazy.
 
 ## Logging And Naming
 
-Log lines emitted by this package start with `[Opportunistic CCRS]`. Keep this
-prefix for all opportunistic CCRS behavior so Python logs remain searchable and
-can be correlated with Java CCRS library logs.
+Human-readable log lines emitted by this package start with
+`[React CCRS][Opportunistic]`. Keep this prefix for all React-side
+opportunistic CCRS behavior so Python adapter logs remain searchable and can be
+distinguished from Java CCRS library logs.
+
+Auditable lifecycle events use the React-adapter-specific
+`[REACT-CCRS-EVENT]` prefix. Java library events can continue using
+`[CCRS-EVENT]`. For opportunistic CCRS, the important React adapter event names
+are:
+
+- `react.ccrs.opportunistic.evaluate`
+- `react.ccrs.opportunistic.detected`
+- `react.ccrs.opportunistic.cycle_annotations`
+- `react.ccrs.opportunistic.no_annotations`
+- `react.ccrs.opportunistic.skipped`
+- `react.ccrs.opportunistic.failed`
+
+Invalid or non-RDF tool output should be logged as
+`react.ccrs.opportunistic.skipped reason=invalid_turtle`, not as a CCRS
+runtime failure. This is expected for tool responses such as successful
+`http_post` acknowledgements that are not Turtle observations.
 
 The JPype runtime configures Java CCRS logger levels for verbose output. If
 Java library messages do not appear in the Python run log, add a dedicated

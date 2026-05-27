@@ -7,11 +7,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, ClassVar, Iterable, Mapping
 
+from react_agent.ccrs.audit import log_ccrs_event
 from react_agent.ccrs.rdf_adapter import RdfTripleValue, parse_turtle_triples
 
 
 logger = logging.getLogger(__name__)
-LOG_PREFIX = "[Opportunistic CCRS]"
+LOG_PREFIX = "[React CCRS][Opportunistic]"
 
 
 class CcrsRuntimeError(RuntimeError):
@@ -41,6 +42,47 @@ class CcrsRuntime:
     _classes: dict[str, Any] = field(default_factory=dict, init=False, repr=False)
 
     _jvm_lock: ClassVar[threading.Lock] = threading.Lock()
+    _runtime_dependencies: ClassVar[tuple[tuple[str, str, str], ...]] = (
+        ("org.apache.jena", "jena-rdfpatch", "5.6.0"),
+        ("org.apache.jena", "jena-arq", "5.6.0"),
+        ("org.apache.jena", "jena-core", "5.6.0"),
+        ("org.apache.jena", "jena-base", "5.6.0"),
+        ("org.apache.jena", "jena-iri3986", "5.6.0"),
+        ("org.apache.jena", "jena-iri", "5.6.0"),
+        ("org.apache.jena", "jena-langtag", "5.6.0"),
+        ("org.apache.jena", "jena-ontapi", "5.6.0"),
+        ("org.apache.jena", "jena-shacl", "5.6.0"),
+        ("org.apache.jena", "jena-shex", "5.6.0"),
+        ("org.apache.jena", "jena-tdb1", "5.6.0"),
+        ("org.apache.jena", "jena-tdb2", "5.6.0"),
+        ("org.apache.jena", "jena-dboe-storage", "5.6.0"),
+        ("org.apache.jena", "jena-dboe-trans-data", "5.6.0"),
+        ("org.apache.jena", "jena-dboe-transaction", "5.6.0"),
+        ("org.apache.jena", "jena-dboe-base", "5.6.0"),
+        ("org.apache.jena", "jena-dboe-index", "5.6.0"),
+        ("org.apache.jena", "jena-rdfconnection", "5.6.0"),
+        ("org.slf4j", "slf4j-api", "2.0.17"),
+        ("org.slf4j", "jcl-over-slf4j", "2.0.17"),
+        ("org.apache.commons", "commons-csv", "1.14.1"),
+        ("commons-io", "commons-io", "2.20.0"),
+        ("commons-codec", "commons-codec", "1.19.0"),
+        ("org.apache.commons", "commons-lang3", "3.19.0"),
+        ("org.apache.commons", "commons-compress", "1.28.0"),
+        ("org.apache.commons", "commons-collections4", "4.5.0"),
+        ("com.github.ben-manes.caffeine", "caffeine", "3.2.2"),
+        ("org.jspecify", "jspecify", "1.0.0"),
+        ("com.github.andrewoma.dexx", "collection", "0.7"),
+        ("org.roaringbitmap", "RoaringBitmap", "1.3.0"),
+        ("com.google.code.gson", "gson", "2.13.2"),
+        ("com.google.errorprone", "error_prone_annotations", "2.41.0"),
+        ("com.apicatalog", "titanium-json-ld", "1.7.0"),
+        ("com.apicatalog", "titanium-jcs", "1.1.1"),
+        ("com.apicatalog", "titanium-rdf-api", "1.0.0"),
+        ("com.apicatalog", "titanium-rdf-n-quads", "1.0.2"),
+        ("org.glassfish", "jakarta.json", "2.0.1"),
+        ("com.google.protobuf", "protobuf-java", "4.32.1"),
+        ("org.apache.thrift", "libthrift", "0.22.0"),
+    )
 
     @classmethod
     def from_maven_local(
@@ -79,16 +121,6 @@ class CcrsRuntime:
             return []
         return self.evaluate_triples(triples, context=context)
 
-    def scan_turtle(
-        self,
-        content: str,
-        *,
-        context: Mapping[str, Any] | None = None,
-    ) -> list[dict[str, Any]]:
-        """Deprecated compatibility alias for opportunistic CCRS evaluation."""
-
-        return self.evaluate_turtle(content, context=context)
-
     def evaluate_triples(
         self,
         triples: Iterable[RdfTripleValue],
@@ -126,16 +158,6 @@ class CcrsRuntime:
             for result in results
         ]
 
-    def scan_triples(
-        self,
-        triples: Iterable[RdfTripleValue],
-        *,
-        context: Mapping[str, Any] | None = None,
-    ) -> list[dict[str, Any]]:
-        """Deprecated compatibility alias for opportunistic CCRS evaluation."""
-
-        return self.evaluate_triples(triples, context=context)
-
     def resolve_classpath(self) -> list[Path]:
         paths: list[Path] = []
 
@@ -163,10 +185,20 @@ class CcrsRuntime:
         if not unique:
             raise CcrsRuntimeError("No Java classpath entries found for CCRS.")
 
-        logger.info(
+        logger.debug(
             "%s Resolved %s Java classpath entries for JPype.",
             LOG_PREFIX,
             len(unique),
+        )
+        log_ccrs_event(
+            logger,
+            "react.ccrs.opportunistic.classpath.resolved",
+            {
+                "entries": len(unique),
+                "modules": ",".join(self.modules),
+                "maven_repo": self.maven_repo,
+                "gradle_cache": self.gradle_cache,
+            },
         )
         return unique
 
@@ -183,23 +215,33 @@ class CcrsRuntime:
                 for path in classpath:
                     jpype.addClassPath(path)
             else:
-                logger.info(
+                logger.debug(
                     "%s Starting JPype JVM for opportunistic CCRS; classpath_entries=%s",
                     LOG_PREFIX,
                     len(classpath),
+                )
+                log_ccrs_event(
+                    logger,
+                    "react.ccrs.opportunistic.jvm.start",
+                    {"classpath_entries": len(classpath)},
                 )
                 jpype.startJVM(classpath=classpath, convertStrings=True)
 
             self._load_classes(jpype)
             self._configure_java_logging(jpype)
             if self._opportunistic_ccrs is None:
-                logger.info(
+                logger.debug(
                     "%s Loading default CCRS vocabulary and creating Java "
                     "VocabularyMatcher.",
                     LOG_PREFIX,
                 )
                 vocabulary = self._classes["CcrsVocabularyLoader"].loadDefault()
                 self._opportunistic_ccrs = self._classes["VocabularyMatcher"](vocabulary)
+                log_ccrs_event(
+                    logger,
+                    "react.ccrs.opportunistic.runtime.ready",
+                    {"scanner": "ccrs.core.opportunistic.VocabularyMatcher"},
+                )
 
     def _load_classes(self, jpype: Any) -> None:
         if self._classes:
@@ -287,22 +329,80 @@ class CcrsRuntime:
                 if path
             ]
 
-        gradle_jars = _runtime_jars_under(self.gradle_cache)
-        if gradle_jars:
-            logger.debug(
-                "%s Using %s runtime jars from Gradle dependency cache.",
-                LOG_PREFIX,
-                len(gradle_jars),
-            )
-            return gradle_jars
-
-        maven_jars = _runtime_jars_under(self.maven_repo)
-        logger.debug(
-            "%s Using %s runtime jars from Maven local repository.",
+        dependency_jars = self._resolve_declared_dependency_jars()
+        logger.info(
+            "%s Resolved %s declared Java dependency jars for opportunistic CCRS.",
             LOG_PREFIX,
-            len(maven_jars),
+            len(dependency_jars),
         )
-        return maven_jars
+        return dependency_jars
+
+    def _resolve_declared_dependency_jars(self) -> list[Path]:
+        jars: list[Path] = []
+        missing: list[str] = []
+        for group, artifact_id, version in self._runtime_dependencies:
+            jar = self._find_dependency_jar(group, artifact_id, version)
+            if jar is None:
+                missing.append(f"{group}:{artifact_id}:{version}")
+            else:
+                jars.append(jar)
+
+        if missing:
+            logger.warning(
+                "%s Missing declared dependency jars: %s",
+                LOG_PREFIX,
+                ", ".join(missing),
+            )
+            log_ccrs_event(
+                logger,
+                "react.ccrs.opportunistic.classpath.missing_dependencies",
+                {"count": len(missing), "coordinates": ",".join(missing)},
+            )
+        return jars
+
+    def _find_dependency_jar(
+        self,
+        group: str,
+        artifact_id: str,
+        version: str,
+    ) -> Path | None:
+        maven_jar = self._find_artifact_jar_in_maven(self.maven_repo, group, artifact_id, version)
+        if maven_jar is not None:
+            return maven_jar
+        return self._find_artifact_jar_in_gradle_cache(group, artifact_id, version)
+
+    def _find_artifact_jar_in_maven(
+        self,
+        root: Path,
+        group: str,
+        artifact_id: str,
+        version: str,
+    ) -> Path | None:
+        artifact_dir = root.joinpath(*group.split("."), artifact_id, version)
+        if not artifact_dir.exists():
+            return None
+        candidates = sorted(
+            path
+            for path in artifact_dir.glob(f"{artifact_id}-{version}*.jar")
+            if not _is_non_runtime_jar(path)
+        )
+        return candidates[0] if candidates else None
+
+    def _find_artifact_jar_in_gradle_cache(
+        self,
+        group: str,
+        artifact_id: str,
+        version: str,
+    ) -> Path | None:
+        artifact_dir = self.gradle_cache.joinpath(group, artifact_id, version)
+        if not artifact_dir.exists():
+            return None
+        candidates = sorted(
+            path
+            for path in artifact_dir.rglob(f"{artifact_id}-{version}*.jar")
+            if not _is_non_runtime_jar(path)
+        )
+        return candidates[0] if candidates else None
 
     def _new_java_array_list(self) -> Any:
         return self._classes["ArrayList"]()
@@ -355,16 +455,6 @@ def get_default_runtime() -> CcrsRuntime:
     if _default_runtime is None:
         _default_runtime = CcrsRuntime.from_maven_local()
     return _default_runtime
-
-
-def _runtime_jars_under(root: Path) -> list[Path]:
-    if not root.exists():
-        return []
-    return sorted(
-        path
-        for path in root.rglob("*.jar")
-        if not _is_non_runtime_jar(path)
-    )
 
 
 def _is_non_runtime_jar(path: Path) -> bool:

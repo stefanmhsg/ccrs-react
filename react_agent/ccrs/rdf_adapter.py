@@ -3,6 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
+class CcrsRdfParseError(ValueError):
+    """Raised when a tool observation is not parseable RDF/Turtle."""
+
+
 @dataclass(frozen=True)
 class RdfTripleValue:
     """Python-side RDF triple value passed into Java opportunistic CCRS."""
@@ -19,7 +23,10 @@ def parse_turtle_triples(content: str) -> list[RdfTripleValue]:
     from rdflib import Graph
 
     graph = Graph()
-    graph.parse(data=content, format="turtle")
+    try:
+        graph.parse(data=content, format="turtle")
+    except Exception as exc:
+        raise CcrsRdfParseError("Tool observation is not valid Turtle RDF.") from exc
     return [
         RdfTripleValue(subject=str(subject), predicate=str(predicate), object=str(object_))
         for subject, predicate, object_ in graph

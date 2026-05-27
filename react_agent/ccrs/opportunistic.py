@@ -6,11 +6,13 @@ from typing import Any
 from langchain_core.messages import ToolMessage
 from langchain_core.runnables import RunnableConfig
 
+from react_agent.ccrs.audit import log_ccrs_event
+from react_agent.ccrs.rdf_adapter import CcrsRdfParseError
 from react_agent.ccrs.runtime import CcrsRuntime, CcrsRuntimeError, get_default_runtime
 
 
 logger = logging.getLogger(__name__)
-LOG_PREFIX = "[Opportunistic CCRS]"
+LOG_PREFIX = "[React CCRS][Opportunistic]"
 
 
 def make_opportunistic_ccrs_node(runtime: CcrsRuntime | None = None):
@@ -20,59 +22,120 @@ def make_opportunistic_ccrs_node(runtime: CcrsRuntime | None = None):
         # Opportunistic CCRS runs after tools so it can interpret fresh RDF observations.
         messages = state.get("messages", [])
         if not messages:
-            logger.warning("%s No messages found in state.", LOG_PREFIX)
+            _log_cycle_event("react.ccrs.opportunistic.skipped", state, config, {"reason": "no_messages"})
             return {}
 
         last = messages[-1]
         if not isinstance(last, ToolMessage):
-            logger.info(
-                "%s Last message is not a ToolMessage; skipping opportunistic CCRS.",
-                LOG_PREFIX,
-            )
+            _log_cycle_event("react.ccrs.opportunistic.skipped", state, config, {"reason": "not_tool_message"})
             return {}
 
         if not isinstance(last.content, str):
-            logger.info(
-                "%s ToolMessage content is not text/Turtle; skipping opportunistic CCRS.",
-                LOG_PREFIX,
+            _log_cycle_event(
+                "react.ccrs.opportunistic.skipped",
+                state,
+                config,
+                {
+                    "reason": "non_text_tool_content",
+                    "tool_call_id": str(last.tool_call_id),
+                    "tool_name": last.name,
+                },
             )
             return {}
 
         active_runtime = _runtime_from_config(config) or runtime or get_default_runtime()
-        context = _tool_message_context(last)
-        logger.info(
-            "%s Evaluating tool observation with Java VocabularyMatcher.scanAll; "
-            "tool_call_id=%s tool_name=%s content_length=%s",
-            LOG_PREFIX,
-            context.get("tool_call_id"),
-            context.get("tool_name"),
-            len(last.content),
+        context = _tool_message_context(last, state, config)
+        log_ccrs_event(
+            logger,
+            "react.ccrs.opportunistic.evaluate",
+            {
+                **_cycle_fields(state, config),
+                "tool_call_id": context.get("tool_call_id"),
+                "tool_name": context.get("tool_name"),
+                "content_length": len(last.content),
+            },
         )
 
         try:
             ccrs_entries = active_runtime.evaluate_turtle(last.content, context=context)
+        except CcrsRdfParseError:
+            _log_cycle_event(
+                "react.ccrs.opportunistic.skipped",
+                state,
+                config,
+                {
+                    "reason": "invalid_turtle",
+                    "tool_call_id": context.get("tool_call_id"),
+                    "tool_name": context.get("tool_name"),
+                    "content_length": len(last.content),
+                },
+            )
+            return {}
         except CcrsRuntimeError:
             logger.exception("%s Java CCRS runtime failed.", LOG_PREFIX)
+            _log_cycle_event(
+                "react.ccrs.opportunistic.failed",
+                state,
+                config,
+                {
+                    "reason": "runtime_error",
+                    "tool_call_id": context.get("tool_call_id"),
+                    "tool_name": context.get("tool_name"),
+                },
+            )
             return {}
         except Exception:
             logger.exception("%s Failed to evaluate tool observation.", LOG_PREFIX)
-            return {}
-
-        if not ccrs_entries:
-            logger.info(
-                "%s Java opportunistic CCRS returned no entries; tool_call_id=%s",
-                LOG_PREFIX,
-                context.get("tool_call_id"),
+            _log_cycle_event(
+                "react.ccrs.opportunistic.failed",
+                state,
+                config,
+                {
+                    "reason": "evaluation_error",
+                    "tool_call_id": context.get("tool_call_id"),
+                    "tool_name": context.get("tool_name"),
+                },
             )
             return {}
 
-        logger.info(
-            "%s Java opportunistic CCRS returned %s entries; tool_call_id=%s",
-            LOG_PREFIX,
-            len(ccrs_entries),
-            context.get("tool_call_id"),
+        if not ccrs_entries:
+            _log_cycle_event(
+                "react.ccrs.opportunistic.no_annotations",
+                state,
+                config,
+                {
+                    "tool_call_id": context.get("tool_call_id"),
+                    "tool_name": context.get("tool_name"),
+                    "entries": 0,
+                },
+            )
+            return {}
+
+        for entry in ccrs_entries:
+            log_ccrs_event(
+                logger,
+                "react.ccrs.opportunistic.detected",
+                {
+                    **_cycle_fields(state, config),
+                    "tool_call_id": context.get("tool_call_id"),
+                    "tool_name": context.get("tool_name"),
+                    "target": entry.get("target"),
+                    "type": entry.get("type"),
+                    "pattern_id": entry.get("pattern_id"),
+                    "utility": entry.get("utility"),
+                },
+            )
+        _log_cycle_event(
+            "react.ccrs.opportunistic.cycle_annotations",
+            state,
+            config,
+            {
+                "tool_call_id": context.get("tool_call_id"),
+                "tool_name": context.get("tool_name"),
+                "entries": len(ccrs_entries),
+            },
         )
-        logger.debug("%s CCRS entries: %s", LOG_PREFIX, ccrs_entries)
+        logger.debug("%s Appending CCRS entries: %s", LOG_PREFIX, ccrs_entries)
         return {"ccrs": ccrs_entries}
 
     return opportunistic_ccrs_node
@@ -86,10 +149,36 @@ def _runtime_from_config(config: RunnableConfig) -> CcrsRuntime | None:
     return runtime
 
 
-def _tool_message_context(message: ToolMessage) -> dict[str, str]:
+def _tool_message_context(
+    message: ToolMessage,
+    state: dict[str, Any],
+    config: RunnableConfig,
+) -> dict[str, str]:
     context = {
         "tool_call_id": str(message.tool_call_id),
+        "origin": "react-opportunistic-ccrs",
     }
     if message.name:
         context["tool_name"] = str(message.name)
+    context.update(_cycle_fields(state, config))
     return context
+
+
+def _cycle_fields(state: dict[str, Any], config: RunnableConfig) -> dict[str, str]:
+    configuration = (config or {}).get("configurable", {})
+    cycle = state.get("cycle", {})
+    fields = {
+        "agent_name": str(configuration.get("agent_name", "React")),
+        "cycle": str(cycle.get("number", 0)),
+        "cycle_timestamp": str(cycle.get("timestamp", "")),
+    }
+    return fields
+
+
+def _log_cycle_event(
+    event: str,
+    state: dict[str, Any],
+    config: RunnableConfig,
+    fields: dict[str, Any],
+) -> None:
+    log_ccrs_event(logger, event, {**_cycle_fields(state, config), **fields})

@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     agent_name: str = Field("React")
     langchain_project: str = Field("react")
 
-    llm_model: str = Field("gpt-5-mini") # gpt-5-nano-2025-08-07 or gpt-5-mini
+    llm_model: str = Field("gpt-5-nano-2025-08-07") # gpt-5-nano-2025-08-07 or gpt-5-mini
     llm_temperature: float = Field(1.0) # gpt 5 only accepts 1.0
     llm_reasoning_effort: str = Field("minimal") # gpt-5-nano does not support "none"; "minimal" is the lowest effort
 

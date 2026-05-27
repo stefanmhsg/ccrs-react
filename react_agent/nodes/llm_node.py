@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timezone
 from typing import Any
 from langchain_core.runnables import RunnableConfig
 from langchain_openai import ChatOpenAI
@@ -38,7 +39,11 @@ def llm_node(
     logging.debug(f"LLM node received response: {response}")
     logging.info(f"LLM node tool calls: {response.tool_calls}")
 
+    next_cycle = int(state.get("cycle", {}).get("number", 0)) + 1
     return {
         "messages": [response],
-        "number_of_cycles": state.get("number_of_cycles", 0) + 1,
+        "cycle": {
+            "number": next_cycle,
+            "timestamp": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
+        },
     }

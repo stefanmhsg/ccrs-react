@@ -16,9 +16,10 @@ Can be run either via the commandline tool or the notebook.
 python -m pip install -r requirements.txt
 ```
 
-For opportunistic CCRS, also make sure the sibling CCRS Java libraries have
-been published to local Maven as described in
-[CCRS_README.md](CCRS_README.md).
+For opportunistic CCRS, see the React adapter notes in
+[react_agent/ccrs/README.md](react_agent/ccrs/README.md). The longer-running
+implementation plan is tracked in
+[PLAN_CCRS_README.md](PLAN_CCRS_README.md).
 
 ### Notebook
 
