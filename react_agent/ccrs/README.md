@@ -40,8 +40,8 @@ from react_agent.ccrs import opportunistic_ccrs_node
 ```
 
 Contingency CCRS is intentionally not implemented in this package yet. It
-should be added only after the opportunistic adapter boundary has focused
-test or smoke-script coverage.
+should be added only after the opportunistic adapter boundary remains stable
+under the smoke-validation commands tracked in the plan.
 
 ## Files
 

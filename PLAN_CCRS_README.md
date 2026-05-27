@@ -21,13 +21,11 @@ The goal is to make the Python ReAct/LangGraph agent consume the reusable Java C
 - [x] (2026-05-27) Renamed React adapter audit events to `[REACT-CCRS-EVENT] event=react.ccrs...` so they are distinguishable from Java library `[CCRS-EVENT] event=ccrs...` lines.
 - [x] (2026-05-27) Classified invalid/non-RDF tool output as `react.ccrs.opportunistic.skipped reason=invalid_turtle` instead of an opportunistic CCRS evaluation failure.
 - [x] (2026-05-27) Added a React adapter Java logging bridge that writes Java `ccrs-core` JUL records to a per-run `logs/<run>.java.log` companion file.
-- [ ] Add focused tests or smoke scripts for the adapter boundary so Java-backed scans and state merge behavior can be validated without a full LLM/maze run.
 - [x] (2026-05-27) Updated root documentation links so `README.md` points to the React CCRS adapter documentation in `react_agent/ccrs/README.md` and this plan.
 - [x] (2026-05-27) Established `react_agent/ccrs/README.md` as the React-specific CCRS documentation file while this file remains the executable implementation plan.
 - [x] (2026-05-27) Added concise repository guidance in `AGENTS.md` for scope approval, plan usage, Decision Log highlighting, and CCRS conceptual starting points.
-- [ ] Preserve RDF memory across graph cycles.
-- [ ] Capture structured HTTP request/response/failure history from Python tools.
-- [ ] Add contingency CCRS evaluation for tool failures after opportunistic CCRS is test-covered.
+- [x] (2026-05-27) Verified milestones 1-3 with smoke checks for compile/build, simple and structural Java-backed opportunistic scans, invalid-Turtle skipping, React/Java log output, and JaCaMo opportunistic adapter feature comparison.
+- [ ] Add contingency CCRS evaluation for tool failures after opportunistic CCRS smoke validation remains stable.
 - [ ] Decide whether and when the adapter should become a separate reusable package such as `ccrs-react-python` or `ccrs-langgraph`.
 
 ## Surprises & Discoveries
@@ -52,6 +50,9 @@ The goal is to make the Python ReAct/LangGraph agent consume the reusable Java C
 
 - Observation: Java CCRS logs were not missing because Java failed to log; they were missing from the Python file because Java JUL handlers and Python file handlers are separate logging systems.
   Evidence: `ccrs-core` uses `java.util.logging.Logger` in classes such as `CcrsVocabularyLoader`, `CcrsVocabulary`, and `VocabularyMatcher`, while `react_agent/utils/logging_config.py` writes only Python logging records to `logs/<run>.log`.
+
+- Observation: The JaCaMo opportunistic adapter has Jason-specific integration points that should not be copied directly into the React adapter.
+  Evidence: `ccrs-jacamo` provides BRF/belief-base integration through `CcrsAgent`, CArtAgO percept batching through `CcrsAgentArch`, and deterministic AgentSpeak option reordering through `ccrs.jacamo.jason.opportunistic.prioritize`. The React adapter covers the shared CCRS library boundary by calling Java `VocabularyMatcher.scanAll(...)`, but intentionally exposes results as advisory prompt context rather than Jason `ccrs/3` beliefs or forced option ordering.
 
 ## Decision Log
 
@@ -91,9 +92,17 @@ The goal is to make the Python ReAct/LangGraph agent consume the reusable Java C
   Rationale: The Java library uses `java.util.logging`, while the React agent uses Python logging. Writing both runtimes into one file risks handler conflicts and interleaving, especially on Windows. A companion file keeps Java library logs auditable and tied to the same run name without coupling Java logging to Python internals.
   Date/Author: 2026-05-27 / User direction and Codex implementation
 
+- Decision: Contingency CCRS should operate on the normal LangGraph `messages` state rather than a separate structured HTTP/tool history channel.
+  Rationale: The message state already preserves the clear cause-effect trace the agent used, including tool calls, tool responses, and error responses. Adding a separate structured tool-history state would duplicate that trace and is not desired for the current React adapter direction.
+  Date/Author: 2026-05-27 / User direction
+
+- Decision: Keep the React CCRS adapter generic by preferring standard LangGraph/ReAct messages over custom duplicated state fields.
+  Rationale: The adapter should be shaped like a typical reusable React/LangGraph integration. `messages` remains the source of truth for observations, tool calls, tool responses, and errors. Extra state should be limited to adapter outputs that cannot be represented as normal messages, such as advisory CCRS annotations.
+  Date/Author: 2026-05-27 / User direction
+
 ## Outcomes & Retrospective
 
-The opportunistic CCRS adapter is no longer just a design direction. It has a runnable LangGraph node, lazy public imports through `react_agent.ccrs`, Java-backed `VocabularyMatcher.scanAll(...)` evaluation, append-only CCRS state, prompt-time filtering by latest tool call ID, and React-specific audit events for verification. The main remaining gap is testability: the adapter has been smoke-tested manually with the project Anaconda interpreter, but the repository does not yet contain focused tests or scripts that future sessions can run to prove the behavior without a full maze and LLM run. Documentation now points from the root README to the React-specific adapter documentation in `react_agent/ccrs/README.md`, while this file remains the long-running execution plan.
+The opportunistic CCRS adapter is no longer just a design direction. It has a runnable LangGraph node, lazy public imports through `react_agent.ccrs`, Java-backed `VocabularyMatcher.scanAll(...)` evaluation, append-only CCRS state, prompt-time filtering by latest tool call ID, React-specific audit events, and Java companion logs for verification. Current validation is smoke-oriented: compile the package, build both graphs, run a Java-backed Turtle scan with the project Anaconda interpreter, and inspect the React and Java log outputs. Documentation now points from the root README to the React-specific adapter documentation in `react_agent/ccrs/README.md`, while this file remains the long-running execution plan.
 
 ## Context and Orientation
 
@@ -123,29 +132,25 @@ The current public adapter imports are exposed by `react_agent/ccrs/__init__.py`
 
 ## Milestones
 
-Milestone 1 is to keep opportunistic CCRS runtime-solid and auditable. At the end of this milestone, a developer can run a small Java-backed scan with `S:\anaconda\agent\python.exe`, see a CCRS annotation dictionary returned, and see `[REACT-CCRS-EVENT]` logs showing adapter classpath resolution, JVM start, runtime readiness, evaluation, and detection.
+Milestone 1 is complete. Its purpose was to keep opportunistic CCRS runtime-solid and auditable. A developer can run small Java-backed scans with `S:\anaconda\agent\python.exe`, see CCRS annotation dictionaries returned, and see `[REACT-CCRS-EVENT]` logs showing adapter classpath resolution, JVM start, runtime readiness, evaluation, and detection.
 
-Milestone 2 is to make the state and prompt path testable without live OpenAI calls. At the end of this milestone, a focused test or script should prove that `opportunistic_ccrs_node` appends only non-empty Java-backed results, that no-result paths return no state update, and that `llm_node_ccrs_v2.py` filters append-only CCRS history by latest tool call IDs.
+Milestone 2 is complete. Its purpose was to keep the adapter boundary smoke-verifiable without live OpenAI calls. The commands in this plan demonstrate that Java-backed scans produce annotations, invalid Turtle is skipped without stack traces, graph builders still compile, and prompt injection continues to filter append-only CCRS history by latest tool call IDs.
 
-Milestone 3 is to document and settle the adapter boundary. At the end of this milestone, root documentation links should point to the React CCRS adapter README, this plan should be discoverable, and repository guidance should prevent accidental scope expansion during CCRS work.
+Milestone 3 is complete. Its purpose was to document and settle the adapter boundary. Root documentation links point to the React CCRS adapter README, this plan is discoverable, and repository guidance prevents accidental scope expansion during CCRS work.
 
-Milestone 4 is to prepare for contingency CCRS without implementing it prematurely. At the end of this milestone, the plan should describe the required Python state additions for RDF memory, current resource, tool interaction history, and failure situations, and should identify which Java contingency APIs will be wrapped first.
+Milestone 4 is to prepare for contingency CCRS without implementing it prematurely. At the end of this milestone, the plan should describe how contingency evaluation reads the existing LangGraph `messages` state to derive current resource and failure situations, and should identify which Java contingency APIs will be wrapped first.
 
 ## Plan of Work
 
 First, preserve the current opportunistic CCRS implementation and avoid broad rewrites. Keep `react_agent/ccrs/runtime.py` as the owner of JPype startup, Java classpath resolution, Java object creation, and Java result conversion. Keep `react_agent/ccrs/rdf_adapter.py` as the only Turtle-to-Python-triple parser. Keep `react_agent/ccrs/opportunistic.py` as the LangGraph node factory. Keep `react_agent/ccrs/state.py` as the CCRS graph state helper rather than moving the whole application state into the adapter package.
 
-Second, add focused validation around the adapter boundary. This should be approached as a narrow adapter test, not as an end-to-end maze or LLM run. A minimal script or test should construct a `ToolMessage` with Turtle containing the default green signifier predicate `https://kaefer3000.github.io/2021-02-dagstuhl/vocab#green`, pass it through `make_opportunistic_ccrs_node()`, and assert that the returned update contains one `ccrs` entry with `type == "signifier"`, a `pattern_id` ending in `#green`, the original `tool_call_id`, and `utility == 0.7`. Another test should use valid Turtle with no matching CCRS pattern and assert that the node returns `{}` rather than mutating `ccrs`. A third check should exercise the LangGraph reducer behavior by merging two returned `ccrs` updates and confirming that the list appends rather than replaces earlier annotations.
+Second, keep validation smoke-oriented. Do not add a dedicated test suite unless the user asks for it. Use short Python commands to verify the adapter boundary: one Java-backed Turtle scan with the default green signifier predicate `https://kaefer3000.github.io/2021-02-dagstuhl/vocab#green`, one invalid-Turtle check that returns `{}` with `reason=invalid_turtle`, and graph-builder checks that both baseline and CCRS graphs still return `CompiledStateGraph`.
 
-Third, improve prompt-path validation without calling the LLM. Extract the filtering logic from `react_agent/nodes/llm_node_ccrs_v2.py` into a small helper if that makes tests practical. The helper should accept messages and `ccrs` history, find latest tool call IDs from the most recent `AIMessage`, and return JSON text. It should return `"[]"` when nothing matches and JSON for only current tool-call-related entries when matches exist. This proves the append-only state design remains prompt-safe.
+Third, keep prompt-path validation lightweight. The important behavior is that `react_agent/nodes/llm_node_ccrs_v2.py` finds the latest tool call IDs from the most recent `AIMessage` and exposes only matching append-only CCRS entries as advisory prompt context. If this logic changes, validate it with a small local smoke command or notebook cell rather than adding formal tests by default.
 
 Fourth, maintain the documentation boundary. `react_agent/ccrs/README.md` is the React CCRS adapter documentation file and should be referenced by the root README and this plan. `PLAN_CCRS_README.md` is the execution plan and should record progress, decisions, discoveries, validation, and future work. `AGENTS.md` should remain concise and should direct future sessions to this plan before complex CCRS work.
 
-Fifth, preserve RDF memory across graph cycles as future work. The intention is to retain machine-readable observations across cycles so later CCRS logic can reason over what the agent has learned, not just the latest prompt text. This is especially relevant for contingency behavior, where recovery may depend on the current resource, prior RDF observations, repeated failures, or a changed interpretation of earlier observations.
-
-Sixth, capture structured HTTP request, response, and failure history from Python tools as future work. The intention is to make tool interaction history auditable and machine-readable: method, URL, status, headers or content type, selected body details, exception type, timestamp, tool name, tool call ID, and cycle. This history gives contingency CCRS a concrete failure surface instead of forcing it to infer failures from free-form tool text.
-
-Seventh, add contingency CCRS evaluation for tool failures only after opportunistic CCRS is test-covered. The first contingency step should map structured tool failures into the Java contingency model, evaluate candidate revision strategies, and return advisory annotations through a separate state/prompt path. Do not mix contingency behavior into the opportunistic CCRS node.
+Fifth, keep future contingency work message-driven. The first contingency step should derive failure situations from the normal LangGraph `messages` state, map those situations into the Java contingency model, evaluate candidate revision strategies, and return advisory annotations through a separate prompt path. Do not mix contingency behavior into the opportunistic CCRS node, and do not introduce duplicate RDF-memory, HTTP-history, or tool-history state channels unless a concrete adapter boundary requires it.
 
 ## Concrete Steps
 
@@ -281,3 +286,9 @@ The Java dependency is the Maven-local artifact `io.github.stefanmhsg.ccrs:ccrs-
 2026-05-27: Updated invalid RDF handling after log analysis. Non-Turtle tool outputs are now skipped with `reason=invalid_turtle` instead of being logged as opportunistic CCRS evaluation failures.
 
 2026-05-27: Added Java CCRS companion logging after user direction. `setup_logging(...)` now publishes per-run log paths, and `react_agent.ccrs.java_logging` configures Java JUL records from `ccrs-core` into `logs/<run>.java.log`.
+
+2026-05-27: Removed the structured HTTP request/response/failure history task after user direction. Contingency CCRS should operate on the existing LangGraph `messages` state, which already provides the cause-effect trace of tool calls, tool responses, and errors.
+
+2026-05-27: Removed the RDF memory task after user direction. The React CCRS adapter should remain generic and message-driven, using normal LangGraph/ReAct messages as the source of truth instead of introducing custom duplicated memory fields.
+
+2026-05-27: Verified milestones 1-3 as complete after smoke checks and comparison against `ccrs-jacamo` opportunistic features. React covers the shared Java opportunistic scanning boundary, including simple and structural `scanAll(...)` results, while Jason-specific belief-base and prioritization behavior remain intentionally out of scope.
