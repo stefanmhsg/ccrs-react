@@ -25,7 +25,8 @@ The goal is to make the Python ReAct/LangGraph agent consume the reusable Java C
 - [x] (2026-05-27) Established `react_agent/ccrs/README.md` as the React-specific CCRS documentation file while this file remains the executable implementation plan.
 - [x] (2026-05-27) Added concise repository guidance in `AGENTS.md` for scope approval, plan usage, Decision Log highlighting, and CCRS conceptual starting points.
 - [x] (2026-05-27) Verified milestones 1-3 with smoke checks for compile/build, simple and structural Java-backed opportunistic scans, invalid-Turtle skipping, React/Java log output, and JaCaMo opportunistic adapter feature comparison.
-- [ ] Add contingency CCRS evaluation for tool failures after opportunistic CCRS smoke validation remains stable.
+- [ ] Continue contingency CCRS adapter design discussion; current working notes are recorded in the `Contingency CCRS Design Discussion` section.
+- [ ] Design and implement contingency CCRS evaluation for explicit tool errors and semantic escalation cases after the adapter boundary is settled.
 - [ ] Decide whether and when the adapter should become a separate reusable package such as `ccrs-react-python` or `ccrs-langgraph`.
 
 ## Surprises & Discoveries
@@ -138,7 +139,71 @@ Milestone 2 is complete. Its purpose was to keep the adapter boundary smoke-veri
 
 Milestone 3 is complete. Its purpose was to document and settle the adapter boundary. Root documentation links point to the React CCRS adapter README, this plan is discoverable, and repository guidance prevents accidental scope expansion during CCRS work.
 
-Milestone 4 is to prepare for contingency CCRS without implementing it prematurely. At the end of this milestone, the plan should describe how contingency evaluation reads the existing LangGraph `messages` state to derive current resource and failure situations, and should identify which Java contingency APIs will be wrapped first.
+Milestone 4 is to prepare for contingency CCRS without implementing it prematurely. At the end of this milestone, the plan should describe how contingency evaluation reads the existing LangGraph `messages` state to derive contingency situations, current resource context, interaction history, RDF query context, strategy-selection behavior, and Java APIs to wrap first.
+
+## Contingency CCRS Design Discussion
+
+This section records the current in-progress design discussion for the React contingency CCRS adapter. It is intentionally not a final implementation plan yet.
+
+The emerging packages are:
+
+### Package A: Java Contingency Bridge
+
+This package owns the Python-to-Java boundary for contingency CCRS. It maps React/Python values to Java `Situation`, provides calls into `ContingencyCcrs.evaluate(...)`, and converts Java `StrategyResult.Suggestion` and `StrategyResult.NoHelp` values into Python dictionaries suitable for LangGraph state and logs.
+
+At a general CCRS level, contingency CCRS should be treated as a strategy-evaluation layer, not as another vocabulary scanner. The Java input is currently a `Situation` with fields such as type, trigger, current resource, target resource, failed action, error information, and metadata. The current Java enum values `FAILURE`, `STUCK`, `UNCERTAINTY`, and `PROACTIVE` should be treated with care. This situation typing is one of the least developed parts of the current model, and it is not yet clear that an enum is the ideal long-term representation for contingency triggers.
+
+This package also needs to expose strategy-selection behavior instead of hiding it. The core does not always mean "evaluate the first applicable strategy and stop." `ContingencyConfiguration` supports `SEQUENTIAL`, `BEST_PER_LEVEL`, and `PARALLEL`, and the default currently uses trace-based strategy selection. Depending on configuration and learned trace history, multiple strategies can be evaluated and selected suggestions are ranked by confidence. `StopStrategy` is treated specially as a fallback and is skipped when recovery suggestions already exist. React contingency design should log the strategy-selection policy, evaluated strategies, selected suggestions, Java trace identifiers, and no-help results rather than assuming one strategy maps to one outcome.
+
+The React equivalent of JaCaMo `ccrs.contingency.evaluate(...)` belongs here. It should build the Java `Situation`, provide the React `CcrsContext`, call `ContingencyCcrs.evaluate(...)`, convert results, and emit auditable React-side events.
+
+### Package B: React CcrsContext From Messages
+
+This package adapts normal LangGraph/ReAct `messages` into the Java `CcrsContext` contract. It should provide `CcrsContext.query(...)`, interaction history, current resource lookup, agent identity, and CCRS trace history without introducing duplicated HTTP-history or RDF-memory state unless a concrete boundary requires it.
+
+The Java `CcrsContext.query(subject, predicate, object)` contract is RDF pattern matching. `null` means wildcard, and the result is a list of `RdfTriple` values matching the pattern. In React, the likely context implementation should answer `query(...)` by parsing RDF/Turtle from normal `ToolMessage` history. The open questions are scope and ordering: all parseable tool messages, only recent messages, only successful `http_get` observations, or a bounded per-cycle window. This should be decided based on strategy needs and experiment auditability.
+
+The adapter should stay message-driven for now. The normal LangGraph `messages` state already carries the cause-effect sequence of `AIMessage.tool_calls` and `ToolMessage` responses. If Java `Interaction` records need method, URI, outcome, perceived RDF triples, and timestamps, the React adapter can derive those records from the existing AI/tool message pairs. Timestamp handling is still ambiguous: Java `Interaction` has request and response timestamps, while current React messages do not store explicit request/response times. Possible first-pass options are cycle timestamps, conversion-time timestamps, or zero/unknown values.
+
+For the MaSE maze scenario, `currentResource` can reasonably mean the agent's current location. This is context-dependent, not universal adapter logic. The React adapter should preserve the generic parameter while documenting the agent-designer rationale for how it is derived. A likely maze interpretation is "last known successful location," but failed `GET` and `POST` attempts complicate that. If the agent tries several requests that all fail, the current resource probably remains the last successful location rather than the last attempted target. This should remain explicit policy, not hidden in generic CCRS code.
+
+Trace history also belongs in this package. JaCaMo handles trace history through its adapter context rather than through the belief base. `JasonCcrsContext` owns an `InMemoryCcrsTraceHistory` and implements `getLastCcrsInvocation()`, `getCcrsHistory(maxCount)`, and `recordCcrsInvocation(trace)`. This matters because retry limits, stop exhaustion, and trace-based strategy selection depend on recorded traces. The React equivalent still needs discussion: it could call Java `InMemoryCcrsTraceHistory` through JPype, use an adapter-owned Python trace store while satisfying the Java interface, store traces in state, or tie the trace lifecycle to a graph execution context. Because the React design aims to avoid custom duplicated state, a small adapter-owned trace store may be preferable, but this is not settled.
+
+### Package C: Escalation And Graph Routing
+
+This package decides when contingency CCRS runs and how control moves through the graph. The target scope is broader than actual tool/runtime errors. Contingency CCRS should eventually handle semantic failure as well: low progress, repeated unproductive actions, blocked navigation, missing expected affordances, contradictory observations, or other cases where a request technically succeeds but the agent is no longer making useful progress. The open design problem is deciding when the React agent should escalate to contingency CCRS at all.
+
+Agent designers need a way to specify escalation mode. Candidate inputs include non-successful API/tool responses, semantic progress metrics, repeated unproductive cycles, and an LLM-facing self-escalation hook. The adapter may also expose a tool that lets the LLM request contingency evaluation; the agent designer can choose whether to include that tool.
+
+The decision node should import a small helper from the React CCRS adapter to route control. The current direction is that contingency CCRS should be authoritative while it is invoked. Opportunistic CCRS is advisory-only, but contingency evaluation should be able to skip normal tool execution when a contingency activation flag is set. One possible graph shape is `llm -> decision -> tools -> ccrs_node -> llm` in normal operation, with `decision -> ccrs_node` when contingency is active. Another variant evaluates an LLM-emitted tool call first and then invokes contingency CCRS based on the result. This variant should be explicit and auditable.
+
+A small contingency activation state should record whether contingency CCRS is active for a given cycle, why it was activated, and which cycle it belongs to. This keeps experiment inspection straightforward: a run log or state snapshot should show exactly which cycles invoked contingency CCRS.
+
+Stop behavior should be deterministic. If contingency CCRS returns a stop suggestion, the React graph should terminate automatically instead of forcing another tool call. This likely requires changing the current CCRS LLM path, because `llm_node_ccrs_v2.py` currently binds tools with `tool_choice="any"`.
+
+### Package D: CCRS Node, State, Prompt, And Correlation
+
+This package owns how opportunistic and contingency outputs are represented in LangGraph state and surfaced to the LLM. Consider evolving the current `opportunistic_ccrs_node` into a more general `ccrs_node` that owns both opportunistic and contingency CCRS processing. Opportunistic processing remains the default path after tool observations. Contingency processing is gated behind state set by the decision node or self-escalation tool.
+
+The output state probably should split opportunistic and contingency annotations. Opportunistic CCRS produces preference annotations over RDF observations; contingency CCRS produces strategy suggestions and may also produce opportunistic guidance. A likely state shape is separate append-only channels for opportunistic CCRS annotations and contingency CCRS suggestions, with prompt injection rendering them in separate sections.
+
+Prompt injection should treat contingency differently from opportunistic CCRS. Contingency suggestions should be surfaced with stronger and more directive wording than opportunistic advisory context, while still preserving a clean audit trail of what Java suggested.
+
+Contingency strategies may output `OpportunisticResult` guidance. If a contingency strategy emits such guidance, for example `BacktrackStrategy` guidance for backtrack steps or unexplored options, that guidance should be added as normal opportunistic CCRS items rather than hidden inside the contingency suggestion only.
+
+Correlation is a known open issue. Current opportunistic CCRS activates after the `tools` node, scans the latest `ToolMessage` when it is parseable Turtle, stores entries with the source `tool_call_id`, and prompt injection later filters entries by the most recent `AIMessage.tool_calls`. That works for tool-observation-derived annotations. It may not work for contingency-generated opportunistic guidance, because those entries are not naturally caused by a new tool call. React contingency design may need richer correlation, such as cycle, origin, target URI, source RDF triples, current resource, strategy id, or trace id. Triple-based surfacing is worth investigating because opportunistic CCRS notes target specific RDF triples or triple-derived targets. Surfaced guidance may also need a consumed/dispensed marker so relevant guidance can be shown once without becoming permanent prompt noise.
+
+### Package E: Optional Capability Integrations
+
+Both optional Java-side capability paths remain in scope for later contingency work. The React adapter should eventually account for `PredictionLlmStrategy` and A2A-backed `ConsultationStrategy`, even if the first implementation focuses on core retry/backtrack/stop behavior.
+
+For `PredictionLlmStrategy`, the design must decide whether Java-side LLM prediction should use a Java `LlmClient`, a Python-backed JPype proxy, or stay disabled while the React LLM loop handles prediction. For A2A consultation, the design should plan a later capability integration rather than exclude it from the React adapter direction.
+
+### Package F: Audit And Experiment Inspection
+
+This package keeps contingency behavior auditable. Important audit fields include cycle number, activation reason, situation fields, strategy-selection policy, evaluated strategy IDs, suggestion and no-help counts, top suggestion, stop decision, opportunistic-guidance counts, Java trace ID, and any correlation keys used to surface or consume guidance.
+
+The audit surface should distinguish React adapter events from Java CCRS library events, following the existing `[REACT-CCRS-EVENT] event=react.ccrs...` pattern for React-side logs and the Java companion log for Java library behavior.
 
 ## Plan of Work
 
@@ -150,7 +215,7 @@ Third, keep prompt-path validation lightweight. The important behavior is that `
 
 Fourth, maintain the documentation boundary. `react_agent/ccrs/README.md` is the React CCRS adapter documentation file and should be referenced by the root README and this plan. `PLAN_CCRS_README.md` is the execution plan and should record progress, decisions, discoveries, validation, and future work. `AGENTS.md` should remain concise and should direct future sessions to this plan before complex CCRS work.
 
-Fifth, keep future contingency work message-driven. The first contingency step should derive failure situations from the normal LangGraph `messages` state, map those situations into the Java contingency model, evaluate candidate revision strategies, and return advisory annotations through a separate prompt path. Do not mix contingency behavior into the opportunistic CCRS node, and do not introduce duplicate RDF-memory, HTTP-history, or tool-history state channels unless a concrete adapter boundary requires it.
+Fifth, keep future contingency work message-driven. The first contingency step should derive explicit and semantic contingency situations from the normal LangGraph `messages` state, map those situations into the Java contingency model, evaluate candidate revision strategies, and return contingency suggestions through a separate prompt path. Do not mix contingency behavior into the opportunistic CCRS node, and do not introduce duplicate RDF-memory, HTTP-history, or tool-history state channels unless a concrete adapter boundary requires it.
 
 ## Concrete Steps
 
@@ -292,3 +357,9 @@ The Java dependency is the Maven-local artifact `io.github.stefanmhsg.ccrs:ccrs-
 2026-05-27: Removed the RDF memory task after user direction. The React CCRS adapter should remain generic and message-driven, using normal LangGraph/ReAct messages as the source of truth instead of introducing custom duplicated memory fields.
 
 2026-05-27: Verified milestones 1-3 as complete after smoke checks and comparison against `ccrs-jacamo` opportunistic features. React covers the shared Java opportunistic scanning boundary, including simple and structural `scanAll(...)` results, while Jason-specific belief-base and prioritization behavior remain intentionally out of scope.
+
+2026-05-27: Added an in-progress contingency CCRS design discussion. The notes capture current ambiguity around situation types, escalation triggers, current-resource semantics, Java strategy selection, `CcrsContext.query(...)`, trace history, state splitting, correlation, stop behavior, and later LLM/A2A capability integration.
+
+2026-05-27: Added contingency CCRS workpackages for adapter boundary mappings, React evaluation-function mapping, escalation-mode hooks, decision-node routing, a possible unified `ccrs_node`, cycle-correlated contingency activation state, stronger contingency prompt injection, and improved opportunistic-guidance correlation.
+
+2026-05-27: Regrouped the contingency CCRS design discussion into emerging packages: Java contingency bridge, React `CcrsContext` from messages, escalation and graph routing, CCRS node/state/prompt/correlation, optional capability integrations, and audit/experiment inspection.
