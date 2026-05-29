@@ -1,0 +1,1 @@
+"""Opportunistic CCRS adapter package."""

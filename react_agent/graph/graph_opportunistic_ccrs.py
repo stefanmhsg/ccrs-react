@@ -1,6 +1,7 @@
 from langgraph.graph import END, StateGraph
 
-from react_agent.ccrs import CcrsAgentState, opportunistic_ccrs_node
+from react_agent.ccrs.opportunistic.opportunistic import opportunistic_ccrs_node
+from react_agent.ccrs.state import CcrsAgentState
 from react_agent.nodes.decision_node import should_continue
 from react_agent.nodes.llm_node_ccrs_v2 import llm_node
 from react_agent.nodes.tool_node import tool_node

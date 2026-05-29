@@ -4,6 +4,8 @@ from pydantic import BaseModel, Field
 from typing import Mapping
 import requests
 
+RDF_ACCEPT = "text/turtle, text/plain;q=0.1"
+
 
 class PostInput(BaseModel):
     url:str = Field(description="The URL to perform the POST request on")
@@ -14,19 +16,15 @@ class PostInput(BaseModel):
 @tool("http_post", args_schema=PostInput)
 def http_post(url: str, data: str, config: RunnableConfig, headers: Mapping[str, str] = None) -> str:
     """Post data to a URL."""
-    try:
-        configuration = config.get("configurable", {})
-        agent_name = configuration.get("agent_name", "React")
-        default = {"Authorization" : f"Agent {agent_name}"}
-        if headers:
-            headers = {**headers, **default}  # Custom headers first, then default (default overwrites)
-        else:
-            headers = default
-        r = requests.post(url, data=data, headers=headers, timeout=30)
-        r.raise_for_status()
-        return r.text
-    except Exception as e:
-        return {
-            "error": True,
-            "message": f"POST request failed for {url}. Error: {str(e)}"
-        }
+    configuration = config.get("configurable", {})
+    agent_name = configuration.get("agent_name", "React")
+    headers = _request_headers(agent_name, headers)
+    r = requests.post(url, data=data, headers=headers, timeout=30)
+    return r.text
+
+
+def _request_headers(agent_name: str, headers: Mapping[str, str] = None) -> dict[str, str]:
+    merged = dict(headers or {})
+    merged.setdefault("Accept", RDF_ACCEPT)
+    merged["Authorization"] = f"Agent {agent_name}"
+    return merged

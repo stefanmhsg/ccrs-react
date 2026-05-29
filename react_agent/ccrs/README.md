@@ -22,7 +22,7 @@ The active implementation plan for this package is
 
 ## Current Scope
 
-The implemented scope is opportunistic CCRS:
+The implemented graph-integrated scope is opportunistic CCRS:
 
 ```text
 ToolMessage Turtle
@@ -36,22 +36,56 @@ ToolMessage Turtle
 The public one-line import target is:
 
 ```python
-from react_agent.ccrs import opportunistic_ccrs_node
+from react_agent.ccrs.opportunistic.opportunistic import opportunistic_ccrs_node
 ```
 
-Contingency CCRS is intentionally not implemented in this package yet. It
-should be added only after the opportunistic adapter boundary remains stable
-under the smoke-validation commands tracked in the plan.
+The implemented contingency scope is the Python-to-Java adapter boundary:
+
+```text
+Python Situation
+-> Java Situation
+-> Java CcrsContext proxy
+-> Java ContingencyCcrs.evaluateWithTrace(...)
+-> Python contingency trace and strategy-result dictionaries
+```
+
+The contingency boundary can also reuse Java optional capability modules
+through `ServiceLoader`. For LLM prediction, create the wrapper with
+`modules=("ccrs-core", "ccrs-langchain4j")` and
+`discover_strategy_providers=True`; Java then registers
+`Langchain4jPredictionStrategyProvider` and `PredictionLlmStrategy` when
+`OPENAI_API_KEY` or `LLM_API_KEY` is configured. For A2A consultation, add
+`"ccrs-a2a"` to the modules tuple; Java then registers the provided
+`A2aConsultationStrategyProvider` and `ConsultationStrategy`.
+
+Contingency CCRS is not wired into a LangGraph node or decision route yet. The
+next design step is deciding when an agent escalates to contingency CCRS and
+how authoritative contingency suggestions affect graph control.
 
 ## Files
 
-- [runtime.py](runtime.py) starts/configures the JPype JVM, resolves the local
-  Maven/Gradle classpath, creates the Java `VocabularyMatcher`, and converts
-  Java opportunistic CCRS results back to Python dictionaries.
+- [java_runtime.py](java_runtime.py) contains the shared Maven/Gradle
+  classpath resolver, JPype startup, and Java logging setup.
 - [rdf_adapter.py](rdf_adapter.py) converts Turtle text into lightweight Python
   RDF triple values before they are passed into Java.
-- [opportunistic.py](opportunistic.py) provides LangGraph node factories for
-  opportunistic CCRS.
+- [opportunistic/vocabulary_matcher.py](opportunistic/vocabulary_matcher.py)
+  wraps Java `VocabularyMatcher` and converts Java opportunistic CCRS results
+  to Python dictionaries.
+- [opportunistic/opportunistic.py](opportunistic/opportunistic.py) provides
+  LangGraph node factories for opportunistic CCRS.
+- [contingency/situation.py](contingency/situation.py) defines the Python
+  `Situation` object and `SituationType` names that map to Java `Situation`
+  and `Situation.Type`.
+- [contingency/ccrs_context.py](contingency/ccrs_context.py) provides a
+  minimal in-memory Java `CcrsContext` proxy.
+- [contingency/in_memory_ccrs_trace_history.py](contingency/in_memory_ccrs_trace_history.py)
+  provides an in-memory `InMemoryCcrsTraceHistory` store.
+- [contingency/contingency_ccrs.py](contingency/contingency_ccrs.py) loads
+  Java contingency CCRS, calls `ContingencyCcrs.evaluateWithTrace(...)`,
+  records traces on the Python context, and converts Java strategy results into
+  Python dictionaries. It can create core-only Java CCRS instances or ask Java
+  `ContingencyCcrsFactory` to register optional `ServiceLoader` strategy
+  providers visible on the JPype classpath.
 - [state.py](state.py) provides the reusable CCRS-aware LangGraph state shape.
   Its `ccrs` channel appends opportunistic CCRS annotations. Prompt injection
   filters that history by the latest tool call IDs before presenting advisory
@@ -60,8 +94,8 @@ under the smoke-validation commands tracked in the plan.
   for React adapter runtime verification.
 - [java_logging.py](java_logging.py) configures Java `java.util.logging`
   records from `ccrs-core` into a per-run companion log file.
-- [__init__.py](__init__.py) exposes compact public imports while keeping
-  heavy dependencies lazy.
+- [__init__.py](__init__.py) marks the package. Adapter code should import from
+  concrete modules instead of relying on root-package re-exports.
 
 ## Logging And Naming
 
@@ -86,6 +120,14 @@ Invalid or non-RDF tool output should be logged as
 `react.ccrs.opportunistic.skipped reason=invalid_turtle`, not as a CCRS
 runtime failure. This is expected for tool responses such as successful
 `http_post` acknowledgements that are not Turtle observations.
+
+For contingency CCRS boundary calls, the current React adapter event names are:
+
+- `react.ccrs.contingency.classpath.resolved`
+- `react.ccrs.contingency.jvm.start`
+- `react.ccrs.contingency.runtime.ready`
+- `react.ccrs.contingency.evaluate`
+- `react.ccrs.contingency.returned`
 
 The JPype runtime configures Java CCRS logger levels for verbose output. If
 the React run log is `logs/<run>.log`, Java CCRS library messages are written

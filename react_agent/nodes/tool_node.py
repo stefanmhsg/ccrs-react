@@ -34,8 +34,10 @@ def tool_node(state: AgentState, config: RunnableConfig):
     # Iterate over the tool calls in the last message
     for call in last.tool_calls:
         tool_name = call.get("name")
+        status = "success"
         if tool_name not in tools_by_name:
             result = _tool_error(f"Unknown tool: {tool_name}", call)
+            status = "error"
             logging.warning(f"[TOOL_NODE] {result}")
         else:
             tool = tools_by_name[tool_name]
@@ -48,6 +50,7 @@ def tool_node(state: AgentState, config: RunnableConfig):
                 logging.debug(f"[TOOL_NODE] Tool result: {result}")
             except Exception as e:
                 result = _tool_error(f"{tool_name} failed: {str(e)}", call)
+                status = "error"
                 logging.warning(f"[TOOL_NODE] Tool invocation failed: {result}")
 
         outputs.append(
@@ -55,6 +58,7 @@ def tool_node(state: AgentState, config: RunnableConfig):
                 content=result,
                 name=tool_name or "unknown_tool",
                 tool_call_id=call.get("id"),
+                status=status,
             )
         )
 

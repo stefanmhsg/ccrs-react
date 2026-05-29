@@ -5,7 +5,7 @@ from typing import Any
 from langchain_core.runnables import RunnableConfig
 from langchain_core.messages import AIMessage
 from langchain_openai import ChatOpenAI
-from react_agent.ccrs import CcrsAgentState
+from react_agent.ccrs.state import CcrsAgentState
 from react_agent.tools import tools
 from react_agent.prompts.react_prompt import react_prompt_ccrs
 

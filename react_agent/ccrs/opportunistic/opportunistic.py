@@ -1,3 +1,10 @@
+"""LangGraph node for Java-backed opportunistic CCRS scans.
+
+The node inspects the latest `ToolMessage`, sends Turtle observations to the
+Java `VocabularyMatcher` wrapper, and appends opportunistic CCRS annotations to
+LangGraph state.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -7,16 +14,20 @@ from langchain_core.messages import ToolMessage
 from langchain_core.runnables import RunnableConfig
 
 from react_agent.ccrs.audit import log_ccrs_event
+from react_agent.ccrs.java_runtime import CcrsJavaRuntimeError
 from react_agent.ccrs.rdf_adapter import CcrsRdfParseError
-from react_agent.ccrs.runtime import CcrsRuntime, CcrsRuntimeError, get_default_runtime
+from react_agent.ccrs.opportunistic.vocabulary_matcher import (
+    VocabularyMatcher,
+    get_default_vocabulary_matcher,
+)
 
 
 logger = logging.getLogger(__name__)
 LOG_PREFIX = "[React CCRS][Opportunistic]"
 
 
-def make_opportunistic_ccrs_node(runtime: CcrsRuntime | None = None):
-    """Create a LangGraph node that derives opportunistic CCRS from Turtle."""
+def make_opportunistic_ccrs_node(vocabulary_matcher: VocabularyMatcher | None = None):
+    """Create a LangGraph node backed by Java `VocabularyMatcher`."""
 
     def opportunistic_ccrs_node(state: dict[str, Any], config: RunnableConfig) -> dict[str, Any]:
         # Opportunistic CCRS runs after tools so it can interpret fresh RDF observations.
@@ -43,7 +54,7 @@ def make_opportunistic_ccrs_node(runtime: CcrsRuntime | None = None):
             )
             return {}
 
-        active_runtime = _runtime_from_config(config) or runtime or get_default_runtime()
+        active_matcher = _vocabulary_matcher_from_config(config) or vocabulary_matcher or get_default_vocabulary_matcher()
         context = _tool_message_context(last, state, config)
         log_ccrs_event(
             logger,
@@ -57,7 +68,7 @@ def make_opportunistic_ccrs_node(runtime: CcrsRuntime | None = None):
         )
 
         try:
-            ccrs_entries = active_runtime.evaluate_turtle(last.content, context=context)
+            ccrs_entries = active_matcher.evaluate_turtle(last.content, context=context)
         except CcrsRdfParseError:
             _log_cycle_event(
                 "react.ccrs.opportunistic.skipped",
@@ -71,7 +82,7 @@ def make_opportunistic_ccrs_node(runtime: CcrsRuntime | None = None):
                 },
             )
             return {}
-        except CcrsRuntimeError:
+        except CcrsJavaRuntimeError:
             logger.exception("%s Java CCRS runtime failed.", LOG_PREFIX)
             _log_cycle_event(
                 "react.ccrs.opportunistic.failed",
@@ -141,12 +152,12 @@ def make_opportunistic_ccrs_node(runtime: CcrsRuntime | None = None):
     return opportunistic_ccrs_node
 
 
-def _runtime_from_config(config: RunnableConfig) -> CcrsRuntime | None:
+def _vocabulary_matcher_from_config(config: RunnableConfig) -> VocabularyMatcher | None:
     configuration = (config or {}).get("configurable", {})
-    runtime = configuration.get("ccrs_runtime")
-    if runtime is not None and not isinstance(runtime, CcrsRuntime):
-        raise TypeError("configurable.ccrs_runtime must be a CcrsRuntime instance")
-    return runtime
+    vocabulary_matcher = configuration.get("vocabulary_matcher")
+    if vocabulary_matcher is not None and not isinstance(vocabulary_matcher, VocabularyMatcher):
+        raise TypeError("configurable.vocabulary_matcher must be a VocabularyMatcher instance")
+    return vocabulary_matcher
 
 
 def _tool_message_context(
@@ -182,3 +193,6 @@ def _log_cycle_event(
     fields: dict[str, Any],
 ) -> None:
     log_ccrs_event(logger, event, {**_cycle_fields(state, config), **fields})
+
+
+opportunistic_ccrs_node = make_opportunistic_ccrs_node()
