@@ -1,19 +1,43 @@
-import json
 import logging
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Sequence
+from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableConfig
-from langchain_core.messages import AIMessage
 from langchain_openai import ChatOpenAI
+from react_agent.ccrs.prompt_context import build_ccrs_prompt_context
 from react_agent.ccrs.state import CcrsAgentState
 from react_agent.tools import tools
 from react_agent.prompts.react_prompt import react_prompt_ccrs
+
+
+def make_llm_node(
+    *,
+    bound_tools: Sequence[Any] | None = None,
+    prompt_template: ChatPromptTemplate | None = None,
+):
+    """Create a CCRS LLM node with graph-provided tools."""
+
+    def configured_llm_node(
+        state: CcrsAgentState,
+        config: RunnableConfig,
+    ) -> dict[str, Any]:
+        return llm_node(
+            state,
+            config,
+            bound_tools=bound_tools,
+            prompt_template=prompt_template,
+        )
+
+    return configured_llm_node
 
 
 # Create model and bind tools
 def llm_node(
     state: CcrsAgentState,
     config: RunnableConfig,
+    *,
+    bound_tools: Sequence[Any] | None = None,
+    prompt_template: ChatPromptTemplate | None = None,
 ) -> dict[str, Any]:
     
     configuration = config.get("configurable", {})
@@ -28,55 +52,31 @@ def llm_node(
         reasoning_effort=llm_reasoning_effort,
     )
 
+    active_tools = list(bound_tools) if bound_tools is not None else list(tools)
+
     # Bind tools to the model. Force at least one tool to be called.
-    model = llm.bind_tools(tools, tool_choice="any")
+    model = llm.bind_tools(active_tools, tool_choice="any")
 
-    chain = react_prompt_ccrs | model
-
-    # --- CCRS filtering logic ---
-
-    # Extract the latest tool call IDs from the messages
-    latest_tool_call_ids = get_latest_tool_call_ids(state["messages"])
-
-    # Filter CCRS entries to only include those related to the latest tool calls
-    ccrs_text = "[]"  # Default to empty list if no relevant CCRS entries found
-    ccrs_context = [
-        entry
-        for entry in state.get("ccrs", [])
-        if entry.get("tool_call_id") in latest_tool_call_ids
-    ]
-
-    if ccrs_context:
-        ccrs_text = json.dumps(ccrs_context, ensure_ascii=False, indent=2) # Do not pass raw Python dicts into {ccrs}. Convert to compact JSON so the model sees a stable schema.
-        logging.info(f"[LLM_NODE_CCRS_V2]: Injecting {len(ccrs_context)} relevant CCRS entries to LLM.")
-        logging.info(f"[LLM_NODE_CCRS_V2]: CCRS Context: {ccrs_text}")
-
-    # ------
+    active_prompt = configuration.get("react_prompt_ccrs") or prompt_template or react_prompt_ccrs
+    chain = active_prompt | model
+    ccrs_context = build_ccrs_prompt_context(state, config)
 
     response = chain.invoke({
         "messages": state["messages"],
         "agent_name": agent_name,
-        "ccrs" : ccrs_text, # Provide filtered CCRS context to the LLM
+        "ccrs" : ccrs_context.text,
     }, config)
     
     logging.debug(f"[LLM_NODE_CCRS_V2]: LLM node received response: {response}")
     logging.info(f"[LLM_NODE_CCRS_V2]: LLM node tool calls: {response.tool_calls}")
 
     next_cycle = int(state.get("cycle", {}).get("number", 0)) + 1
-    return {
+    updates: dict[str, Any] = {
         "messages": [response],
         "cycle": {
             "number": next_cycle,
             "timestamp": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
         },
     }
-
-
-def get_latest_tool_call_ids(messages):
-    """Extract the latest tool call IDs from the messages. Returns all tool_call_ids belonging to the last reasoning step"""
-    for msg in reversed(messages):
-        if isinstance(msg, AIMessage) and msg.tool_calls:
-            # An AIMessage can contain multiple tool calls
-            logging.debug(f"[LLM_NODE_CCRS_V2]: Last AIMessage with tool calls found: {msg}")
-            return {call["id"] for call in msg.tool_calls}
-    return set()
+    updates.update(ccrs_context.post_llm_updates())
+    return updates

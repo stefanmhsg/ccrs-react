@@ -66,6 +66,11 @@ def parse_args():
     parser.add_argument("--query", type=str, help="User query")
     parser.add_argument("--graph-name", type=str, default="graph", help="Name of the graph module to use (default: graph)")
     parser.add_argument("--run-mode", type=str, choices=["sync", "async"], help="Execution mode")
+    parser.add_argument(
+        "--enable-contingency-escalation-tool",
+        action="store_true",
+        help="Expose the opt-in escalate_to_contingency_ccrs tool when using graph_ccrs",
+    )
 
     return parser.parse_args()
 
@@ -84,7 +89,8 @@ def main():
         graph_name=args.graph_name,
         recursion_limit=args.recursion_limit,
         log_level=args.log_level,
-        run_mode=args.run_mode
+        run_mode=args.run_mode,
+        enable_contingency_escalation_tool=args.enable_contingency_escalation_tool,
     ))
 
 

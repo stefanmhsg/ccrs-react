@@ -4,7 +4,7 @@
 
 [graph](react_agent/graph/graph.py) - Basic graph configuration without CCRS-specific nodes.
 
-[graph_opportunistic_ccrs](react_agent/graph/graph_opportunistic_ccrs.py) - Graph configuration with opportunistic CCRS.
+[graph_ccrs](react_agent/graph/graph_ccrs.py) - Graph configuration with CCRS.
 
 ## Run
 
@@ -32,7 +32,13 @@ opportunistic CCRS graph, and future contingency CCRS variants.
 ### Commandline tool
 
 ```powershell
-python main.py --graph-name graph_opportunistic_ccrs --agent-name "CCRSAgent" --log-level "DEBUG"
+python main.py --graph-name graph_ccrs --agent-name "CCRSAgent" --log-level "DEBUG"
+```
+
+Expose the optional LLM self-escalation tool for contingency CCRS:
+
+```powershell
+python main.py --graph-name graph_ccrs --enable-contingency-escalation-tool --agent-name "CCRSAgent" --log-level "DEBUG"
 ```
 
 Options
@@ -52,6 +58,9 @@ Options
     --llm-temperature       (default: 1.0)
 
     --query                 (default: Maze Prompt)
+
+    --enable-contingency-escalation-tool
+                            Expose the opt-in escalate_to_contingency_ccrs tool when using graph_ccrs
 
 ## References
 

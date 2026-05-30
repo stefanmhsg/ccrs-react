@@ -8,12 +8,16 @@ is pluggable so scenario-specific policies stay outside `CcrsContext`.
 from __future__ import annotations
 
 import json
+from hashlib import sha256
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping, Sequence
 
 from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 
-from react_agent.ccrs.rdf_adapter import CcrsRdfParseError, RdfTripleValue, parse_turtle_triples
+from react_agent.ccrs.rdf_adapter import RdfTripleValue, parse_turtle_triples
+
+
+UNPARSED_RESPONSE_PREDICATE = "https://example.org/ccrs#unparsedResponse"
 
 
 class InteractionOutcome:
@@ -77,8 +81,11 @@ def parse_tool_messages(
             continue
 
         content = message.content if isinstance(message.content, str) else ""
-        triples = parse_tool_content(content)
         call, request_index = tool_calls.get(str(message.tool_call_id), ({}, index))
+        triples = parse_tool_content(
+            content,
+            fallback_subject=_request_uri_from_tool_call(call),
+        )
         interaction = interaction_from_tool_message(
             message,
             call,
@@ -92,15 +99,34 @@ def parse_tool_messages(
     return parsed
 
 
-def parse_tool_content(content: str) -> list[RdfTripleValue]:
-    """Parse a tool message body as Turtle, returning no triples for non-RDF text."""
+def parse_tool_content(
+    content: str,
+    *,
+    fallback_subject: str | None = None,
+) -> list[RdfTripleValue]:
+    """Parse a tool message body as Turtle or wrap non-RDF text as one triple."""
 
     if not content.strip():
         return []
     try:
         return parse_turtle_triples(content)
-    except CcrsRdfParseError:
-        return []
+    except ValueError:
+        return [unparsed_response_triple(content, fallback_subject=fallback_subject)]
+
+
+def unparsed_response_triple(
+    content: str,
+    *,
+    fallback_subject: str | None = None,
+) -> RdfTripleValue:
+    """Return a generic response triple for text that is not parseable as RDF."""
+
+    text = content.strip()
+    return RdfTripleValue(
+        subject=fallback_subject or _unknown_response_subject(text),
+        predicate=UNPARSED_RESPONSE_PREDICATE,
+        object=text,
+    )
 
 
 def interaction_from_tool_message(
@@ -166,6 +192,17 @@ def method_from_tool_name(tool_name: str) -> str:
     if normalized == "http_post":
         return "POST"
     return normalized.upper()
+
+
+def _request_uri_from_tool_call(call: Mapping[str, Any]) -> str | None:
+    args = call.get("args") if isinstance(call.get("args"), Mapping) else {}
+    value = args.get("url")
+    return str(value) if value else None
+
+
+def _unknown_response_subject(content: str) -> str:
+    digest = sha256(content.encode("utf-8")).hexdigest()[:16]
+    return f"urn:ccrs:react:unknown-response:{digest}"
 
 
 def _http_status_from_metadata(metadata: Mapping[str, Any]) -> int | None:

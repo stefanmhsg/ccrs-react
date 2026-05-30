@@ -1,6 +1,7 @@
 import os
 import asyncio
 import importlib
+import inspect
 from datetime import datetime
 from typing import Optional, Any
 
@@ -16,6 +17,20 @@ def get_graph_builder(graph_name: str):
         raise ValueError(f"Graph module 'react_agent.graph.{graph_name}' not found.")
     except AttributeError:
         raise ValueError(f"Module 'react_agent.graph.{graph_name}' does not have a 'build_graph' function.")
+
+
+def _graph_build_kwargs(build_graph, kwargs: dict[str, Any]) -> dict[str, Any]:
+    signature = inspect.signature(build_graph)
+    accepted = {}
+    for name, parameter in signature.parameters.items():
+        if parameter.kind not in (
+            inspect.Parameter.KEYWORD_ONLY,
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        ):
+            continue
+        if name in kwargs:
+            accepted[name] = kwargs[name]
+    return accepted
 
 async def launch_agent(
     query: str,
@@ -56,7 +71,7 @@ async def launch_agent(
     # Build the graph
     try:
         build_graph = get_graph_builder(graph_name)
-        graph = build_graph()
+        graph = build_graph(**_graph_build_kwargs(build_graph, kwargs))
     except Exception as e:
         logger.error(f"Failed to build graph: {e}")
         raise

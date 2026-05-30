@@ -12,13 +12,16 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
+from langchain_core.messages import ToolMessage
+from langchain_core.runnables import RunnableConfig
+
 from react_agent.ccrs.audit import log_ccrs_event
 from react_agent.ccrs.java_runtime import (
     CcrsJavaRuntime,
     CcrsJavaRuntimeError,
     get_default_java_runtime,
 )
-from react_agent.ccrs.rdf_adapter import RdfTripleValue, parse_turtle_triples
+from react_agent.ccrs.rdf_adapter import CcrsRdfParseError, RdfTripleValue, parse_turtle_triples
 
 
 logger = logging.getLogger(__name__)
@@ -171,6 +174,175 @@ def get_default_vocabulary_matcher() -> VocabularyMatcher:
     if _default_vocabulary_matcher is None:
         _default_vocabulary_matcher = VocabularyMatcher.from_maven_local()
     return _default_vocabulary_matcher
+
+
+def evaluate_latest_tool_observation(
+    state: dict[str, Any],
+    config: RunnableConfig,
+    *,
+    vocabulary_matcher: VocabularyMatcher | None = None,
+) -> list[dict[str, Any]]:
+    """Evaluate the latest text `ToolMessage` with Java `VocabularyMatcher`."""
+
+    messages = state.get("messages", [])
+    if not messages:
+        _log_cycle_event("react.ccrs.opportunistic.skipped", state, config, {"reason": "no_messages"})
+        return []
+
+    last = messages[-1]
+    if not isinstance(last, ToolMessage):
+        _log_cycle_event("react.ccrs.opportunistic.skipped", state, config, {"reason": "not_tool_message"})
+        return []
+
+    if not isinstance(last.content, str):
+        _log_cycle_event(
+            "react.ccrs.opportunistic.skipped",
+            state,
+            config,
+            {
+                "reason": "non_text_tool_content",
+                "tool_call_id": str(last.tool_call_id),
+                "tool_name": last.name,
+            },
+        )
+        return []
+
+    active_matcher = _vocabulary_matcher_from_config(config) or vocabulary_matcher or get_default_vocabulary_matcher()
+    context = _tool_message_context(last, state, config)
+    log_ccrs_event(
+        logger,
+        "react.ccrs.opportunistic.evaluate",
+        {
+            **_cycle_fields(state, config),
+            "tool_call_id": context.get("tool_call_id"),
+            "tool_name": context.get("tool_name"),
+            "content_length": len(last.content),
+        },
+    )
+
+    try:
+        ccrs_entries = active_matcher.evaluate_turtle(last.content, context=context)
+    except CcrsRdfParseError:
+        _log_cycle_event(
+            "react.ccrs.opportunistic.skipped",
+            state,
+            config,
+            {
+                "reason": "invalid_turtle",
+                "tool_call_id": context.get("tool_call_id"),
+                "tool_name": context.get("tool_name"),
+                "content_length": len(last.content),
+            },
+        )
+        return []
+    except CcrsJavaRuntimeError:
+        logger.exception("%s Java CCRS runtime failed.", LOG_PREFIX)
+        _log_cycle_event(
+            "react.ccrs.opportunistic.failed",
+            state,
+            config,
+            {
+                "reason": "runtime_error",
+                "tool_call_id": context.get("tool_call_id"),
+                "tool_name": context.get("tool_name"),
+            },
+        )
+        return []
+    except Exception:
+        logger.exception("%s Failed to evaluate tool observation.", LOG_PREFIX)
+        _log_cycle_event(
+            "react.ccrs.opportunistic.failed",
+            state,
+            config,
+            {
+                "reason": "evaluation_error",
+                "tool_call_id": context.get("tool_call_id"),
+                "tool_name": context.get("tool_name"),
+            },
+        )
+        return []
+
+    if not ccrs_entries:
+        _log_cycle_event(
+            "react.ccrs.opportunistic.no_annotations",
+            state,
+            config,
+            {
+                "tool_call_id": context.get("tool_call_id"),
+                "tool_name": context.get("tool_name"),
+                "entries": 0,
+            },
+        )
+        return []
+
+    for entry in ccrs_entries:
+        log_ccrs_event(
+            logger,
+            "react.ccrs.opportunistic.detected",
+            {
+                **_cycle_fields(state, config),
+                "tool_call_id": context.get("tool_call_id"),
+                "tool_name": context.get("tool_name"),
+                "target": entry.get("target"),
+                "type": entry.get("type"),
+                "pattern_id": entry.get("pattern_id"),
+                "utility": entry.get("utility"),
+            },
+        )
+    _log_cycle_event(
+        "react.ccrs.opportunistic.cycle_annotations",
+        state,
+        config,
+        {
+            "tool_call_id": context.get("tool_call_id"),
+            "tool_name": context.get("tool_name"),
+            "entries": len(ccrs_entries),
+        },
+    )
+    logger.debug("%s Appending CCRS entries: %s", LOG_PREFIX, ccrs_entries)
+    return ccrs_entries
+
+
+def _vocabulary_matcher_from_config(config: RunnableConfig) -> VocabularyMatcher | None:
+    configuration = (config or {}).get("configurable", {})
+    vocabulary_matcher = configuration.get("vocabulary_matcher")
+    if vocabulary_matcher is not None and not isinstance(vocabulary_matcher, VocabularyMatcher):
+        raise TypeError("configurable.vocabulary_matcher must be a VocabularyMatcher instance")
+    return vocabulary_matcher
+
+
+def _tool_message_context(
+    message: ToolMessage,
+    state: dict[str, Any],
+    config: RunnableConfig,
+) -> dict[str, str]:
+    context = {
+        "tool_call_id": str(message.tool_call_id),
+        "origin": "react-opportunistic-ccrs",
+    }
+    if message.name:
+        context["tool_name"] = str(message.name)
+    context.update(_cycle_fields(state, config))
+    return context
+
+
+def _cycle_fields(state: dict[str, Any], config: RunnableConfig) -> dict[str, str]:
+    configuration = (config or {}).get("configurable", {})
+    cycle = state.get("cycle", {})
+    return {
+        "agent_name": str(configuration.get("agent_name", "React")),
+        "cycle": str(cycle.get("number", 0)),
+        "cycle_timestamp": str(cycle.get("timestamp", "")),
+    }
+
+
+def _log_cycle_event(
+    event: str,
+    state: dict[str, Any],
+    config: RunnableConfig,
+    fields: dict[str, Any],
+) -> None:
+    log_ccrs_event(logger, event, {**_cycle_fields(state, config), **fields})
 
 
 _default_vocabulary_matcher: VocabularyMatcher | None = None
