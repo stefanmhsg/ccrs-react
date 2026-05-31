@@ -8,60 +8,10 @@ from react_agent.ccrs.capabilities import (
     CCRS_CORE_MODULE,
     CCRS_LANGCHAIN4J_MODULE,
 )
+from react_agent.prompts.user_query import USER_QUERY
 from react_agent.utils.settings import settings
 
 load_dotenv(dotenv_path=".env", override=True)
-
-QUERY_V1 = (
-    "You need to navigate a linked data maze: entrypoint is = http://127.0.1.1:8080/maze (look for xhv:start to see where to enter the maze). "
-    "If you perform a get request it will return RDF triples describing the cell, what it contains and what connections it has. "
-    "GET is only allowed on cells you are currently in. POST requests are used to move between cells - only allowed to adjacent cells. POST is also used to interact cells - only allowed for cells you are currently in. "
-    "Reach the exit by navigating the maze. "
-    "POST for moving from a cell to another expects text/turtle, with RDF format body. "
-    "Example format for moving: "
-    "POST <TargetCellURI> "
-    "Body: "
-    "<http://127.0.1.1:8080/agents/<YourName>> <https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#entersFrom> <OriginCellURI> . "
-    "POST for interacting with a cell expects text/turtle, with RDF format body. "
-    "Example format for interaction: "
-    "POST <RequestURI> "
-    "Body: "
-    "<Same as <RequestURI>> <NeededPropertyIRI> \"Value\" . "
-    "So typically you would GET current, POST to move to adjacent cell, GET new cell, POST to interact if needed, etc., until you reach the exit."
-    )
-
-QUERY_V2 = (
-    "You must navigate a linked data maze. "
-    "The maze entrypoint is http://127.0.1.1:8080/maze. "
-    "Look for the xhv:start triple to determine the first cell. "
-
-    "Each cell is described by RDF returned from GET requests. "
-    "A GET request is only allowed on the cell you are currently in. "
-
-    "Movement and interactions use POST requests. "
-    "Rules for POST: "
-    "1. POST to move to a different cell is only allowed if that cell is adjacent to your current cell. "
-    "2. POST to interact with a cell is only allowed for the cell you are currently in. "
-    "3. POST requires content type text/turtle with RDF triples in the body. "
-
-    "Format for movement: "
-    "POST <TargetCellURI> "
-    "Body: "
-    "<http://127.0.1.1:8080/agents/<YourName>> "
-    "<https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#entersFrom> "
-    "<OriginCellURI> . "
-
-    "Format for interactions: "
-    "POST <RequestURI> "
-    "Body: "
-    "<RequestURI> <NeededPropertyIRI> \"Value\" . "
-
-    "Your task is to reach the exit of the maze by repeatedly: "
-    "1. GET the current cell to inspect its triples. "
-    "2. Decide whether to interact with the cell or move to an adjacent cell. "
-    "3. POST to perform the chosen action. "
-    "4. Continue until the exit cell is reached. "
-    )
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Run the ReAct CCRS Agent")
@@ -114,7 +64,7 @@ def main():
     args = parse_args()
 
     # Define the query
-    query = args.query or QUERY_V2
+    query = args.query or USER_QUERY
     if args.sync_contingency_llm_model:
         os.environ.setdefault("OPENAI_MODEL", settings.llm_model)
 

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from dataclasses import dataclass
 from typing import Any
@@ -19,6 +18,7 @@ from react_agent.ccrs.contingency.opportunistic_guidance import (
 from react_agent.ccrs.opportunistic.opportunistic_result import (
     get_opportunistic_ccrs_for_latest_tool_calls,
 )
+from react_agent.ccrs.prompt import render_ccrs_prompt_context
 from react_agent.ccrs.state import CcrsAgentState
 
 
@@ -65,12 +65,19 @@ def build_ccrs_prompt_context(
         state,
         config,
     )
+    prompt_opportunistic_annotations = _prompt_opportunistic_annotations(
+        opportunistic_context
+    )
     payload = {
-        "opportunistic_annotations": opportunistic_context,
+        "opportunistic_annotations": prompt_opportunistic_annotations,
         "contingency_ccrs": pending_contingency_ccrs,
         "opportunistic_guidance_by_contingency_ccrs": contingency_opportunistic_guidance,
     }
-    text = json.dumps(payload, ensure_ascii=False, indent=2)
+    text = render_ccrs_prompt_context(
+        opportunistic_annotations=prompt_opportunistic_annotations,
+        contingency_ccrs=pending_contingency_ccrs,
+        opportunistic_guidance_by_contingency_ccrs=contingency_opportunistic_guidance,
+    )
 
     if (
         opportunistic_context
@@ -91,3 +98,21 @@ def build_ccrs_prompt_context(
         payload=payload,
         pending_contingency_ccrs=pending_contingency_ccrs,
     )
+
+
+def _prompt_opportunistic_annotations(
+    entries: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    return [_prompt_opportunistic_annotation(entry) for entry in entries]
+
+
+def _prompt_opportunistic_annotation(entry: dict[str, Any]) -> dict[str, Any]:
+    metadata = dict(entry.get("metadata") or {})
+    prompt_entry = {
+        "type": entry.get("type"),
+        "target": entry.get("target"),
+        "pattern_id": entry.get("pattern_id"),
+        "utility": entry.get("utility"),
+        "metadata": metadata,
+    }
+    return {key: value for key, value in prompt_entry.items() if value is not None}
