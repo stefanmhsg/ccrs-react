@@ -39,6 +39,7 @@ def make_ccrs_node(
     def ccrs_node(state: dict[str, Any], config: RunnableConfig) -> dict[str, Any]:
         updates: dict[str, Any] = {}
 
+        # Opportunistic CCRS
         opportunistic_entries = evaluate_latest_tool_observation(
             state,
             config,
@@ -47,6 +48,7 @@ def make_ccrs_node(
         if opportunistic_entries:
             updates["opportunistic_ccrs"] = opportunistic_entries
 
+        # Contingency CCRS
         contingency_result = _evaluate_contingency_if_requested(
             state,
             config,

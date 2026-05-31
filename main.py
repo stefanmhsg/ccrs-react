@@ -3,6 +3,7 @@ import asyncio
 import os
 from dotenv import load_dotenv
 from react_agent.api import launch_agent
+from react_agent.utils.settings import settings
 
 load_dotenv(dotenv_path=".env", override=True)
 
@@ -71,6 +72,34 @@ def parse_args():
         action="store_true",
         help="Expose the opt-in escalate_to_contingency_ccrs tool when using graph_ccrs",
     )
+    parser.add_argument(
+        "--enable-contingency-llm-prediction",
+        action="store_true",
+        help="Enable the optional Java ccrs-langchain4j prediction strategy provider when using graph_ccrs",
+    )
+    parser.add_argument(
+        "--enable-contingency-a2a-consultation",
+        action="store_true",
+        help="Enable the optional Java ccrs-a2a consultation strategy provider when using graph_ccrs",
+    )
+    parser.add_argument(
+        "--contingency-ccrs-modules",
+        type=str,
+        help=(
+            "Comma- or space-separated Java CCRS modules for contingency evaluation, "
+            "for example: ccrs-core,ccrs-langchain4j,ccrs-a2a"
+        ),
+    )
+    parser.add_argument(
+        "--discover-contingency-strategy-providers",
+        action="store_true",
+        help="Discover Java contingency strategy providers with ServiceLoader when using graph_ccrs",
+    )
+    parser.add_argument(
+        "--sync-contingency-llm-model",
+        action="store_true",
+        help="Set OPENAI_MODEL from the Python agent llm_model before constructing Java contingency providers",
+    )
 
     return parser.parse_args()
 
@@ -81,6 +110,8 @@ def main():
 
     # Define the query
     query = args.query or QUERY_V2
+    if args.sync_contingency_llm_model:
+        os.environ.setdefault("OPENAI_MODEL", settings.llm_model)
 
     # Launch the agent
     asyncio.run(launch_agent(
@@ -91,6 +122,10 @@ def main():
         log_level=args.log_level,
         run_mode=args.run_mode,
         enable_contingency_escalation_tool=args.enable_contingency_escalation_tool,
+        enable_contingency_llm_prediction=args.enable_contingency_llm_prediction,
+        enable_contingency_a2a_consultation=args.enable_contingency_a2a_consultation,
+        contingency_ccrs_modules=args.contingency_ccrs_modules,
+        discover_contingency_strategy_providers=args.discover_contingency_strategy_providers,
     ))
 
 

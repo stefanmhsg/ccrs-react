@@ -17,9 +17,7 @@ python -m pip install -r requirements.txt
 ```
 
 For opportunistic CCRS, see the React adapter notes in
-[react_agent/ccrs/README.md](react_agent/ccrs/README.md). The longer-running
-implementation plan is tracked in
-[PLAN_CCRS_README.md](PLAN_CCRS_README.md).
+[react_agent/ccrs/README.md](react_agent/ccrs/README.md).
 
 ### Notebook
 
@@ -41,6 +39,18 @@ Expose the optional LLM self-escalation tool for contingency CCRS:
 python main.py --graph-name graph_ccrs --enable-contingency-escalation-tool --agent-name "CCRSAgent" --log-level "DEBUG"
 ```
 
+Enable optional Java contingency providers from the CLI:
+
+```powershell
+python main.py --graph-name graph_ccrs --enable-contingency-escalation-tool --enable-contingency-llm-prediction --sync-contingency-llm-model --agent-name "CCRSAgent" --log-level "DEBUG"
+```
+
+For A2A consultation as well:
+
+```powershell
+python main.py --graph-name graph_ccrs --enable-contingency-escalation-tool --enable-contingency-llm-prediction --enable-contingency-a2a-consultation --sync-contingency-llm-model --agent-name "CCRSAgent" --log-level "DEBUG"
+```
+
 Options
 
     --agent-name            (default: "React")
@@ -51,16 +61,30 @@ Options
 
     --graph-name            (default: "graph")
 
-    --langchain-project     (default: "react")
-
-    --llm-model             (default: "gpt-5-mini")
-
-    --llm-temperature       (default: 1.0)
+    --recursion-limit       Override recursion limit
 
     --query                 (default: Maze Prompt)
 
     --enable-contingency-escalation-tool
                             Expose the opt-in escalate_to_contingency_ccrs tool when using graph_ccrs
+
+    --enable-contingency-llm-prediction
+                            Enable the optional Java ccrs-langchain4j prediction strategy provider when using graph_ccrs
+
+    --enable-contingency-a2a-consultation
+                            Enable the optional Java ccrs-a2a consultation strategy provider when using graph_ccrs
+
+    --contingency-ccrs-modules
+                            Comma- or space-separated Java CCRS modules for contingency evaluation
+
+    --discover-contingency-strategy-providers
+                            Discover Java contingency strategy providers with ServiceLoader when using graph_ccrs
+
+    --sync-contingency-llm-model
+                            Set OPENAI_MODEL from the Python agent llm_model before constructing Java contingency providers
+
+LLM settings such as model, temperature, reasoning effort, and LangChain project
+are read from `.env` through [settings.py](react_agent/utils/settings.py).
 
 ## References
 

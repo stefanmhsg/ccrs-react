@@ -17,9 +17,6 @@ is documented in the opportunistic CCRS
 and contingency CCRS
 [README.md](../../../ccrs-bdi/ccrs-core/src/main/java/ccrs/core/contingency/README.md).
 
-The active implementation plan for this package is
-[PLAN_CCRS_README.md](../../PLAN_CCRS_README.md).
-
 ## Adapter Role
 
 The adapter has three responsibilities:
@@ -32,6 +29,179 @@ The adapter should not redefine CCRS semantics in Python. Python code may decide
 how a React agent exposes tool messages, state, routing, and prompt injection,
 but CCRS matching, contingency strategy evaluation, strategy selection, and
 optional Java capabilities remain Java-library concerns.
+
+## Using The Adapter In Another Python Agent
+
+Use the adapter by adding a CCRS-specific graph variant next to the agent's
+baseline graph. The baseline graph should stay free of CCRS imports; the CCRS
+variant is the integration surface that opts into CCRS state, prompt context,
+and Java-backed evaluation.
+
+General integration steps:
+
+1. Make the Java CCRS artifacts available locally. The Python adapter resolves
+   Maven-local artifacts and Gradle cache dependencies through
+   [java_runtime.py](java_runtime.py). The default Java module is
+   `io.github.stefanmhsg.ccrs:ccrs-core:0.1.0-SNAPSHOT`.
+2. Use [state.py](state.py) or an equivalent state type that includes
+   `messages`, `cycle`, `opportunistic_ccrs`, `contingency_ccrs`,
+   `opportunistic_guidance_by_contingency_ccrs`, and transient
+   `contingency_situation`.
+3. Add [ccrs_node.py](ccrs_node.py) after the tool node, and route to it
+   directly when graph-control policy supplies `contingency_situation`.
+4. Add CCRS prompt context with [prompt_context.py](prompt_context.py), either
+   by using [llm_node_ccrs_v2.py](../nodes/llm_node_ccrs_v2.py) as a reference
+   implementation or by calling `build_ccrs_prompt_context(...)` from a custom
+   LLM node.
+5. Keep normal LangGraph `AIMessage` and `ToolMessage` history as the source of
+   truth. Do not add duplicate HTTP-history or RDF-memory state unless a custom
+   adapter boundary has a concrete need for it.
+6. Pass optional dependencies through graph construction or run configuration:
+   `vocabulary_matcher`, `contingency_ccrs`, `ccrs_trace_history`,
+   `ccrs_context`, `ccrs_outcome_classifier`, and
+   `contingency_escalation_controller`.
+
+Minimal graph shape:
+
+```text
+LLM node
+-> decision node
+-> tool node
+-> CCRS node
+-> LLM node
+```
+
+With contingency escalation, the decision node can skip the normal tool node for
+one cycle:
+
+```text
+LLM node
+-> decision node
+-> CCRS node
+-> LLM node
+```
+
+### Opportunistic CCRS Specifics
+
+Opportunistic CCRS reads concrete tool observations. The integration contract is
+small:
+
+- Tool responses that represent RDF observations should be returned as Turtle
+  text in normal `ToolMessage.content`.
+- [ccrs_node.py](ccrs_node.py) calls
+  [opportunistic/vocabulary_matcher.py](opportunistic/vocabulary_matcher.py) for
+  the latest tool observation.
+- Parseable Turtle is converted to Java `RdfTriple` values and evaluated with
+  Java `VocabularyMatcher.scanAll(...)`.
+- Results are appended to `opportunistic_ccrs`; prompt selection later filters
+  them by the latest LLM tool-call ids through
+  [opportunistic/opportunistic_result.py](opportunistic/opportunistic_result.py).
+- Non-RDF tool output is expected in normal ReAct loops and is skipped with
+  `react.ccrs.opportunistic.skipped reason=invalid_turtle`.
+
+The agent remains in control of its next action. Opportunistic CCRS provides
+advisory prompt context; it does not directly force a tool call.
+
+### Contingency CCRS Specifics
+
+Contingency CCRS evaluates a `Situation` and the current `CcrsContext`.
+Graph-control policy decides when to construct that situation; Java contingency
+CCRS decides which strategies apply.
+
+The integration contract is:
+
+- Use [contingency/escalation.py](contingency/escalation.py) and
+  [contingency/decision.py](contingency/decision.py), or provide an equivalent
+  custom controller, to decide when to set `contingency_situation`.
+- Keep one [contingency/in_memory_ccrs_trace_history.py](contingency/in_memory_ccrs_trace_history.py)
+  instance alive for the graph execution so retry limits, stop exhaustion, and
+  trace-based selection can see previous contingency invocations.
+- Let [contingency/ccrs_context.py](contingency/ccrs_context.py) derive RDF
+  query data and Java `Interaction` records from normal message history.
+- Call [contingency/contingency_ccrs.py](contingency/contingency_ccrs.py)
+  through [ccrs_node.py](ccrs_node.py), not directly from graph routing.
+- Keep optional Java capabilities explicit. The default wrapper loads
+  `ccrs-core` only; LLM prediction and A2A consultation require the capability
+  modules described in [Java Capabilities](#java-capabilities).
+
+## Integration In This Repository
+
+This repository contains both the reusable adapter package and one concrete
+agent project under [react_agent](..). The project uses the adapter only from
+the CCRS graph variant:
+
+- [graph.py](../graph/graph.py) is the baseline ReAct graph and has no CCRS
+  imports.
+- [graph_ccrs.py](../graph/graph_ccrs.py) is the CCRS graph. It uses
+  [state.py](state.py), [ccrs_node.py](ccrs_node.py),
+  [llm_node_ccrs_v2.py](../nodes/llm_node_ccrs_v2.py), and
+  [contingency/decision.py](contingency/decision.py).
+- [graph_ccrs.py](../graph/graph_ccrs.py) accepts graph-build options for
+  `contingency_escalation_controller`, `contingency_ccrs`,
+  `ccrs_trace_history`, `ccrs_prompt_template`, and
+  `enable_contingency_escalation_tool`.
+- [api.py](../api.py) builds the selected graph and passes matching keyword
+  arguments into the graph builder. The same keyword arguments are also placed
+  in LangGraph `configurable` run configuration so nodes can read runtime
+  values such as `agent_name`, `llm_model`, or custom CCRS objects.
+
+Notebook-driven runs use [test_agent.ipynb](../../test_agent.ipynb). Its setup
+cell reloads leaf modules before modules that import them, then reloads graph
+and API modules last. This is only a development convenience. For serious
+experiment runs, restart the kernel and run the notebook top-to-bottom so JPype
+classpath state, Java provider discovery, Python class identities, and `.env`
+values are all initialized once.
+
+The notebook path for the default CCRS graph is:
+
+```python
+from react_agent.api import launch_agent
+
+await launch_agent(
+    query=QUERY_V2,
+    agent_name="react_ccrs_notebook_1",
+    graph_name="graph_ccrs",
+    run_mode="async",
+    log_level="INFO",
+    enable_contingency_escalation_tool=True,
+)
+```
+
+To enable optional Java contingency providers in a notebook run, construct the
+wrapper before calling `launch_agent(...)`:
+
+```python
+import os
+
+from react_agent.ccrs.contingency.contingency_ccrs import ContingencyCcrs
+from react_agent.utils.settings import settings
+
+os.environ.setdefault("OPENAI_MODEL", settings.llm_model)
+
+contingency_ccrs = ContingencyCcrs.from_maven_local(
+    modules=("ccrs-core", "ccrs-langchain4j", "ccrs-a2a"),
+    discover_strategy_providers=True,
+)
+
+await launch_agent(
+    query=QUERY_V2,
+    agent_name="react_ccrs_notebook_1",
+    graph_name="graph_ccrs",
+    run_mode="async",
+    log_level="INFO",
+    enable_contingency_escalation_tool=True,
+    contingency_ccrs=contingency_ccrs,
+)
+```
+
+API-driven runs use [api.py](../api.py). `launch_agent(...)` resolves
+`graph_name`, filters keyword arguments against the graph builder signature,
+builds the graph, and then streams through [runner.py](../runner.py). Python API
+callers can pass rich objects such as `contingency_ccrs` directly. The CLI in
+[main.py](../../main.py) exposes the common CCRS graph-build options as flags,
+including the escalation tool and optional Java capability providers. Use the
+Python API when a caller needs to pass custom objects such as a prebuilt
+`ContingencyCcrs`, a custom escalation controller, or a custom prompt template.
 
 ## Concept Map
 
@@ -117,6 +287,12 @@ The CLI exposes that graph-build option as:
 python main.py --graph-name graph_ccrs --enable-contingency-escalation-tool --agent-name "CCRSAgent" --log-level "DEBUG"
 ```
 
+The CLI can also construct optional Java capability wrappers for the CCRS graph:
+
+```powershell
+python main.py --graph-name graph_ccrs --enable-contingency-escalation-tool --enable-contingency-llm-prediction --sync-contingency-llm-model --agent-name "CCRSAgent" --log-level "DEBUG"
+```
+
 The contingency execution path is:
 
 ```text
@@ -129,9 +305,9 @@ contingency_situation
 -> replace opportunistic_guidance_by_contingency_ccrs
 ```
 
-Package C in [PLAN_CCRS_README.md](../../PLAN_CCRS_README.md) decides when a
-React graph should supply `contingency_situation`. Package D owns the node-side
-implementation once that situation exists.
+Graph-control policy decides when a React graph should supply
+`contingency_situation`. [ccrs_node.py](ccrs_node.py) owns the node-side
+execution once that situation exists.
 
 ## State Channels
 
@@ -236,7 +412,9 @@ from concrete modules instead of relying on root-package re-exports.
 
 The default contingency wrapper loads `ccrs-core` only. Optional Java capability
 modules can be made visible through the JPype classpath and discovered by Java
-`ServiceLoader`.
+`ServiceLoader`. This is intentionally explicit: exposing
+`escalate_to_contingency_ccrs` lets the LLM request contingency evaluation, but
+it does not enable optional Java strategies by itself.
 
 For Java-backed LLM prediction strategies:
 
@@ -249,6 +427,13 @@ contingency_ccrs = ContingencyCcrs.from_maven_local(
 )
 ```
 
+The equivalent CLI option adds `ccrs-langchain4j` and turns provider discovery
+on:
+
+```powershell
+python main.py --graph-name graph_ccrs --enable-contingency-llm-prediction
+```
+
 For A2A consultation strategies, include the A2A module as well:
 
 ```python
@@ -258,9 +443,60 @@ contingency_ccrs = ContingencyCcrs.from_maven_local(
 )
 ```
 
+The equivalent CLI option adds both capability modules and turns provider
+discovery on:
+
+```powershell
+python main.py --graph-name graph_ccrs --enable-contingency-llm-prediction --enable-contingency-a2a-consultation
+```
+
+For lower-level module control, use `--contingency-ccrs-modules`, for example:
+
+```powershell
+python main.py --graph-name graph_ccrs --contingency-ccrs-modules "ccrs-core,ccrs-langchain4j,ccrs-a2a" --discover-contingency-strategy-providers
+```
+
 The React adapter does not provide its own Python LLM client for Java
 contingency strategies. Java strategy providers should use the Java capability
 configuration supplied by the CCRS Maven libraries.
+
+The LangChain4j provider reads API configuration from environment variables,
+Java system properties, or `.env` through the Java capability module. It looks
+for:
+
+- `OPENAI_API_KEY` or `LLM_API_KEY`
+- `OPENAI_BASE_URL` or `LLM_BASE_URL`
+- `OPENAI_MODEL` or `LLM_MODEL`
+- `OPENAI_ORGANIZATION_ID`
+
+This means the Java contingency LLM can use the same API key as the Python
+agent when the same `.env` file provides `OPENAI_API_KEY` and is loaded before
+the Java wrapper is constructed. The Python agent model is configured through
+[settings.py](../utils/settings.py); the Java provider reads `OPENAI_MODEL` or
+`LLM_MODEL`. Set one of those model variables explicitly when the Java
+contingency LLM should use the same model as the Python ReAct loop:
+
+```python
+import os
+
+from react_agent.utils.settings import settings
+
+os.environ.setdefault("OPENAI_MODEL", settings.llm_model)
+```
+
+From the CLI, use `--sync-contingency-llm-model` for the same model-sync
+behavior:
+
+```powershell
+python main.py --graph-name graph_ccrs --enable-contingency-llm-prediction --sync-contingency-llm-model
+```
+
+JPype JVM lifecycle matters for optional capabilities. Restart the notebook
+kernel or Python process before changing the requested Java modules or provider
+environment. The run log should show `modules=ccrs-core,ccrs-langchain4j` or
+`modules=ccrs-core,ccrs-langchain4j,ccrs-a2a`, and
+`react.ccrs.contingency.runtime.ready` should report
+`discovered_providers=true` with the discovered strategy ids.
 
 ## Logging And Naming
 
