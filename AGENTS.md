@@ -7,7 +7,7 @@
 ## Working Agreements
 
 - Ask for user approval before starting a new task or expanding scope beyond the current request, to avoid focus drift.
-- For complex CCRS work, read [PLAN_CCRS_README.md](PLAN_CCRS_README.md) before implementing and keep it current while work proceeds.
+- For complex work, look for the relevant `PLAN_*.md` file before implementing and keep it current while work proceeds. For CCRS adapter work, start with [PLAN_CCRS_README.md](PLAN_CCRS_README.md).
 - If you add a Decision Log entry to an execution plan, highlight that decision explicitly to the user.
 
 ## CCRS Context
