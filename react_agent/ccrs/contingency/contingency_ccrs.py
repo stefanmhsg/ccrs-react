@@ -358,9 +358,7 @@ def get_default_contingency_ccrs() -> ContingencyCcrs:
 def _normalize_situation(
     situation: Situation | Mapping[str, Any],
 ) -> Situation:
-    if isinstance(situation, Situation):
-        return situation
-    return Situation.from_mapping(situation)
+    return Situation.from_value(situation)
 
 
 def _java_scalar(value: Any) -> Any:

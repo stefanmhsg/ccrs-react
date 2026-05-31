@@ -42,6 +42,7 @@ The goal is to make the Python ReAct/LangGraph agent consume the reusable Java C
 - [x] (2026-05-30) Verified Package C graph routing, explicit escalation, default repeated-tool-failure escalation, Java-backed opportunistic scans, and Java-backed contingency evaluation with local smoke commands.
 - [x] (2026-05-30) Implemented Package G first pass: CCRS default prompt text now lives in `react_agent/ccrs/prompt.py`, JSON prompt rendering lives in `react_agent/ccrs/prompt_context.py`, and `react_prompt.py` exposes `make_react_prompt_ccrs(...)` so agent designers can override the CCRS wording.
 - [x] (2026-05-30) Wired graph-build options through `launch_agent(...)` and the CLI so real runs can enable `graph_ccrs` options such as `--enable-contingency-escalation-tool`.
+- [x] (2026-05-31) Hardened contingency `Situation` normalization so explicit escalation survives notebook module reloads, mapping aliases, and accidentally supplied LangChain tool-call wrappers before Java contingency evaluation.
 - [x] Continue contingency CCRS adapter design discussion; current working notes are recorded in the `Contingency CCRS Design Discussion` section.
 - [x] Implement first-pass contingency CCRS escalation for explicit LLM escalation and repeated tool invocation failures. Richer semantic escalation remains a controller customization concern.
 - [x] Ensure the same `InMemoryCcrsTraceHistory` instance survives across contingency CCRS cycles when graph routing is implemented.
@@ -93,6 +94,9 @@ The goal is to make the Python ReAct/LangGraph agent consume the reusable Java C
 
 - Observation: Provider discovery must use JPype's classloader after the JVM has already started.
   Evidence: A lifecycle smoke that first created a core-only `ContingencyCcrs` and then created an A2A-enabled wrapper did not discover `consultation` through the default thread context classloader. Passing `org.jpype.JPypeContext.getInstance().getClassLoader()` to `ContingencyCcrsFactory.withDefaultsAndDiscoveredProviders(...)` made the same lifecycle discover and register `consultation`.
+
+- Observation: Notebook reloads can leave same-shaped `Situation` objects whose class identity differs from the `Situation` class imported by [contingency_ccrs.py](react_agent/ccrs/contingency/contingency_ccrs.py).
+  Evidence: A simulated notebook reload created an old `SituationType.UNCERTAINTY` value that no longer satisfied `isinstance(..., Situation)` in the reloaded Java wrapper. Structural normalization in [situation.py](react_agent/ccrs/contingency/situation.py) now converts old situation instances to `UNCERTAINTY` before Java evaluation.
 
 ## Decision Log
 
@@ -159,6 +163,10 @@ The goal is to make the Python ReAct/LangGraph agent consume the reusable Java C
 - Decision: Keep three CCRS state channels for prompt surfacing.
   Rationale: `opportunistic_ccrs` holds tool-observation annotations and is correlated by tool call id. `contingency_ccrs` holds contingency evaluation outputs and uses `completed` to ensure one-shot prompt injection. `opportunistic_guidance_by_contingency_ccrs` holds contingency-produced opportunistic guidance until the next contingency evaluation and is surfaced only when its `target` appears exactly as a subject or object in the latest parseable RDF tool response.
   Date/Author: 2026-05-29 / User direction and Codex implementation
+
+- Decision: Normalize external or transient contingency `Situation` values structurally at the Java-wrapper boundary.
+  Rationale: Package C owns when to create a situation, but Package A owns accepting values into Java contingency evaluation. Handling mappings, tool-call wrappers, and same-shaped objects in [situation.py](react_agent/ccrs/contingency/situation.py) preserves separation of concerns and avoids notebook/runtime identity issues leaking into graph routing.
+  Date/Author: 2026-05-31 / Codex
 
 ## Outcomes & Retrospective
 
@@ -536,3 +544,5 @@ The Java dependency is the Maven-local artifact `io.github.stefanmhsg.ccrs:ccrs-
 2026-05-30: Implemented Package G first pass. CCRS prompt wording moved to [prompt.py](react_agent/ccrs/prompt.py), prompt-visible JSON rendering and post-LLM completion updates moved to [prompt_context.py](react_agent/ccrs/prompt_context.py), and [react_prompt.py](react_agent/prompts/react_prompt.py) now exposes `make_react_prompt_ccrs(...)` for agent-specific CCRS wording overrides.
 
 2026-05-29: Adjusted Package D/C boundaries. Package D now owns the node-side call into Java `ContingencyCcrs.evaluate(...)`: when `ccrs_node` receives `contingency_situation`, it evaluates contingency CCRS, appends the result to `contingency_ccrs`, and replaces `opportunistic_guidance_by_contingency_ccrs` from that fresh result. Package C remains the place to decide when to create that situation and route into the node.
+
+2026-05-31: Hardened contingency situation normalization after an explicit `escalate_to_contingency_ccrs` run reached [ccrs_node.py](react_agent/ccrs/ccrs_node.py) and failed before Java evaluation because the situation value was not accepted as the current `Situation` class. [situation.py](react_agent/ccrs/contingency/situation.py) now normalizes mappings, tool-call wrappers, same-shaped objects, and enum-like values; [contingency_ccrs.py](react_agent/ccrs/contingency/contingency_ccrs.py) delegates all normalization there.
