@@ -36,22 +36,29 @@ The first target is a manual and auditable workflow rather than a fully automate
   Reason: BDI and React use different CCRS adapters. Java core logs can prove library behavior, but adapter decisions such as option prioritization, prompt injection, escalation, and selected tool calls must come from adapter-specific React events.
   Added/Updated: 2026-05-31 / Codex.
 
+- Rule: Base report generation on archived file logs, not notebook console output.
+  Reason: Notebook output is useful for inspection, but reports need reproducible inputs under `experiments/runs/<batch-id>/<run-id>/`.
+  Added/Updated: 2026-05-31 / Codex.
+
 ## Now / Next / Later
 
 | NOW | NEXT | LATER |
 | --- | --- | --- |
 | WP1: Align schemas and event vocabulary | WP4: Add richer CCRS report sections | WP6: Automate more of the live experiment loop |
-| WP2: Implement staging and import scripts | WP5: Add smoke fixtures and validation scripts | WP7: Cross-repository comparison reports |
+| WP1A: Add React reportability events | WP5: Add smoke fixtures and validation scripts | WP7: Cross-repository comparison reports |
+| WP2: Implement staging and import scripts |  |  |
 | WP3: Parse React logs and MASE exports |  |  |
 
 ## Progress
 
 - [x] (2026-05-31 13:20Z) Created this React experiment-report ExecPlan and aligned its initial workflow with [ccrs-bdi/experiments/README.md](../ccrs-bdi/experiments/README.md).
 - [ ] WP1: Inventory BDI report CSV schemas and map each field to React log or MASE export sources.
+- [ ] WP1A: Add React adapter events needed for prompt-visible CCRS context and post-LLM selected-tool correlation.
 - [ ] WP2: Add React experiment staging/import/report PowerShell scripts under `ccrs-react/experiments/scripts/`.
 - [ ] WP3: Implement a parser that reads React run logs, Java companion logs, and MASE viewer exports into normalized CSVs.
 - [ ] WP4: Generate `summary.md`, `summary.json`, CSVs, and path-analysis inputs with the same report layout used by BDI where possible.
 - [ ] WP5: Add small smoke fixtures or smoke commands that exercise report generation without a live OpenAI or MaSE run.
+- [x] (2026-05-31 14:10Z) Prepared the next implementation packages by separating React reportability events from report parsing and documenting the remaining adapter-specific metric gaps.
 
 ## Surprises & Discoveries
 
@@ -65,7 +72,13 @@ The first target is a manual and auditable workflow rather than a fully automate
   Evidence: [PLAN_CCRS_README.md](PLAN_CCRS_README.md) includes local validation commands for graph construction, Java-backed opportunistic scans, Java-backed contingency evaluation, invalid RDF handling, and prompt-path behavior.
 
 - Observation: Existing BDI opportunistic reporting depends on a JaCaMo adapter event that React does not currently produce.
-  Evidence: [prioritize.java](../ccrs-bdi/ccrs-jacamo/src/main/java/ccrs/jacamo/jason/opportunistic/prioritize.java) emits `ccrs.opportunistic.prioritize` with fields such as `selected_uri`, `selected_original_index`, `selected_has_ccrs`, `selected_reordered`, `selected_type`, and `selected_utility`. [parse-experiment-logs.ps1](../ccrs-bdi/experiments/scripts/parse-experiment-logs.ps1) maps that event into `decisions.csv`. The current React adapter emits `react.ccrs.opportunistic.detected` for scan results and prompt-context events for injection, but it does not yet emit an equivalent post-LLM decision event that says which option was selected and whether CCRS influenced that selection.
+  Evidence: [prioritize.java](../ccrs-bdi/ccrs-jacamo/src/main/java/ccrs/jacamo/jason/opportunistic/prioritize.java) emits `ccrs.opportunistic.prioritize` with fields such as `selected_uri`, `selected_original_index`, `selected_has_ccrs`, `selected_reordered`, `selected_type`, and `selected_utility`. [parse-experiment-logs.ps1](../ccrs-bdi/experiments/scripts/parse-experiment-logs.ps1) maps that event into `decisions.csv`. The current React adapter emits `react.ccrs.opportunistic.detected` for scan results and human-readable prompt-context logs for injection, but it does not yet emit an equivalent post-LLM decision event that says which tool target was selected after the prompt was built.
+
+- Observation: The current BDI parser only recognizes structured key-value records with `[CCRS-EVENT]` and `[METRIC]` prefixes, while React uses `[REACT-CCRS-EVENT]`.
+  Evidence: [parse-experiment-logs.ps1](../ccrs-bdi/experiments/scripts/parse-experiment-logs.ps1) searches fixed prefixes in `ConvertFrom-KeyValueLine`. React logs are emitted by [audit.py](react_agent/ccrs/audit.py) with `[REACT-CCRS-EVENT]`.
+
+- Observation: React currently logs prompt context as human-readable JSON but not as a compact machine-readable lifecycle event.
+  Evidence: [prompt_context.py](react_agent/ccrs/prompt_context.py) logs `CCRS prompt context: ...` and prints `[CCRS PROMPT CONTEXT]`, but it does not call `log_ccrs_event(...)` with prompt-visible counts or prompt-context identifiers.
 
 ## Decision Log
 
@@ -83,6 +96,10 @@ The first target is a manual and auditable workflow rather than a fully automate
 
 - Decision: React report generation must distinguish Java-library evidence from React-adapter evidence.
   Rationale: Java CCRS logs differ depending on which adapter uses the library and cannot by themselves reproduce adapter-specific BDI report metrics. React reports should parse Java companion logs as library evidence, but metrics such as opportunistic influence, prompt injection, escalation, and selected actions require React adapter events.
+  Date/Author: 2026-05-31 / Codex.
+
+- Decision: React v1 reports will use React-native "followed highest-ranked injected suggestion" metrics instead of BDI overrule metrics.
+  Rationale: JaCaMo `ccrs.opportunistic.prioritize` records deterministic option reordering, but React CCRS guidance is advisory prompt context. React reports should measure whether the LLM selected the highest-ranked injected target from `opportunistic_ccrs`, from `opportunistic_guidance_by_contingency_ccrs`, or from a cycle where both channels were visible. Strict reordering and overrule fields are not applicable to React and should be documented as a conceptual mismatch instead of represented as report columns.
   Date/Author: 2026-05-31 / Codex.
 
 ## Context and Orientation
@@ -104,6 +121,14 @@ The React report pipeline should start with the same manual procedure:
 
 The term "run package" means one durable directory containing all raw and normalized files for one finished agent run. The term "batch" means a set of run packages that should be compared in one report, for example `react-baseline-vs-ccrs-v1` with `001-baseline` and `002-ccrs` runs.
 
+The next implementation sequence is:
+
+1. Finish WP1 by freezing the v1 schema and marking BDI-only fields explicitly.
+2. Implement WP1A so React logs contain machine-readable prompt-visible and post-LLM selected-tool events.
+3. Implement WP2 staging/import scripts so fixture and real run packages have the same archive shape.
+4. Implement WP3 parser against the archived run shape and the WP1A event contract.
+5. Implement WP4 report writing after the CSV contract is stable.
+
 ## Work Packages
 
 ### WP1: Align React report schemas with BDI reports
@@ -116,7 +141,24 @@ Local context: Use [ccrs-bdi/experiments/reports/baseline-vs-ccrs-v2/summary.md]
 
 Discussion: React cannot copy BDI parsing one-to-one because BDI logs are JaCaMo/AgentSpeak logs, while React logs are Python logging records plus optional Java companion logs. The output should nevertheless preserve familiar files where the data exists: `runs.csv`, `agents.csv`, `mase-events.csv`, `mase-agent-moved.csv`, `mase-transactions.csv`, `cycle-durations.csv`, `decisions.csv`, `contingency.csv`, `actions.csv`, `path-analysis-inputs.csv`, `summary.json`, and `summary.md`. If a BDI-specific column has no React source, leave it blank or define a React equivalent explicitly.
 
-The most important known mismatch is opportunistic decision reporting. In BDI, the Java core scan result is not enough for `decisions.csv`; the JaCaMo adapter's [prioritize.java](../ccrs-bdi/ccrs-jacamo/src/main/java/ccrs/jacamo/jason/opportunistic/prioritize.java) internal action emits `ccrs.opportunistic.prioritize`, which records how CCRS annotations changed the selected option. React currently uses advisory prompt injection, so there is no deterministic prioritize internal action and no direct `selected_reordered` equivalent. React report v1 must therefore either mark those BDI decision fields as unavailable for React or add a React adapter event that records the prompt-visible CCRS context, the LLM-selected tool/action target, and the matching CCRS entry if one exists.
+The most important known mismatch is opportunistic decision reporting. In BDI, the Java core scan result is not enough for `decisions.csv`; the JaCaMo adapter's [prioritize.java](../ccrs-bdi/ccrs-jacamo/src/main/java/ccrs/jacamo/jason/opportunistic/prioritize.java) internal action emits `ccrs.opportunistic.prioritize`, which records how CCRS annotations changed deterministic option order. React currently uses advisory prompt injection, so deterministic reordering and strict overrule metrics are not applicable. React report v1 should therefore use React-native advisory-follow metrics: when CCRS context is injected, identify the highest-ranked target in each injected guidance channel and record whether the subsequent LLM-selected tool target follows it.
+
+For React v1, the field mapping should be explicit:
+
+- `runs.csv` is required. It comes from `run.json`, MASE exports, and aggregate React log counts. React-specific columns include `graph_name`, `run_mode`, `log_level`, `enable_contingency_escalation_tool`, and optional Java capability flags.
+- `mase-events.csv`, `mase-agent-moved.csv`, `mase-transactions.csv`, `agents.csv`, and `path-analysis-inputs.csv` are required when a MASE export is present. If no export is present, the report remains valid but these files are empty and the summary must state that MASE evidence is missing.
+- `cycle-durations.csv` is required for React CCRS runs because the `cycle` object has a number and timestamp. Durations are derived from consecutive cycle timestamps in React logs, with CCRS counts joined by cycle number.
+- `decisions.csv` is required, but React rows mean "LLM tool selections observed after prompt construction", not deterministic JaCaMo option reordering. The React schema should not carry `selected_reordered` or strict-overrule columns. The report text should instead note that those BDI concepts do not apply to advisory React prompt injection.
+- `contingency.csv` is required for CCRS runs. It comes from `react.ccrs.contingency.*` and `react.ccrs.opportunistic_guidance_by_contingency_ccrs.*` events.
+- `actions.csv` is required and should be derived from `LLM node tool calls` and `TOOL_NODE` invocation log lines when possible.
+- Java companion logs contribute to `java-library-evidence` summary fields or a separate CSV, but they do not populate `decisions.csv`.
+
+React advisory-follow metrics should be derived from `decisions.csv` or a companion aggregate table:
+
+- Count cycles where only `opportunistic_ccrs` was injected. Group by the number of injected `opportunistic_ccrs` entries in the cycle, from 1 up to the maximum observed count. For each group, count how often the agent followed the highest-ranked `opportunistic_ccrs` target and how often it did not.
+- Count cycles where only `opportunistic_guidance_by_contingency_ccrs` was injected. Group by the number of injected contingency-produced guidance entries in the cycle, from 1 up to the maximum observed count. For each group, count followed and not-followed outcomes for the highest-ranked target.
+- Count cycles where both channels were injected. Group dynamically by the pair `(opportunistic_ccrs_count, contingency_guidance_count)` and count whether the agent followed the highest-ranked target from either channel, plus channel-specific followed flags.
+- Define "highest-ranked" as the entry with the highest numeric rank signal. Prefer `utility` for opportunistic CCRS. For contingency-produced guidance, prefer `utility` when present, then `confidence`, then explicit `rank` or list order as a final fallback. The selected tool target follows a suggestion when it exactly equals the highest-ranked entry's `target`.
 
 Todos:
 
@@ -124,7 +166,7 @@ Todos:
 - [ ] Map BDI run metadata fields to React run metadata fields, including `graph_name`, `agent_name`, `run_mode`, `log_level`, and whether `enable_contingency_escalation_tool` was enabled.
 - [ ] Map React `[REACT-CCRS-EVENT]` names into `decisions.csv`, `contingency.csv`, and cycle attribution fields.
 - [ ] Identify every BDI metric that depends on JaCaMo adapter events rather than Java CCRS core events, starting with `ccrs.opportunistic.prioritize`.
-- [ ] Decide the React equivalent for BDI `ccrs.opportunistic.prioritize`: unavailable in v1, inferred from prompt context plus selected tool call, or emitted as a new React adapter event.
+- [x] Decide the React equivalent for BDI `ccrs.opportunistic.prioritize`: React v1 uses post-LLM advisory-follow metrics over injected CCRS targets, while deterministic reordering and strict overrule fields are not part of the React schema.
 - [ ] Decide whether React cycle durations come from existing `cycle` timestamps, a new structured log marker, or both.
 - [ ] Define how Java companion logs contribute to report evidence without duplicating React adapter event counts.
 
@@ -136,6 +178,41 @@ Concrete steps: Start from `S:\dev\ma\ccrs-react` and inspect the BDI outputs an
 Record the final schema mapping in this work package before implementing WP2 and WP3.
 
 Validation and acceptance: WP1 is accepted when the plan or a new `ccrs-react/experiments/README.md` section states which BDI report artifacts React will generate in v1, where each field comes from, and which fields are intentionally blank or React-specific.
+
+Outcome and notes: Not started.
+
+### WP1A: Add React adapter reportability events
+
+Status: Now
+
+Purpose: Make React CCRS report evidence explicit in the run log before implementing the parser. After this package, the parser can read prompt-visible CCRS counts and selected tool targets without scraping multi-line JSON prompt dumps or inferring adapter behavior from Java logs.
+
+Local context: React CCRS audit events are emitted through [audit.py](react_agent/ccrs/audit.py). Prompt-visible context is assembled in [prompt_context.py](react_agent/ccrs/prompt_context.py). The selected LLM tool calls are available immediately after `chain.invoke(...)` in [llm_node_ccrs_v2.py](react_agent/nodes/llm_node_ccrs_v2.py). Tool-call target URLs are already visible in those tool-call dictionaries, usually as `args.url`.
+
+Discussion: This package should stay small and adapter-specific. It should not change CCRS behavior or prompt wording. It should only add machine-readable evidence that report scripts can trust. The BDI adapter has deterministic option prioritization; React does not. Therefore React events should avoid words like `overruled` or `reordered` and should report advisory-follow evidence instead.
+
+The proposed events are:
+
+- `react.ccrs.prompt_context.visible`: emitted once before the LLM call when any CCRS prompt context is visible. Fields should include `cycle`, `cycle_timestamp`, `agent_name`, `opportunistic_count`, `contingency_pending_count`, `contingency_guidance_count`, `top_opportunistic_target`, `top_opportunistic_score`, `top_contingency_guidance_target`, `top_contingency_guidance_score`, and `prompt_context_id`.
+- `react.ccrs.opportunistic.selection`: emitted after every LLM response for each selected tool call. Fields should include `cycle`, `cycle_timestamp`, `agent_name`, `tool_name`, `tool_call_id`, `selected_uri`, `selection_mode=advisory_prompt`, `opportunistic_count`, `contingency_guidance_count`, `followed_top_opportunistic`, `followed_top_contingency_guidance`, `followed_any_top_guidance`, `top_opportunistic_target`, `top_contingency_guidance_target`, and `prompt_context_id`.
+
+`followed_top_opportunistic` should be true only when the selected URI exactly matches the highest-ranked target from the prompt-visible `opportunistic_ccrs` entries for that prompt. `followed_top_contingency_guidance` should be true only when the selected URI exactly matches the highest-ranked target from prompt-visible `opportunistic_guidance_by_contingency_ccrs` entries. Pending contingency suggestions may be reported through contingency-specific fields later, but they should not be counted as opportunistic follow metrics unless they expose opportunistic guidance targets.
+
+Todos:
+
+- [ ] Add `prompt_context_id` to the prompt context object so pre-LLM and post-LLM events can be correlated.
+- [ ] Emit `react.ccrs.prompt_context.visible` from [prompt_context.py](react_agent/ccrs/prompt_context.py).
+- [ ] Add a small matching helper that extracts selected tool target URIs from LLM tool calls, ranks prompt-visible opportunistic targets, and computes channel-specific followed flags.
+- [ ] Emit `react.ccrs.opportunistic.selection` from [llm_node_ccrs_v2.py](react_agent/nodes/llm_node_ccrs_v2.py) after the model response.
+- [ ] Keep the existing human-readable prompt context logging for debugging, but do not make the parser depend on it.
+- [ ] Update [react_agent/ccrs/README.md](react_agent/ccrs/README.md) logging section with the new event names.
+
+Concrete steps: Add reportability events with no behavior change. Validate by running a short Python smoke that invokes the CCRS graph with fixture state or by using an existing short run log. The expected evidence is a log line like:
+
+    [REACT-CCRS-EVENT] event=react.ccrs.prompt_context.visible cycle=4 opportunistic_count=1 contingency_pending_count=0 contingency_guidance_count=0 top_opportunistic_target=http://127.0.1.1:8080/cells/0/2 prompt_context_id=...
+    [REACT-CCRS-EVENT] event=react.ccrs.opportunistic.selection cycle=4 tool_name=http_get selected_uri=http://127.0.1.1:8080/cells/0/2 opportunistic_count=1 contingency_guidance_count=0 followed_top_opportunistic=true followed_top_contingency_guidance=false followed_any_top_guidance=true selection_mode=advisory_prompt prompt_context_id=...
+
+Validation and acceptance: Existing graph behavior must remain unchanged. `S:\anaconda\agent\python.exe -m compileall react_agent` should pass. A log from a CCRS run with prompt-visible opportunistic context should include both new events, and a run without prompt-visible CCRS should still emit selection events with zero guidance counts and all followed flags set to false.
 
 Outcome and notes: Not started.
 
@@ -153,6 +230,7 @@ Todos:
 
 - [ ] Create `ccrs-react/experiments/scripts/prepare-current-run.ps1` to create or clean `experiments/runs/current-run/`.
 - [ ] Create `ccrs-react/experiments/scripts/import-manual-run.ps1` aligned with the BDI script but with React parameters such as `-AgentName`, `-GraphName`, `-RunMode`, `-ReactLog`, `-JavaLog`, and `-EnableContingencyEscalationTool`.
+- [ ] Add optional metadata parameters such as `-ScenarioId`, `-OptimalMoves`, `-ExitCell`, and `-Notes`; leave them blank when unknown instead of hard-coding BDI scenario assumptions.
 - [ ] Normalize MASE viewer NDJSON/JSONL exports into `mase-events.jsonl` in each run package.
 - [ ] Preserve original exports under `source-exports/`.
 - [ ] Write `run.json` with enough metadata for report generation and audit.
@@ -198,7 +276,9 @@ Local context: BDI parsing lives in [ccrs-bdi/experiments/scripts/parse-experime
 
 Discussion: The React parser needs a stable key-value parser for `[REACT-CCRS-EVENT]` records and may also parse `[CCRS-EVENT]` records in `.java.log` as Java-side evidence. React logs include Python logger names and timestamps before the CCRS prefix; the parser should search for the prefix within the line rather than assume it starts at column zero. Existing prompt context and notebook console output may be useful for manual inspection, but report generation should depend on file logs whenever possible.
 
-Adapter-level event differences must be handled explicitly. Java companion logs can show that `VocabularyMatcher` or `ContingencyCcrs` ran, but they cannot reconstruct React-specific graph effects such as prompt injection, LLM self-escalation, skipped tool-node routing, or which tool call the LLM selected after seeing CCRS context. BDI's `decisions.csv` is populated partly from `ccrs.opportunistic.prioritize`; React needs either a new adapter event with comparable semantics or report columns that clearly state `not_available_for_react_adapter`.
+Adapter-level event differences must be handled explicitly. Java companion logs can show that `VocabularyMatcher` or `ContingencyCcrs` ran, but they cannot reconstruct React-specific graph effects such as prompt injection, LLM self-escalation, skipped tool-node routing, or which tool call the LLM selected after seeing CCRS context. BDI's `decisions.csv` is populated partly from `ccrs.opportunistic.prioritize`; React's `decisions.csv` should instead be populated from advisory-follow events.
+
+After WP1A, `decisions.csv` should be populated from `react.ccrs.opportunistic.selection`. Before WP1A exists, parser implementation may still read older logs, but those older logs should produce empty decision rows with a clear `metric_quality=missing_selection_event` marker rather than inferred influence.
 
 Todos:
 
@@ -206,8 +286,9 @@ Todos:
 - [ ] Parse `[REACT-CCRS-EVENT] event=react.ccrs.opportunistic.*` into opportunistic counts and optional detail rows.
 - [ ] Parse `[REACT-CCRS-EVENT] event=react.ccrs.contingency.*` into `contingency.csv`.
 - [ ] Parse `react.ccrs.opportunistic_guidance_by_contingency_ccrs.*` into guidance match counts.
-- [ ] Do not infer BDI `selected_reordered` or overruled-decision metrics from Java scan logs alone.
-- [ ] If React decision influence metrics are required, add or consume a React adapter event that correlates latest prompt-visible CCRS entries with the subsequent LLM tool call target.
+- [ ] Do not include BDI `selected_reordered` or overruled-decision columns in the React schema; document those concepts as not applicable to advisory React prompt injection.
+- [ ] Consume `react.ccrs.opportunistic.selection` for React `decisions.csv`; mark older logs without this event as missing advisory-selection evidence.
+- [ ] Produce advisory-follow aggregate metrics grouped by `opportunistic_count`, by `contingency_guidance_count`, and by the pair `(opportunistic_count, contingency_guidance_count)` when both channels were visible.
 - [ ] Parse Java companion `.java.log` files into a separate evidence table or summary fields without double-counting adapter events.
 - [ ] Parse MASE `AGENT_MOVED` and transaction events into `mase-events.csv`, `mase-agent-moved.csv`, `mase-transactions.csv`, `agents.csv`, and path-analysis inputs.
 - [ ] Derive `cycle-durations.csv` from React cycle timestamps or add a required structured cycle marker if current logs are insufficient.
@@ -227,7 +308,13 @@ Purpose: Produce the human-readable report and machine-readable summary package 
 
 Local context: The BDI report writer in [ccrs-bdi/experiments/scripts/write-report.ps1](../ccrs-bdi/experiments/scripts/write-report.ps1) generates the report sections that users already know: core metrics, move optimality, cycle duration summary, chart, decision breakdown, contingency details, generated artifacts, and path-analysis inputs.
 
-Discussion: React v1 should prefer the same report sections even if some tables have fewer rows. The report should make React-specific behavior visible: whether the CCRS graph was used, whether the escalation tool was enabled, how many opportunistic annotations were detected, how many contingency escalations occurred, how often contingency suggestions stopped the graph, and whether Java companion logs were captured.
+Discussion: React v1 should prefer the same report sections even if some tables have fewer rows. The report should make React-specific behavior visible: whether the CCRS graph was used, whether the escalation tool was enabled, how many opportunistic annotations were detected, how many contingency escalations occurred, how often contingency suggestions stopped the graph, whether Java companion logs were captured, and how often the agent followed the highest-ranked injected suggestion.
+
+The React report should replace the BDI "overruled decisions" section with advisory-follow sections:
+
+- Opportunistic CCRS only: rows grouped by injected `opportunistic_ccrs` count, with followed and not-followed counts for the highest-ranked target.
+- Contingency-produced opportunistic guidance only: rows grouped by injected `opportunistic_guidance_by_contingency_ccrs` count, with followed and not-followed counts for the highest-ranked target.
+- Combined guidance: rows grouped by `(opportunistic_ccrs_count, contingency_guidance_count)`, with followed and not-followed counts for each channel's top target and for any top target.
 
 Todos:
 
@@ -237,6 +324,7 @@ Todos:
 - [ ] Include the generated CSV artifact list.
 - [ ] Generate path-analysis cell sequence files from MASE movement rows.
 - [ ] Add a cycle-duration chart if React cycle rows are available.
+- [ ] Add advisory-follow summary sections in place of BDI overruled-decision sections.
 
 Concrete steps: Keep the command shape close to BDI:
 
@@ -367,7 +455,7 @@ BDI report artifacts to mirror where possible:
 - `mase-agent-moved.csv`: normalized MASE movement events.
 - `mase-transactions.csv`: normalized MASE transaction events.
 - `cycle-durations.csv`: one row per agent cycle marker or derived cycle interval.
-- `decisions.csv`: one row per parsed decision or prompt-relevant CCRS selection event when available.
+- `decisions.csv`: one row per LLM tool selection with advisory-follow fields for prompt-visible CCRS targets.
 - `contingency.csv`: one row per contingency CCRS evaluation, strategy result, or no-help result.
 - `actions.csv`: parsed agent tool/action attempts when recoverable from logs.
 - `path-analysis-inputs/*.cells.txt`: copy-paste cell paths for MASE viewer path analysis.
@@ -391,7 +479,7 @@ Important BDI-only source to account for when aligning schemas:
 
     [CCRS-EVENT] event=ccrs.opportunistic.prioritize selected_uri=... selected_reordered=...
 
-That event is emitted by the JaCaMo adapter, not by the shared Java opportunistic matcher. React report generation must not assume it exists. If React needs comparable opportunistic influence metrics, the React adapter should emit its own event after the LLM chooses a tool call, using React naming such as `react.ccrs.opportunistic.selection` or another name chosen during WP1.
+That event is emitted by the JaCaMo adapter, not by the shared Java opportunistic matcher. React report generation must not assume it exists. React v1 uses `react.ccrs.opportunistic.selection` for advisory-follow evidence and does not carry strict reordering or overrule columns.
 
 ## Interfaces and Dependencies
 
