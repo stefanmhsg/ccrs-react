@@ -121,8 +121,9 @@ The integration contract is:
 - Call [contingency/contingency_ccrs.py](contingency/contingency_ccrs.py)
   through [ccrs_node.py](ccrs_node.py), not directly from graph routing.
 - Keep optional Java capabilities explicit. The default wrapper loads
-  `ccrs-core` only; LLM prediction and A2A consultation require the capability
-  modules described in [Java Capabilities](#java-capabilities).
+  core CCRS only; LLM prediction and A2A consultation should be requested as
+  semantic capabilities. Raw Java module lists are an escape hatch described in
+  [Java Capabilities](#java-capabilities).
 
 ## Integration In This Repository
 
@@ -139,7 +140,10 @@ the CCRS graph variant:
 - [graph_ccrs.py](../graph/graph_ccrs.py) accepts graph-build options for
   `contingency_escalation_controller`, `contingency_ccrs`,
   `ccrs_trace_history`, `ccrs_prompt_template`, and
-  `enable_contingency_escalation_tool`.
+  `enable_contingency_escalation_tool`. Optional Java contingency strategies
+  are requested through semantic graph options such as
+  `enable_contingency_llm_prediction` and
+  `enable_contingency_a2a_consultation`.
 - [api.py](../api.py) builds the selected graph and passes matching keyword
   arguments into the graph builder. The same keyword arguments are also placed
   in LangGraph `configurable` run configuration so nodes can read runtime
@@ -167,22 +171,10 @@ await launch_agent(
 )
 ```
 
-To enable optional Java contingency providers in a notebook run, construct the
-wrapper before calling `launch_agent(...)`:
+To enable optional Java contingency providers in a notebook run, pass semantic
+capability options to `launch_agent(...)`:
 
 ```python
-import os
-
-from react_agent.ccrs.contingency.contingency_ccrs import ContingencyCcrs
-from react_agent.utils.settings import settings
-
-os.environ.setdefault("OPENAI_MODEL", settings.llm_model)
-
-contingency_ccrs = ContingencyCcrs.from_maven_local(
-    modules=("ccrs-core", "ccrs-langchain4j", "ccrs-a2a"),
-    discover_strategy_providers=True,
-)
-
 await launch_agent(
     query=QUERY_V2,
     agent_name="react_ccrs_notebook_1",
@@ -190,7 +182,8 @@ await launch_agent(
     run_mode="async",
     log_level="INFO",
     enable_contingency_escalation_tool=True,
-    contingency_ccrs=contingency_ccrs,
+    enable_contingency_llm_prediction=True,
+    enable_contingency_a2a_consultation=True,
 )
 ```
 
@@ -207,6 +200,7 @@ Python API when a caller needs to pass custom objects such as a prebuilt
 
 | CCRS library concept | React adapter element | Purpose in the React agent |
 | --- | --- | --- |
+| Java capability metadata | [capabilities.py](capabilities.py) | Maps semantic contingency capabilities to Java CCRS module names and normalizes explicit module overrides. |
 | Java [RdfTriple.java](../../../ccrs-bdi/ccrs-core/src/main/java/ccrs/core/rdf/RdfTriple.java) | [rdf_adapter.py](rdf_adapter.py) | Parses Turtle tool-message bodies and converts RDF triples into Java-compatible values. |
 | Java [VocabularyMatcher.java](../../../ccrs-bdi/ccrs-core/src/main/java/ccrs/core/opportunistic/VocabularyMatcher.java) | [opportunistic/vocabulary_matcher.py](opportunistic/vocabulary_matcher.py) | Runs opportunistic CCRS matching over the latest parseable tool observation. |
 | Java [OpportunisticResult.java](../../../ccrs-bdi/ccrs-core/src/main/java/ccrs/core/opportunistic/OpportunisticResult.java) | [opportunistic/opportunistic_result.py](opportunistic/opportunistic_result.py) | Represents opportunistic annotations and selects entries relevant to the latest LLM tool calls. |
@@ -410,47 +404,51 @@ from concrete modules instead of relying on root-package re-exports.
 
 ## Java Capabilities
 
-The default contingency wrapper loads `ccrs-core` only. Optional Java capability
+The default contingency wrapper loads core CCRS only. Optional Java capability
 modules can be made visible through the JPype classpath and discovered by Java
-`ServiceLoader`. This is intentionally explicit: exposing
+`ServiceLoader`. The graph and CLI request those capabilities semantically;
+[capabilities.py](capabilities.py) owns the mapping from semantic capability to
+Java module names. This is intentionally explicit: exposing
 `escalate_to_contingency_ccrs` lets the LLM request contingency evaluation, but
 it does not enable optional Java strategies by itself.
 
 For Java-backed LLM prediction strategies:
 
 ```python
-from react_agent.ccrs.contingency.contingency_ccrs import ContingencyCcrs
-
-contingency_ccrs = ContingencyCcrs.from_maven_local(
-    modules=("ccrs-core", "ccrs-langchain4j"),
-    discover_strategy_providers=True,
+await launch_agent(
+    query=QUERY_V2,
+    graph_name="graph_ccrs",
+    enable_contingency_llm_prediction=True,
 )
 ```
 
-The equivalent CLI option adds `ccrs-langchain4j` and turns provider discovery
-on:
+The equivalent CLI option resolves the required Java modules and turns provider
+discovery on:
 
 ```powershell
 python main.py --graph-name graph_ccrs --enable-contingency-llm-prediction
 ```
 
-For A2A consultation strategies, include the A2A module as well:
+For A2A consultation strategies, request the A2A capability as well:
 
 ```python
-contingency_ccrs = ContingencyCcrs.from_maven_local(
-    modules=("ccrs-core", "ccrs-langchain4j", "ccrs-a2a"),
-    discover_strategy_providers=True,
+await launch_agent(
+    query=QUERY_V2,
+    graph_name="graph_ccrs",
+    enable_contingency_llm_prediction=True,
+    enable_contingency_a2a_consultation=True,
 )
 ```
 
-The equivalent CLI option adds both capability modules and turns provider
+The equivalent CLI option resolves both capability modules and turns provider
 discovery on:
 
 ```powershell
 python main.py --graph-name graph_ccrs --enable-contingency-llm-prediction --enable-contingency-a2a-consultation
 ```
 
-For lower-level module control, use `--contingency-ccrs-modules`, for example:
+For lower-level module control, use `--contingency-ccrs-modules` as an explicit
+escape hatch, for example:
 
 ```powershell
 python main.py --graph-name graph_ccrs --contingency-ccrs-modules "ccrs-core,ccrs-langchain4j,ccrs-a2a" --discover-contingency-strategy-providers

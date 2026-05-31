@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping
 
 from react_agent.ccrs.audit import log_ccrs_event
+from react_agent.ccrs.capabilities import CCRS_CORE_MODULE
 from react_agent.ccrs.contingency.ccrs_context import InMemoryCcrsContext
 from react_agent.ccrs.contingency.situation import Situation
 from react_agent.ccrs.java_runtime import CcrsJavaRuntime, CcrsJavaRuntimeError
@@ -40,7 +41,7 @@ class ContingencyCcrs:
         *,
         group: str = "io.github.stefanmhsg.ccrs",
         version: str = "0.1.0-SNAPSHOT",
-        modules: Iterable[str] = ("ccrs-core",),
+        modules: Iterable[str] = (CCRS_CORE_MODULE,),
         maven_repo: str | Path | None = None,
         gradle_cache: str | Path | None = None,
         extra_classpath: Iterable[str | Path] = (),
@@ -160,7 +161,7 @@ class ContingencyCcrs:
             logger.info("%s Loaded Java contingency CCRS classes through JPype.", LOG_PREFIX)
         except Exception as exc:
             raise CcrsJavaRuntimeError(
-                "Failed to load Java contingency CCRS classes. Check that ccrs-core "
+                f"Failed to load Java contingency CCRS classes. Check that {CCRS_CORE_MODULE} "
                 "and its dependencies are on the JPype classpath."
             ) from exc
 

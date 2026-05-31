@@ -69,13 +69,14 @@ Options
                             Expose the opt-in escalate_to_contingency_ccrs tool when using graph_ccrs
 
     --enable-contingency-llm-prediction
-                            Enable the optional Java ccrs-langchain4j prediction strategy provider when using graph_ccrs
+                            Enable the optional Java contingency LLM prediction capability when using graph_ccrs
 
     --enable-contingency-a2a-consultation
-                            Enable the optional Java ccrs-a2a consultation strategy provider when using graph_ccrs
+                            Enable the optional Java contingency A2A consultation capability when using graph_ccrs
 
     --contingency-ccrs-modules
-                            Comma- or space-separated Java CCRS modules for contingency evaluation
+                            Comma- or space-separated Java CCRS modules for contingency evaluation,
+                            for example: ccrs-core,ccrs-langchain4j,ccrs-a2a
 
     --discover-contingency-strategy-providers
                             Discover Java contingency strategy providers with ServiceLoader when using graph_ccrs

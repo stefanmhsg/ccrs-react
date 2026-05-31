@@ -1,5 +1,10 @@
 from langgraph.graph import END, StateGraph
 
+from react_agent.ccrs.capabilities import (
+    DEFAULT_CONTINGENCY_CCRS_MODULES,
+    ContingencyCapability,
+    contingency_modules_for_capabilities,
+)
 from react_agent.ccrs.ccrs_node import make_ccrs_node
 from react_agent.ccrs.contingency.contingency_ccrs import ContingencyCcrs
 from react_agent.ccrs.contingency.escalation import escalate_to_contingency_ccrs
@@ -13,9 +18,6 @@ from react_agent.ccrs.contingency.decision import (
 from react_agent.nodes.llm_node_ccrs_v2 import make_llm_node
 from react_agent.nodes.tool_node import tool_node
 from react_agent.tools import tools
-
-
-DEFAULT_CONTINGENCY_CCRS_MODULES = ("ccrs-core",)
 
 
 def build_graph(
@@ -102,16 +104,19 @@ def _contingency_ccrs_from_options(
     if contingency_ccrs is not None:
         return contingency_ccrs
 
-    modules = _normalize_contingency_ccrs_modules(contingency_ccrs_modules)
+    capabilities = []
     if enable_contingency_llm_prediction:
-        modules = _append_unique(modules, "ccrs-langchain4j")
+        capabilities.append(ContingencyCapability.LLM_PREDICTION)
     if enable_contingency_a2a_consultation:
-        modules = _append_unique(modules, "ccrs-a2a")
+        capabilities.append(ContingencyCapability.A2A_CONSULTATION)
+    modules = contingency_modules_for_capabilities(
+        capabilities,
+        base_modules=contingency_ccrs_modules,
+    )
 
     discover = (
         discover_contingency_strategy_providers
-        or enable_contingency_llm_prediction
-        or enable_contingency_a2a_consultation
+        or bool(capabilities)
         or modules != DEFAULT_CONTINGENCY_CCRS_MODULES
     )
     if modules == DEFAULT_CONTINGENCY_CCRS_MODULES and not discover:
@@ -121,25 +126,3 @@ def _contingency_ccrs_from_options(
         modules=modules,
         discover_strategy_providers=discover,
     )
-
-
-def _normalize_contingency_ccrs_modules(modules) -> tuple[str, ...]:
-    if modules is None:
-        return DEFAULT_CONTINGENCY_CCRS_MODULES
-    if isinstance(modules, str):
-        values = modules.replace(",", " ").split()
-    else:
-        values = [str(value) for value in modules]
-
-    normalized = tuple(value for value in values if value)
-    if not normalized:
-        return DEFAULT_CONTINGENCY_CCRS_MODULES
-    if "ccrs-core" not in normalized:
-        return ("ccrs-core", *normalized)
-    return normalized
-
-
-def _append_unique(values: tuple[str, ...], value: str) -> tuple[str, ...]:
-    if value in values:
-        return values
-    return (*values, value)

@@ -15,6 +15,11 @@ from pathlib import Path
 from typing import Any, ClassVar, Iterable, Mapping
 
 from react_agent.ccrs.audit import log_ccrs_event
+from react_agent.ccrs.capabilities import (
+    CCRS_A2A_MODULE,
+    CCRS_CORE_MODULE,
+    CCRS_LANGCHAIN4J_MODULE,
+)
 from react_agent.ccrs.java_logging import configure_java_ccrs_logging
 
 
@@ -40,7 +45,7 @@ class CcrsJavaRuntime:
 
     group: str = "io.github.stefanmhsg.ccrs"
     version: str = "0.1.0-SNAPSHOT"
-    modules: tuple[str, ...] = ("ccrs-core",)
+    modules: tuple[str, ...] = (CCRS_CORE_MODULE,)
     maven_repo: Path = field(default_factory=_default_maven_repo)
     gradle_cache: Path = field(default_factory=_default_gradle_cache)
     extra_classpath: tuple[Path, ...] = ()
@@ -90,7 +95,7 @@ class CcrsJavaRuntime:
         ("org.apache.thrift", "libthrift", "0.22.0"),
     )
     _module_runtime_dependencies: ClassVar[dict[str, tuple[tuple[str, str, str], ...]]] = {
-        "ccrs-langchain4j": (
+        CCRS_LANGCHAIN4J_MODULE: (
             ("dev.langchain4j", "langchain4j-open-ai", "1.10.0"),
             ("dev.langchain4j", "langchain4j", "1.10.0"),
             ("dev.langchain4j", "langchain4j-core", "1.10.0"),
@@ -99,7 +104,7 @@ class CcrsJavaRuntime:
             ("com.knuddels", "jtokkit", "1.1.0"),
             ("io.github.cdimascio", "dotenv-java", "3.0.0"),
         ),
-        "ccrs-a2a": (
+        CCRS_A2A_MODULE: (
             ("io.github.cdimascio", "dotenv-java", "3.0.0"),
             ("io.github.a2asdk", "a2a-java-sdk-reference-rest", "0.3.3.Final"),
             ("io.github.a2asdk", "a2a-java-sdk-client", "0.3.3.Final"),
@@ -117,7 +122,7 @@ class CcrsJavaRuntime:
         *,
         group: str = "io.github.stefanmhsg.ccrs",
         version: str = "0.1.0-SNAPSHOT",
-        modules: Iterable[str] = ("ccrs-core",),
+        modules: Iterable[str] = (CCRS_CORE_MODULE,),
         maven_repo: str | Path | None = None,
         gradle_cache: str | Path | None = None,
         extra_classpath: Iterable[str | Path] = (),

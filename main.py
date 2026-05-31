@@ -3,6 +3,11 @@ import asyncio
 import os
 from dotenv import load_dotenv
 from react_agent.api import launch_agent
+from react_agent.ccrs.capabilities import (
+    CCRS_A2A_MODULE,
+    CCRS_CORE_MODULE,
+    CCRS_LANGCHAIN4J_MODULE,
+)
 from react_agent.utils.settings import settings
 
 load_dotenv(dotenv_path=".env", override=True)
@@ -75,19 +80,19 @@ def parse_args():
     parser.add_argument(
         "--enable-contingency-llm-prediction",
         action="store_true",
-        help="Enable the optional Java ccrs-langchain4j prediction strategy provider when using graph_ccrs",
+        help="Enable the optional Java contingency LLM prediction capability when using graph_ccrs",
     )
     parser.add_argument(
         "--enable-contingency-a2a-consultation",
         action="store_true",
-        help="Enable the optional Java ccrs-a2a consultation strategy provider when using graph_ccrs",
+        help="Enable the optional Java contingency A2A consultation capability when using graph_ccrs",
     )
     parser.add_argument(
         "--contingency-ccrs-modules",
         type=str,
         help=(
             "Comma- or space-separated Java CCRS modules for contingency evaluation, "
-            "for example: ccrs-core,ccrs-langchain4j,ccrs-a2a"
+            f"for example: {CCRS_CORE_MODULE},{CCRS_LANGCHAIN4J_MODULE},{CCRS_A2A_MODULE}"
         ),
     )
     parser.add_argument(
