@@ -40,6 +40,10 @@ The first target is a manual and auditable workflow rather than a fully automate
   Reason: Notebook output is useful for inspection, but reports need reproducible inputs under `experiments/runs/<batch-id>/<run-id>/`.
   Added/Updated: 2026-05-31 / Codex.
 
+- Rule: Add and maintain a React experiment metrics README for the report pipeline.
+  Reason: The BDI experiments have a README that explains report usage and metrics; React reports need the same kind of durable metrics documentation so generated numbers are interpretable and comparable.
+  Added/Updated: 2026-05-31 / Codex.
+
 ## Now / Next / Later
 
 | NOW | NEXT | LATER |
@@ -56,7 +60,7 @@ The first target is a manual and auditable workflow rather than a fully automate
 - [ ] WP1A: Add React adapter events needed for prompt-visible CCRS context and post-LLM selected-tool correlation.
 - [ ] WP2: Add React experiment staging/import/report PowerShell scripts under `ccrs-react/experiments/scripts/`.
 - [ ] WP3: Implement a parser that reads React run logs, Java companion logs, and MASE viewer exports into normalized CSVs.
-- [ ] WP4: Generate `summary.md`, `summary.json`, CSVs, and path-analysis inputs with the same report layout used by BDI where possible.
+- [ ] WP4: Generate `summary.md`, `summary.json`, CSVs, path-analysis inputs, and metrics documentation with the same report layout used by BDI where possible.
 - [ ] WP5: Add small smoke fixtures or smoke commands that exercise report generation without a live OpenAI or MaSE run.
 - [x] (2026-05-31 14:10Z) Prepared the next implementation packages by separating React reportability events from report parsing and documenting the remaining adapter-specific metric gaps.
 
@@ -328,6 +332,7 @@ Todos:
 - [ ] Generate path-analysis cell sequence files from MASE movement rows.
 - [ ] Add a cycle-duration chart if React cycle rows are available.
 - [ ] Add advisory-follow summary sections in place of BDI overruled-decision sections.
+- [ ] Add `ccrs-react/experiments/README.md` with metric definitions, CSV artifact descriptions, and notes about React-specific advisory-follow metrics versus BDI overrule metrics.
 
 Concrete steps: Keep the command shape close to BDI:
 
@@ -361,7 +366,7 @@ Todos:
 
 - [ ] Add a small fixture run package under a clearly named non-report directory, for example `experiments/fixtures/smoke-run/`.
 - [ ] Include one baseline-like run fixture and one CCRS-like run fixture if needed for comparison tables.
-- [ ] Add a smoke command in [README.md](README.md) or a new `ccrs-react/experiments/README.md`.
+- [ ] Add a smoke command in the root [README.md](README.md) or in the new `ccrs-react/experiments/README.md`.
 - [ ] Validate `parse-experiment-logs.ps1` and `write-report.ps1` against the fixture batch.
 
 Concrete steps: A future implementation should be able to run:

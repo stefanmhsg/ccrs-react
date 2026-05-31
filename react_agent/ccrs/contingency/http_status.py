@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Iterable, Mapping
 from typing import Any
 
@@ -25,6 +26,12 @@ HTTP_STATUS_PREDICATE_SUFFIXES = (
     "errorStatusCode",
 )
 
+HTTP_STATUS_TEXT_PATTERN = re.compile(
+    r"(?:^|[\s;])(?:[\w.-]+:)?(?:statusCodeValue|errorStatusCode)\s+"
+    r'"?(?P<status>[1-5][0-9]{2})"?(?:\^\^[\w.-]+:[\w.-]+)?',
+    re.IGNORECASE,
+)
+
 
 def http_status_from_tool_message(message: ToolMessage) -> int | None:
     """Return an HTTP status code carried by a tool message, if one is visible."""
@@ -37,7 +44,10 @@ def http_status_from_tool_message(message: ToolMessage) -> int | None:
     status = _http_status_from_json_content(message.content)
     if status is not None:
         return status
-    return _http_status_from_turtle_content(message.content)
+    status = _http_status_from_turtle_content(message.content)
+    if status is not None:
+        return status
+    return _http_status_from_text_content(message.content)
 
 
 def http_status_from_mapping(mapping: Mapping[str, Any]) -> int | None:
@@ -72,6 +82,14 @@ def _http_status_from_turtle_content(content: str) -> int | None:
             status = _coerce_http_status(triple.object)
             if status is not None:
                 return status
+    return None
+
+
+def _http_status_from_text_content(content: str) -> int | None:
+    for match in HTTP_STATUS_TEXT_PATTERN.finditer(content):
+        status = _coerce_http_status(match.group("status"))
+        if status is not None:
+            return status
     return None
 
 
