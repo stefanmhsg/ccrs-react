@@ -80,6 +80,9 @@ The first target is a manual and auditable workflow rather than a fully automate
 - Observation: React currently logs prompt context as human-readable JSON but not as a compact machine-readable lifecycle event.
   Evidence: [prompt_context.py](react_agent/ccrs/prompt_context.py) logs `CCRS prompt context: ...` and prints `[CCRS PROMPT CONTEXT]`, but it does not call `log_ccrs_event(...)` with prompt-visible counts or prompt-context identifiers.
 
+- Observation: Core opportunistic scanning and adapter truth-logging are separate concerns.
+  Evidence: Java [VocabularyMatcher.java](../ccrs-bdi/ccrs-core/src/main/java/ccrs/core/opportunistic/VocabularyMatcher.java) is the reusable `ccrs-core` implementation that performs opportunistic matching, and React calls it through [vocabulary_matcher.py](react_agent/ccrs/opportunistic/vocabulary_matcher.py). The core matcher currently does not emit detailed Java logs for each match or ranking decision. BDI experiment logs still contain detailed opportunistic decision evidence because the JaCaMo adapter emits it from [prioritize.java](../ccrs-bdi/ccrs-jacamo/src/main/java/ccrs/jacamo/jason/opportunistic/prioritize.java). React uses a different adapter path, so its Java companion log does not contain equivalent adapter decision evidence. It may still be worth adding generally valid `INFO`-level core logs for matcher behavior, but experiment reports should treat the React adapter's prompt-injection and selection events as the ultimate source for React-specific behavior.
+
 ## Decision Log
 
 - Decision: Create the React report plan as [PLAN_EXPERIMENT_REPORTS.md](PLAN_EXPERIMENT_REPORTS.md) in `ccrs-react`.
