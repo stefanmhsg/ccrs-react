@@ -23,6 +23,16 @@ def parse_args():
     parser.add_argument("--graph-name", type=str, default="graph", help="Name of the graph module to use (default: graph)")
     parser.add_argument("--run-mode", type=str, choices=["sync", "async"], help="Execution mode")
     parser.add_argument(
+        "--llm-message-window-max-messages",
+        type=int,
+        help="Maximum recent non-preserved messages sent through the LLM message history window",
+    )
+    parser.add_argument(
+        "--llm-message-window-max-tokens",
+        type=int,
+        help="Maximum approximate tokens for non-preserved messages sent through the LLM message history window",
+    )
+    parser.add_argument(
         "--enable-contingency-escalation-tool",
         action="store_true",
         help="Expose the opt-in escalate_to_contingency_ccrs tool when using graph_ccrs",
@@ -67,6 +77,11 @@ def main():
     query = args.query or USER_QUERY
     if args.sync_contingency_llm_model:
         os.environ.setdefault("OPENAI_MODEL", settings.llm_model)
+    message_window_kwargs = {}
+    if args.llm_message_window_max_messages is not None:
+        message_window_kwargs["llm_message_window_max_messages"] = args.llm_message_window_max_messages
+    if args.llm_message_window_max_tokens is not None:
+        message_window_kwargs["llm_message_window_max_tokens"] = args.llm_message_window_max_tokens
 
     # Launch the agent
     asyncio.run(launch_agent(
@@ -81,6 +96,7 @@ def main():
         enable_contingency_a2a_consultation=args.enable_contingency_a2a_consultation,
         contingency_ccrs_modules=args.contingency_ccrs_modules,
         discover_contingency_strategy_providers=args.discover_contingency_strategy_providers,
+        **message_window_kwargs,
     ))
 
 

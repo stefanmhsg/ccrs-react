@@ -6,6 +6,7 @@ from langchain_openai import ChatOpenAI
 from react_agent.state.state import AgentState
 from react_agent.tools import tools
 from react_agent.prompts.react_prompt import react_prompt
+from react_agent.nodes.message_window import sliding_message_window
 
 
 # Create model and bind tools
@@ -18,6 +19,8 @@ def llm_node(
     llm_model = configuration.get("llm_model", "gpt-5-mini")
     llm_temperature = configuration.get("llm_temperature", 1.0)
     llm_reasoning_effort = configuration.get("llm_reasoning_effort", "minimal")
+    max_messages = configuration.get("llm_message_window_max_messages")
+    max_tokens = configuration.get("llm_message_window_max_tokens")
     agent_name = configuration.get("agent_name", "React")
 
     llm = ChatOpenAI(
@@ -30,9 +33,14 @@ def llm_node(
     model = llm.bind_tools(tools, tool_choice="any")
 
     chain = react_prompt | model
+    messages = sliding_message_window(
+        state["messages"],
+        max_messages=max_messages,
+        max_tokens=max_tokens,
+    )
 
     response = chain.invoke({
-        "messages": state["messages"],
+        "messages": messages,
         "agent_name": agent_name,
     }, config)
     

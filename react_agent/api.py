@@ -94,6 +94,8 @@ async def launch_agent(
             "llm_model": settings.llm_model,
             "llm_temperature": settings.llm_temperature,
             "llm_reasoning_effort": settings.llm_reasoning_effort,
+            "llm_message_window_max_messages": settings.llm_message_window_max_messages,
+            "llm_message_window_max_tokens": settings.llm_message_window_max_tokens,
             **kwargs
         }
     }

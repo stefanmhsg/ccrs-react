@@ -65,6 +65,12 @@ Options
 
     --query                 (default: Maze Prompt)
 
+    --llm-message-window-max-messages
+                            Maximum recent non-preserved messages sent through the LLM message history window
+
+    --llm-message-window-max-tokens
+                            Maximum approximate tokens for non-preserved messages sent through the LLM message history window
+
     --enable-contingency-escalation-tool
                             Expose the opt-in escalate_to_contingency_ccrs tool when using graph_ccrs
 
@@ -84,8 +90,13 @@ Options
     --sync-contingency-llm-model
                             Set OPENAI_MODEL from the Python agent llm_model before constructing Java contingency providers
 
-LLM settings such as model, temperature, reasoning effort, and LangChain project
-are read from `.env` through [settings.py](react_agent/utils/settings.py).
+LLM settings such as model, temperature, reasoning effort, message-window
+limits, and LangChain project are read from `.env` through
+[settings.py](react_agent/utils/settings.py). The message window keeps the
+first user query and trims only the message history passed through the prompt's
+`MessagesPlaceholder`; system prompts and CCRS prompt text remain outside that
+trimming scope. Configure `LLM_MESSAGE_WINDOW_MAX_MESSAGES` for message-count
+trimming and `LLM_MESSAGE_WINDOW_MAX_TOKENS` for approximate token trimming.
 
 ## References
 
