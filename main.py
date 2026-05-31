@@ -38,6 +38,11 @@ def parse_args():
         help="Expose the opt-in escalate_to_contingency_ccrs tool when using graph_ccrs",
     )
     parser.add_argument(
+        "--contingency-http-error-threshold",
+        type=int,
+        help="Consecutive HTTP status >= 400 tool responses before default contingency escalation",
+    )
+    parser.add_argument(
         "--enable-contingency-llm-prediction",
         action="store_true",
         help="Enable the optional Java contingency LLM prediction capability when using graph_ccrs",
@@ -82,6 +87,9 @@ def main():
         message_window_kwargs["llm_message_window_max_messages"] = args.llm_message_window_max_messages
     if args.llm_message_window_max_tokens is not None:
         message_window_kwargs["llm_message_window_max_tokens"] = args.llm_message_window_max_tokens
+    contingency_kwargs = {}
+    if args.contingency_http_error_threshold is not None:
+        contingency_kwargs["contingency_http_error_threshold"] = args.contingency_http_error_threshold
 
     # Launch the agent
     asyncio.run(launch_agent(
@@ -97,6 +105,7 @@ def main():
         contingency_ccrs_modules=args.contingency_ccrs_modules,
         discover_contingency_strategy_providers=args.discover_contingency_strategy_providers,
         **message_window_kwargs,
+        **contingency_kwargs,
     ))
 
 

@@ -14,6 +14,7 @@ from typing import Any, Callable, Mapping, Sequence
 
 from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 
+from react_agent.ccrs.contingency.http_status import http_status_from_tool_message
 from react_agent.ccrs.rdf_adapter import RdfTripleValue, parse_turtle_triples
 
 
@@ -167,7 +168,7 @@ def default_outcome_classifier(
 ) -> str:
     """Classify transport outcome using only generic LangGraph message fields."""
 
-    status = _http_status_from_metadata(message.response_metadata)
+    status = http_status_from_tool_message(message)
     if status is not None:
         if status >= 500:
             return InteractionOutcome.SERVER_FAILURE
@@ -203,16 +204,6 @@ def _request_uri_from_tool_call(call: Mapping[str, Any]) -> str | None:
 def _unknown_response_subject(content: str) -> str:
     digest = sha256(content.encode("utf-8")).hexdigest()[:16]
     return f"urn:ccrs:react:unknown-response:{digest}"
-
-
-def _http_status_from_metadata(metadata: Mapping[str, Any]) -> int | None:
-    value = metadata.get("http_status")
-    if value is None:
-        return None
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return None
 
 
 def _is_tool_error_json(content: str) -> bool:

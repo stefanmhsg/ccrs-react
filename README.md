@@ -74,6 +74,9 @@ Options
     --enable-contingency-escalation-tool
                             Expose the opt-in escalate_to_contingency_ccrs tool when using graph_ccrs
 
+    --contingency-http-error-threshold
+                            Consecutive HTTP status >= 400 tool responses before default contingency escalation
+
     --enable-contingency-llm-prediction
                             Enable the optional Java contingency LLM prediction capability when using graph_ccrs
 

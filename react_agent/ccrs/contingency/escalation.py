@@ -26,31 +26,52 @@ ESCALATE_TO_CONTINGENCY_CCRS_TOOL_NAME = "escalate_to_contingency_ccrs"
 
 
 class EscalateToContingencyCcrsInput(BaseModel):
-    """Tool arguments used to request contingency CCRS escalation."""
+    """Arguments for asking graph control to invoke contingency CCRS."""
 
     type: str = Field(
         default=SituationType.UNCERTAINTY.value,
-        description="Contingency situation type: FAILURE, STUCK, UNCERTAINTY, or PROACTIVE.",
+        description=(
+            "Situation category for the recovery request. Use FAILURE for failed actions "
+            "or repeated HTTP errors, STUCK when actions succeed but do not make progress, "
+            "UNCERTAINTY when the next useful action is unclear, and PROACTIVE when asking "
+            "for preventive guidance before spending more tool calls."
+        ),
     )
     trigger: str = Field(
         default="llm_self_escalation",
-        description="Short reason why contingency CCRS should be invoked.",
+        description=(
+            "Short machine-readable trigger, such as blocked_navigation, "
+            "repeated_unproductive_action, inaccessible_target, contradictory_observation, "
+            "or llm_self_escalation."
+        ),
     )
     current_resource: str | None = Field(
         default=None,
-        description="Current resource according to the agent designer's scenario policy.",
+        description=(
+            "Best-known current resource or state, for example the URI of the resource, page, "
+            "record, or object the agent is currently at. Leave null if unknown."
+        ),
     )
     target_resource: str | None = Field(
         default=None,
-        description="Target resource involved in the escalation, if known.",
+        description=(
+            "Resource the agent is trying to reach, inspect, modify, or recover toward. "
+            "Use the concrete URI or identifier when available."
+        ),
     )
     failed_action: str | None = Field(
         default=None,
-        description="Action or tool call that appears to have failed, if known.",
+        description=(
+            "Tool name, action, or attempted step that failed or stopped making progress, "
+            "for example http_get, http_post, move east, or retry same target."
+        ),
     )
     reason: str | None = Field(
         default=None,
-        description="Human-readable escalation rationale.",
+        description=(
+            "Concise explanation of why normal tool use is unlikely to help without "
+            "contingency guidance. Include key observations or status codes."
+        ),
     )
 
 
@@ -63,7 +84,16 @@ def escalate_to_contingency_ccrs(
     failed_action: str | None = None,
     reason: str | None = None,
 ) -> str:
-    """Request that graph control invokes contingency CCRS for the next step."""
+    """Ask for contingency CCRS guidance instead of making another normal tool call.
+
+    Use this when you are blocked, uncertain, repeatedly getting failed or
+    unhelpful observations, cannot access an intended next resource, see
+    contradictory evidence, or expect another ordinary retry to waste cycles.
+    Calling this tool does not execute an environment action. It asks graph
+    control to skip normal tool execution for this cycle, invoke contingency
+    CCRS, and make the resulting recovery suggestion available in the next CCRS
+    prompt context.
+    """
 
     return json.dumps(
         {
