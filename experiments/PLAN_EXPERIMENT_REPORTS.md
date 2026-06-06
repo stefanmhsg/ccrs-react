@@ -2,7 +2,7 @@
 
 This ExecPlan is a living document. The sections `Rules`, `Progress`, `Surprises & Discoveries`, and `Decision Log` must be kept up to date as work proceeds. Work packages must be kept current with their local context, discussion, todos, concrete steps, validation, and outcomes.
 
-No repository-local `PLANS.md` or `.agent/PLANS.md` guide is currently checked in. This document follows the local `PLAN_<SCOPE>.md` convention described in [AGENTS.md](AGENTS.md) and extends the existing React CCRS implementation plan in [PLAN_CCRS_README.md](PLAN_CCRS_README.md).
+No repository-local `PLANS.md` or `.agent/PLANS.md` guide is currently checked in. This document follows the local `PLAN_<SCOPE>.md` convention described in [AGENTS.md](../AGENTS.md) and extends the existing React CCRS implementation plan in [PLAN_CCRS_README.md](../PLAN_CCRS_README.md).
 
 ## Purpose / Big Picture
 
@@ -25,7 +25,7 @@ The first target is a manual and auditable workflow rather than a fully automate
   Added/Updated: 2026-05-31 / Codex.
 
 - Rule: Use `S:\anaconda\agent\python.exe` for React-side smoke validation.
-  Reason: [AGENTS.md](AGENTS.md) records that this interpreter has the required LangChain, JPype, and RDF dependencies for `ccrs-react`.
+  Reason: [AGENTS.md](../AGENTS.md) records that this interpreter has the required LangChain, JPype, and RDF dependencies for `ccrs-react`.
   Added/Updated: 2026-05-31 / Codex.
 
 - Rule: Do not require a full LLM or MaSE maze run to validate the report parser.
@@ -70,26 +70,26 @@ The first target is a manual and auditable workflow rather than a fully automate
   Evidence: [ccrs-bdi/experiments/scripts/import-manual-run.ps1](../ccrs-bdi/experiments/scripts/import-manual-run.ps1) archives staging files into `experiments/runs/<batch-id>/<run-id>/`, and [ccrs-bdi/experiments/scripts/write-report.ps1](../ccrs-bdi/experiments/scripts/write-report.ps1) writes `summary.md`, `summary.json`, CSV files, and path-analysis inputs under `experiments/reports/<batch-id>/`.
 
 - Observation: React logs already contain machine-readable CCRS audit events, but the parser must distinguish React adapter events from Java library events.
-  Evidence: [react_agent/ccrs/README.md](react_agent/ccrs/README.md) documents `[REACT-CCRS-EVENT] event=react.ccrs...` in `logs/<run>.log` and Java companion records in `logs/<run>.java.log`.
+  Evidence: [react_agent/ccrs/README.md](../react_agent/ccrs/README.md) documents `[REACT-CCRS-EVENT] event=react.ccrs...` in `logs/<run>.log` and Java companion records in `logs/<run>.java.log`.
 
 - Observation: The React CCRS implementation plan already defines smoke checks that can seed report-parser validation.
-  Evidence: [PLAN_CCRS_README.md](PLAN_CCRS_README.md) includes local validation commands for graph construction, Java-backed opportunistic scans, Java-backed contingency evaluation, invalid RDF handling, and prompt-path behavior.
+  Evidence: [PLAN_CCRS_README.md](../PLAN_CCRS_README.md) includes local validation commands for graph construction, Java-backed opportunistic scans, Java-backed contingency evaluation, invalid RDF handling, and prompt-path behavior.
 
 - Observation: Existing BDI opportunistic reporting depends on a JaCaMo adapter event that React does not currently produce.
   Evidence: [prioritize.java](../ccrs-bdi/ccrs-jacamo/src/main/java/ccrs/jacamo/jason/opportunistic/prioritize.java) emits `ccrs.opportunistic.prioritize` with fields such as `selected_uri`, `selected_original_index`, `selected_has_ccrs`, `selected_reordered`, `selected_type`, and `selected_utility`. [parse-experiment-logs.ps1](../ccrs-bdi/experiments/scripts/parse-experiment-logs.ps1) maps that event into `decisions.csv`. The current React adapter emits `react.ccrs.opportunistic.detected` for scan results and human-readable prompt-context logs for injection, but it does not yet emit an equivalent post-LLM decision event that says which tool target was selected after the prompt was built.
 
 - Observation: The current BDI parser only recognizes structured key-value records with `[CCRS-EVENT]` and `[METRIC]` prefixes, while React uses `[REACT-CCRS-EVENT]`.
-  Evidence: [parse-experiment-logs.ps1](../ccrs-bdi/experiments/scripts/parse-experiment-logs.ps1) searches fixed prefixes in `ConvertFrom-KeyValueLine`. React logs are emitted by [audit.py](react_agent/ccrs/audit.py) with `[REACT-CCRS-EVENT]`.
+  Evidence: [parse-experiment-logs.ps1](../ccrs-bdi/experiments/scripts/parse-experiment-logs.ps1) searches fixed prefixes in `ConvertFrom-KeyValueLine`. React logs are emitted by [audit.py](../react_agent/ccrs/audit.py) with `[REACT-CCRS-EVENT]`.
 
 - Observation: React currently logs prompt context as human-readable JSON but not as a compact machine-readable lifecycle event.
-  Evidence: [prompt_context.py](react_agent/ccrs/prompt_context.py) logs `CCRS prompt context: ...` and prints `[CCRS PROMPT CONTEXT]`, but it does not call `log_ccrs_event(...)` with prompt-visible counts or prompt-context identifiers.
+  Evidence: [prompt_context.py](../react_agent/ccrs/prompt_context.py) logs `CCRS prompt context: ...` and prints `[CCRS PROMPT CONTEXT]`, but it does not call `log_ccrs_event(...)` with prompt-visible counts or prompt-context identifiers.
 
 - Observation: Core opportunistic scanning and adapter truth-logging are separate concerns.
-  Evidence: Java [VocabularyMatcher.java](../ccrs-bdi/ccrs-core/src/main/java/ccrs/core/opportunistic/VocabularyMatcher.java) is the reusable `ccrs-core` implementation that performs opportunistic matching, and React calls it through [vocabulary_matcher.py](react_agent/ccrs/opportunistic/vocabulary_matcher.py). The core matcher currently does not emit detailed Java logs for each match or ranking decision. BDI experiment logs still contain detailed opportunistic decision evidence because the JaCaMo adapter emits it from [prioritize.java](../ccrs-bdi/ccrs-jacamo/src/main/java/ccrs/jacamo/jason/opportunistic/prioritize.java). React uses a different adapter path, so its Java companion log does not contain equivalent adapter decision evidence. It may still be worth adding generally valid `INFO`-level core logs for matcher behavior, but experiment reports should treat the React adapter's prompt-injection and selection events as the ultimate source for React-specific behavior.
+  Evidence: Java [VocabularyMatcher.java](../ccrs-bdi/ccrs-core/src/main/java/ccrs/core/opportunistic/VocabularyMatcher.java) is the reusable `ccrs-core` implementation that performs opportunistic matching, and React calls it through [vocabulary_matcher.py](../react_agent/ccrs/opportunistic/vocabulary_matcher.py). The core matcher currently does not emit detailed Java logs for each match or ranking decision. BDI experiment logs still contain detailed opportunistic decision evidence because the JaCaMo adapter emits it from [prioritize.java](../ccrs-bdi/ccrs-jacamo/src/main/java/ccrs/jacamo/jason/opportunistic/prioritize.java). React uses a different adapter path, so its Java companion log does not contain equivalent adapter decision evidence. It may still be worth adding generally valid `INFO`-level core logs for matcher behavior, but experiment reports should treat the React adapter's prompt-injection and selection events as the ultimate source for React-specific behavior.
 
 ## Decision Log
 
-- Decision: Create the React report plan as [PLAN_EXPERIMENT_REPORTS.md](PLAN_EXPERIMENT_REPORTS.md) in `ccrs-react`.
+- Decision: Create the React report plan as [PLAN_EXPERIMENT_REPORTS.md](../PLAN_EXPERIMENT_REPORTS.md) in `ccrs-react`.
   Rationale: Report generation is a distinct final implementation effort from the CCRS adapter itself, and a dedicated plan prevents the adapter plan from becoming a catch-all.
   Date/Author: 2026-05-31 / Codex.
 
@@ -111,7 +111,7 @@ The first target is a manual and auditable workflow rather than a fully automate
 
 ## Context and Orientation
 
-The repository for this plan is `ccrs-react`. It contains the React/LangGraph agent, including the baseline graph and the CCRS graph. The current CCRS graph is [react_agent/graph/graph_ccrs.py](react_agent/graph/graph_ccrs.py). Users can run it through [main.py](main.py) or [react_agent/api.py](react_agent/api.py). The active React CCRS adapter documentation is [react_agent/ccrs/README.md](react_agent/ccrs/README.md), and the adapter implementation plan is [PLAN_CCRS_README.md](PLAN_CCRS_README.md).
+The repository for this plan is `ccrs-react`. It contains the React/LangGraph agent, including the baseline graph and the CCRS graph. The current CCRS graph is [react_agent/graph/graph_ccrs.py](../react_agent/graph/graph_ccrs.py). Users can run it through [main.py](../main.py) or [react_agent/api.py](../react_agent/api.py). The active React CCRS adapter documentation is [react_agent/ccrs/README.md](../react_agent/ccrs/README.md), and the adapter implementation plan is [PLAN_CCRS_README.md](../PLAN_CCRS_README.md).
 
 The reference implementation for experiment reports is in the sibling BDI repository. [ccrs-bdi/experiments/README.md](../ccrs-bdi/experiments/README.md) documents the manual experiment workflow. [ccrs-bdi/experiments/scripts/import-manual-run.ps1](../ccrs-bdi/experiments/scripts/import-manual-run.ps1) imports one staged run. [ccrs-bdi/experiments/scripts/parse-experiment-logs.ps1](../ccrs-bdi/experiments/scripts/parse-experiment-logs.ps1) normalizes logs into CSV files. [ccrs-bdi/experiments/scripts/write-report.ps1](../ccrs-bdi/experiments/scripts/write-report.ps1) refreshes the CSVs and writes `summary.md`.
 
@@ -144,7 +144,7 @@ Status: Now
 
 Purpose: Define the React CSV and report schema before writing scripts, so generated reports can be compared with existing BDI reports without ad hoc field names.
 
-Local context: Use [ccrs-bdi/experiments/reports/baseline-vs-ccrs-v2/summary.md](../ccrs-bdi/experiments/reports/baseline-vs-ccrs-v2/summary.md) as an example report. Use [ccrs-bdi/experiments/scripts/parse-experiment-logs.ps1](../ccrs-bdi/experiments/scripts/parse-experiment-logs.ps1) and [ccrs-bdi/experiments/scripts/write-report.ps1](../ccrs-bdi/experiments/scripts/write-report.ps1) as the schema reference. Use [react_agent/ccrs/README.md](react_agent/ccrs/README.md) for React CCRS event names and log file structure.
+Local context: Use [ccrs-bdi/experiments/reports/baseline-vs-ccrs-v2/summary.md](../ccrs-bdi/experiments/reports/baseline-vs-ccrs-v2/summary.md) as an example report. Use [ccrs-bdi/experiments/scripts/parse-experiment-logs.ps1](../ccrs-bdi/experiments/scripts/parse-experiment-logs.ps1) and [ccrs-bdi/experiments/scripts/write-report.ps1](../ccrs-bdi/experiments/scripts/write-report.ps1) as the schema reference. Use [react_agent/ccrs/README.md](../react_agent/ccrs/README.md) for React CCRS event names and log file structure.
 
 Discussion: React cannot copy BDI parsing one-to-one because BDI logs are JaCaMo/AgentSpeak logs, while React logs are Python logging records plus optional Java companion logs. The output should nevertheless preserve familiar files where the data exists: `runs.csv`, `agents.csv`, `mase-events.csv`, `mase-agent-moved.csv`, `mase-transactions.csv`, `cycle-durations.csv`, `decisions.csv`, `contingency.csv`, `actions.csv`, `path-analysis-inputs.csv`, `summary.json`, and `summary.md`. If a BDI-specific column has no React source, leave it blank or define a React equivalent explicitly.
 
@@ -194,7 +194,7 @@ Status: Now
 
 Purpose: Make React CCRS report evidence explicit in the run log before implementing the parser. After this package, the parser can read prompt-visible CCRS counts and selected tool targets without scraping multi-line JSON prompt dumps or inferring adapter behavior from Java logs.
 
-Local context: React CCRS audit events are emitted through [audit.py](react_agent/ccrs/audit.py). Prompt-visible context is assembled in [prompt_context.py](react_agent/ccrs/prompt_context.py). The selected LLM tool calls are available immediately after `chain.invoke(...)` in [llm_node_ccrs_v2.py](react_agent/nodes/llm_node_ccrs_v2.py). Tool-call target URLs are already visible in those tool-call dictionaries, usually as `args.url`.
+Local context: React CCRS audit events are emitted through [audit.py](../react_agent/ccrs/audit.py). Prompt-visible context is assembled in [prompt_context.py](../react_agent/ccrs/prompt_context.py). The selected LLM tool calls are available immediately after `chain.invoke(...)` in [llm_node_ccrs_v2.py](../react_agent/nodes/llm_node_ccrs_v2.py). Tool-call target URLs are already visible in those tool-call dictionaries, usually as `args.url`.
 
 Discussion: This package should stay small and adapter-specific. It should not change CCRS behavior or prompt wording. It should only add machine-readable evidence that report scripts can trust. The BDI adapter has deterministic option prioritization; React does not. Therefore React events should avoid words like `overruled` or `reordered` and should report advisory-follow evidence instead.
 
@@ -208,11 +208,11 @@ The proposed events are:
 Todos:
 
 - [ ] Add `prompt_context_id` to the prompt context object so pre-LLM and post-LLM events can be correlated.
-- [ ] Emit `react.ccrs.prompt_context.visible` from [prompt_context.py](react_agent/ccrs/prompt_context.py).
+- [ ] Emit `react.ccrs.prompt_context.visible` from [prompt_context.py](../react_agent/ccrs/prompt_context.py).
 - [ ] Add a small matching helper that extracts selected tool target URIs from LLM tool calls, ranks prompt-visible opportunistic targets, and computes channel-specific followed flags.
-- [ ] Emit `react.ccrs.opportunistic.selection` from [llm_node_ccrs_v2.py](react_agent/nodes/llm_node_ccrs_v2.py) after the model response.
+- [ ] Emit `react.ccrs.opportunistic.selection` from [llm_node_ccrs_v2.py](../react_agent/nodes/llm_node_ccrs_v2.py) after the model response.
 - [ ] Keep the existing human-readable prompt context logging for debugging, but do not make the parser depend on it.
-- [ ] Update [react_agent/ccrs/README.md](react_agent/ccrs/README.md) logging section with the new event names.
+- [ ] Update [react_agent/ccrs/README.md](../react_agent/ccrs/README.md) logging section with the new event names.
 
 Concrete steps: Add reportability events with no behavior change. Validate by running a short Python smoke that invokes the CCRS graph with fixture state or by using an existing short run log. The expected evidence is a log line like:
 
@@ -229,9 +229,9 @@ Status: Now
 
 Purpose: Give the user a repeatable PowerShell workflow for turning a just-finished React run plus exported MASE events into a durable run package.
 
-Local context: The BDI import script in [ccrs-bdi/experiments/scripts/import-manual-run.ps1](../ccrs-bdi/experiments/scripts/import-manual-run.ps1) is the closest reference. React logs are written under `ccrs-react/logs/` by [react_agent/utils/logging_config.py](react_agent/utils/logging_config.py). Java companion logs use the same run name with `.java.log`, as documented in [react_agent/ccrs/README.md](react_agent/ccrs/README.md).
+Local context: The BDI import script in [ccrs-bdi/experiments/scripts/import-manual-run.ps1](../ccrs-bdi/experiments/scripts/import-manual-run.ps1) is the closest reference. React logs are written under `ccrs-react/logs/` by [react_agent/utils/logging_config.py](../react_agent/utils/logging_config.py). Java companion logs use the same run name with `.java.log`, as documented in [react_agent/ccrs/README.md](../react_agent/ccrs/README.md).
 
-Discussion: The import script should not run the agent. The user runs the agent manually from [main.py](main.py), [test_agent.ipynb](test_agent.ipynb), or another launcher. The script should package the result after the run ends. It should accept explicit log paths because multiple React logs can exist in `logs/`, and automatic selection by timestamp can be wrong after notebook experiments.
+Discussion: The import script should not run the agent. The user runs the agent manually from [main.py](../main.py), [test_agent.ipynb](../test_agent.ipynb), or another launcher. The script should package the result after the run ends. It should accept explicit log paths because multiple React logs can exist in `logs/`, and automatic selection by timestamp can be wrong after notebook experiments.
 
 Todos:
 
@@ -279,7 +279,7 @@ Status: Now
 
 Purpose: Convert archived run packages into normalized CSV files that the report writer can use.
 
-Local context: BDI parsing lives in [ccrs-bdi/experiments/scripts/parse-experiment-logs.ps1](../ccrs-bdi/experiments/scripts/parse-experiment-logs.ps1). React adapter audit events are emitted by [react_agent/ccrs/audit.py](react_agent/ccrs/audit.py). Event names are documented in [react_agent/ccrs/README.md](react_agent/ccrs/README.md). MASE viewer exports should be parsed with the same general logic used by the BDI parser: keep events for the experiment agent and produce movement, transaction, and path-analysis rows.
+Local context: BDI parsing lives in [ccrs-bdi/experiments/scripts/parse-experiment-logs.ps1](../ccrs-bdi/experiments/scripts/parse-experiment-logs.ps1). React adapter audit events are emitted by [react_agent/ccrs/audit.py](../react_agent/ccrs/audit.py). Event names are documented in [react_agent/ccrs/README.md](../react_agent/ccrs/README.md). MASE viewer exports should be parsed with the same general logic used by the BDI parser: keep events for the experiment agent and produce movement, transaction, and path-analysis rows.
 
 Discussion: The React parser needs a stable key-value parser for `[REACT-CCRS-EVENT]` records and may also parse `[CCRS-EVENT]` records in `.java.log` as Java-side evidence. React logs include Python logger names and timestamps before the CCRS prefix; the parser should search for the prefix within the line rather than assume it starts at column zero. Existing prompt context and notebook console output may be useful for manual inspection, but report generation should depend on file logs whenever possible.
 
@@ -358,7 +358,7 @@ Status: Next
 
 Purpose: Let report-generation work be validated without spending LLM tokens or running the full maze scenario.
 
-Local context: [PLAN_CCRS_README.md](PLAN_CCRS_README.md) already defines short Python smoke commands for graph construction and Java-backed CCRS evaluation. This plan needs report-specific smoke data: tiny React log snippets, a tiny Java companion log snippet, and a tiny MASE JSONL export.
+Local context: [PLAN_CCRS_README.md](../PLAN_CCRS_README.md) already defines short Python smoke commands for graph construction and Java-backed CCRS evaluation. This plan needs report-specific smoke data: tiny React log snippets, a tiny Java companion log snippet, and a tiny MASE JSONL export.
 
 Discussion: Smoke fixtures should be intentionally small and human-readable. They should not be confused with real experiment evidence. The scripts should accept fixture directories through parameters so they can be run from CI-like contexts later.
 
@@ -366,7 +366,7 @@ Todos:
 
 - [ ] Add a small fixture run package under a clearly named non-report directory, for example `experiments/fixtures/smoke-run/`.
 - [ ] Include one baseline-like run fixture and one CCRS-like run fixture if needed for comparison tables.
-- [ ] Add a smoke command in the root [README.md](README.md) or in the new `ccrs-react/experiments/README.md`.
+- [ ] Add a smoke command in the root [README.md](../README.md) or in the new `ccrs-react/experiments/README.md`.
 - [ ] Validate `parse-experiment-logs.ps1` and `write-report.ps1` against the fixture batch.
 
 Concrete steps: A future implementation should be able to run:
@@ -506,3 +506,4 @@ If Python is introduced later for parsing, it should use `S:\anaconda\agent\pyth
 Revision note 2026-05-31 / Codex: Created the initial React experiment-report plan from the user's requested workflow and aligned it with the BDI experiment scripts and current React CCRS logging architecture.
 
 Revision note 2026-05-31 / Codex: Added the adapter-specific logging mismatch discovered by comparing BDI `ccrs.opportunistic.prioritize` reporting with current React CCRS logs. The plan now treats Java companion logs as library evidence and requires React adapter events or explicit unavailable fields for adapter-level decision metrics.
+

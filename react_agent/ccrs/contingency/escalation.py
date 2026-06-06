@@ -89,10 +89,8 @@ def escalate_to_contingency_ccrs(
     Use this when you are blocked, uncertain, repeatedly getting failed or
     unhelpful observations, cannot access an intended next resource, see
     contradictory evidence, or expect another ordinary retry to waste cycles.
-    Calling this tool does not execute an environment action. It asks graph
-    control to skip normal tool execution for this cycle, invoke contingency
-    CCRS, and make the resulting recovery suggestion available in the next CCRS
-    prompt context.
+    Calling this tool invokes contingency CCRS, and makes the resulting recovery 
+    suggestion available in the next CCRS prompt context.
     """
 
     return json.dumps(
