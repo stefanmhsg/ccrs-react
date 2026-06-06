@@ -75,7 +75,7 @@ def _http_status_from_json_content(content: str) -> int | None:
 def _http_status_from_turtle_content(content: str) -> int | None:
     try:
         triples = parse_turtle_triples(content)
-    except CcrsRdfParseError:
+    except (CcrsRdfParseError, ValueError):
         return None
     for triple in triples:
         if any(triple.predicate.endswith(suffix) for suffix in HTTP_STATUS_PREDICATE_SUFFIXES):
