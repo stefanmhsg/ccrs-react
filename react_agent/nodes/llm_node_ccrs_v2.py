@@ -90,11 +90,22 @@ def llm_node(
     )
 
     next_cycle = int(state.get("cycle", {}).get("number", 0)) + 1
+    cycle_timestamp = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+    log_ccrs_event(
+        logger,
+        "react.loop.cycle",
+        {
+            "cycle": next_cycle,
+            "cycle_timestamp": cycle_timestamp,
+            "agent_name": agent_name,
+            "tool_call_count": len(response.tool_calls or []),
+        },
+    )
     updates: dict[str, Any] = {
         "messages": [response],
         "cycle": {
             "number": next_cycle,
-            "timestamp": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
+            "timestamp": cycle_timestamp,
         },
     }
     updates.update(ccrs_context.post_llm_updates())

@@ -55,10 +55,10 @@ Sources: `runs.csv` column `exit_cell`, batch-name scenario metadata, and
 
 ### Total Duration Ms
 
-The sum of derived agent cycle durations for the run. The first observed cycle
-has no prior timestamp and does not contribute a duration.
+The sum of move-to-move durations for the run. The first successful move has no
+prior move timestamp and does not contribute a duration.
 
-Source: `cycle-durations.csv` column `duration_ms`.
+Source: `move-durations.csv` column `duration_ms`.
 
 ### Total Moves
 
@@ -70,13 +70,13 @@ concurrent experiment agents do not contribute to this metric.
 Source: `runs.csv` column `mase_move_count`, derived from filtered
 `mase-agent-moved.csv`.
 
-### Average Agent Cycle Duration
+### Average Move Duration
 
-The average duration between consecutive React CCRS cycle timestamps observed in
-structured React CCRS events. The first observed cycle has no prior timestamp and
-does not contribute a duration.
+The average duration between consecutive successful MASE moves for the imported
+experiment agent. This is the fair baseline-vs-CCRS movement timing metric for
+React reports.
 
-Source: `cycle-durations.csv` column `duration_ms`.
+Source: `move-durations.csv` column `duration_ms`.
 
 ### Final Cell
 
@@ -115,12 +115,32 @@ run did not reach the exit.
 
 Sources: `runs.csv` columns `optimal_moves` and `mase_move_count`.
 
+## Move Duration Summary
+
+Move duration summaries are batch-level aggregates derived from successful move
+windows.
+
+- `Baseline move avg ms`: average move-to-move `duration_ms` for non-CCRS runs.
+- `CCRS move avg ms`: average move-to-move `duration_ms` for CCRS runs.
+
+Source: `move-durations.csv`, which is derived from
+`move-action-correlation.csv`.
+
+The move duration chart uses the same rows. Its left y-axis plots move duration
+in milliseconds. Its right y-axis plots HTTP calls per move window as stacked
+success/failure bars per agent.
+
 ## Cycle Duration Summary
 
-Cycle duration summaries are batch-level aggregates.
+Cycle duration summaries are React loop-cycle aggregates. BDI can use a combined
+move/cycle timing view because BDI produces deterministic moves at comparable
+cycles. React cannot: one LLM turn can emit several tool calls, and several
+turns may be needed for one successful move. React reports therefore keep cycle
+duration separate from move duration.
 
-- `Baseline avg ms`: average `duration_ms` for non-CCRS runs.
-- `CCRS avg ms`: average `duration_ms` for CCRS runs.
+- `Baseline cycle avg ms`: average `duration_ms` for non-CCRS runs with
+  `react.loop.cycle` events.
+- `CCRS cycle avg ms`: average `duration_ms` for CCRS runs with cycle rows.
 - `CCRS opp N avg ms`: average `duration_ms` for CCRS cycles with exactly `N`
   prompt-visible opportunistic CCRS entries, excluding cycles where contingency
   CCRS was activated. Columns are generated from `0` through the maximum
@@ -131,7 +151,11 @@ Cycle duration summaries are batch-level aggregates.
 
 Sources: `cycle-durations.csv` columns `duration_ms` and
 `opportunistic_prompt_visible_count`, plus `contingency.csv` rows where
-`react_event=react.ccrs.contingency.escalation.activated`.
+`react_event=react.ccrs.contingency.escalation.activated`. Fresh runs populate
+`cycle-durations.csv` from `react.loop.cycle` events emitted from the React
+`state["cycle"]` channel. Historical CCRS logs may still provide older
+structured CCRS cycle rows; historical baseline logs without `react.loop.cycle`
+do not have valid cycle timing and should not be backfilled from tool calls.
 
 ## React CCRS Evidence Artifacts
 
@@ -259,6 +283,13 @@ successful move. The first perception actions before the first successful move
 are intentionally outside these windows.
 
 Sources: `actions.csv` and `mase-agent-moved.csv`.
+
+### Move Durations
+
+`move-durations.csv` derives one row per successful move window from
+`move-action-correlation.csv`. It adds the move-to-move `duration_ms` and carries
+`action_count`, `http_success_count`, and `http_failure_count` so reports can
+plot both movement latency and HTTP call volume per move.
 
 ## Not Yet Reported
 

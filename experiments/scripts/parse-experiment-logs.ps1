@@ -462,6 +462,44 @@ function New-MoveActionCorrelationRows {
     return @($rows)
 }
 
+function New-MoveDurationRows {
+    param([object[]]$MoveActionRows)
+
+    $rows = [System.Collections.ArrayList]::new()
+    foreach ($group in ($MoveActionRows | Group-Object run_id | Sort-Object Name)) {
+        $moves = @($group.Group | Sort-Object @{ Expression = { [int]$_.move_sequence }; Ascending = $true })
+        for ($i = 0; $i -lt $moves.Count; $i++) {
+            $current = $moves[$i]
+            $durationMs = $null
+            if ($i -gt 0) {
+                $previousTimestamp = ConvertTo-EpochMilliseconds $moves[$i - 1].move_timestamp
+                $currentTimestamp = ConvertTo-EpochMilliseconds $current.move_timestamp
+                if ($null -ne $previousTimestamp -and $null -ne $currentTimestamp) {
+                    $durationMs = $currentTimestamp - $previousTimestamp
+                }
+            }
+            $actionCount = [int]$current.action_count
+            $failureCount = [int]$current.http_error_count
+            $successCount = [math]::Max(0, $actionCount - $failureCount)
+            [void]$rows.Add([pscustomobject][ordered]@{
+                batch_id = $current.batch_id
+                run_id = $current.run_id
+                move_sequence = $current.move_sequence
+                move_cell = $current.move_cell
+                move_timestamp = $current.move_timestamp
+                duration_ms = $durationMs
+                action_count = $actionCount
+                http_success_count = $successCount
+                http_failure_count = $failureCount
+                get_count = $current.get_count
+                post_count = $current.post_count
+                status_codes = $current.status_codes
+            })
+        }
+    }
+    return @($rows)
+}
+
 function New-RunMeta {
     param(
         [System.IO.DirectoryInfo]$RunDir,
@@ -532,6 +570,7 @@ foreach ($runDir in Get-ChildItem -Path $runRootPath -Directory | Sort-Object Na
     $rawRun = Get-Content -Path $runJsonPath -Raw | ConvertFrom-Json
     $runMeta = New-RunMeta -RunDir $runDir -Raw $rawRun
     $cycles = @{}
+    $loopCycles = @{}
     $reactEventCount = 0
     $selectionEventCount = 0
     $promptVisibleEventCount = 0
@@ -554,7 +593,11 @@ foreach ($runDir in Get-ChildItem -Path $runRootPath -Directory | Sort-Object Na
             if ($fields -and $fields["_prefix"] -eq "[REACT-CCRS-EVENT]") {
                 $reactEventCount++
                 $eventName = [string](Get-MapValue $fields "event")
-                Add-CycleEvent -Cycles $cycles -RunMeta $runMeta -Fields $fields -EventName $eventName -FileName (Split-Path -Leaf $reactLogFile) -LineNumber $lineNumber
+                if ($eventName -eq "react.loop.cycle") {
+                    Add-CycleEvent -Cycles $loopCycles -RunMeta $runMeta -Fields $fields -EventName $eventName -FileName (Split-Path -Leaf $reactLogFile) -LineNumber $lineNumber
+                } else {
+                    Add-CycleEvent -Cycles $cycles -RunMeta $runMeta -Fields $fields -EventName $eventName -FileName (Split-Path -Leaf $reactLogFile) -LineNumber $lineNumber
+                }
 
                 if ($eventName -eq "react.ccrs.prompt_context.visible") {
                     $promptVisibleEventCount++
@@ -799,37 +842,40 @@ foreach ($runDir in Get-ChildItem -Path $runRootPath -Directory | Sort-Object Na
         })
     }
 
-    $sortedCycles = @($cycles.Values | Sort-Object @{ Expression = { [int]$_.cycle } })
-    for ($i = 0; $i -lt $sortedCycles.Count; $i++) {
-        $current = $sortedCycles[$i]
-        $durationMs = $null
-        if ($i -gt 0 -and $current.cycle_timestamp -and $sortedCycles[$i - 1].cycle_timestamp) {
-            try {
-                $prevTime = [datetimeoffset]::Parse([string]$sortedCycles[$i - 1].cycle_timestamp)
-                $currentTime = [datetimeoffset]::Parse([string]$current.cycle_timestamp)
-                $durationMs = [math]::Round(($currentTime - $prevTime).TotalMilliseconds, 3)
-            } catch {
-                $durationMs = $null
+    $cycleSource = if ($loopCycles.Count -gt 0) { $loopCycles } else { $cycles }
+    $sortedCycles = @($cycleSource.Values | Sort-Object @{ Expression = { [int]$_.cycle } })
+    if ($sortedCycles.Count -gt 0) {
+        for ($i = 0; $i -lt $sortedCycles.Count; $i++) {
+            $current = $sortedCycles[$i]
+            $durationMs = $null
+            if ($i -gt 0 -and $current.cycle_timestamp -and $sortedCycles[$i - 1].cycle_timestamp) {
+                try {
+                    $prevTime = [datetimeoffset]::Parse([string]$sortedCycles[$i - 1].cycle_timestamp)
+                    $currentTime = [datetimeoffset]::Parse([string]$current.cycle_timestamp)
+                    $durationMs = [math]::Round(($currentTime - $prevTime).TotalMilliseconds, 3)
+                } catch {
+                    $durationMs = $null
+                }
             }
+            [void]$cycleRows.Add([pscustomobject][ordered]@{
+                batch_id = $current.batch_id
+                run_id = $current.run_id
+                agent_name = $current.agent_name
+                graph_name = $current.graph_name
+                sequence = $i + 1
+                cycle = $current.cycle
+                cycle_timestamp = $current.cycle_timestamp
+                duration_ms = $durationMs
+                file = $current.first_file
+                line = $current.first_line
+                event_count = $current.event_count
+                opportunistic_detected_count = $current.opportunistic_detected_count
+                opportunistic_prompt_visible_count = $current.opportunistic_prompt_visible_count
+                selection_count = $current.selection_count
+                contingency_event_count = $current.contingency_event_count
+                contingency_guidance_event_count = $current.contingency_guidance_event_count
+            })
         }
-        [void]$cycleRows.Add([pscustomobject][ordered]@{
-            batch_id = $current.batch_id
-            run_id = $current.run_id
-            agent_name = $current.agent_name
-            graph_name = $current.graph_name
-            sequence = $i + 1
-            cycle = $current.cycle
-            cycle_timestamp = $current.cycle_timestamp
-            duration_ms = $durationMs
-            file = $current.first_file
-            line = $current.first_line
-            event_count = $current.event_count
-            opportunistic_detected_count = $current.opportunistic_detected_count
-            opportunistic_prompt_visible_count = $current.opportunistic_prompt_visible_count
-            selection_count = $current.selection_count
-            contingency_event_count = $current.contingency_event_count
-            contingency_guidance_event_count = $current.contingency_guidance_event_count
-        })
     }
 
     [void]$runsRows.Add([pscustomobject][ordered]@{
@@ -861,6 +907,7 @@ foreach ($runDir in Get-ChildItem -Path $runRootPath -Directory | Sort-Object Na
 }
 
 $moveActionCorrelationRows = New-MoveActionCorrelationRows -Runs $runsRows -ActionRows $actionRows -MoveRows $moveRows
+$moveDurationRows = New-MoveDurationRows -MoveActionRows $moveActionCorrelationRows
 
 $pathInputDir = Join-Path $outputPath "path-analysis-inputs"
 if (Test-Path -LiteralPath $pathInputDir -PathType Container) {
@@ -937,6 +984,11 @@ Write-CsvRows -Rows $moveActionCorrelationRows -Path (Join-Path $outputPath "mov
     "http_error_count", "status_codes", "action_lines", "action_targets",
     "match_quality"
 )
+Write-CsvRows -Rows $moveDurationRows -Path (Join-Path $outputPath "move-durations.csv") -Headers @(
+    "batch_id", "run_id", "move_sequence", "move_cell", "move_timestamp",
+    "duration_ms", "action_count", "http_success_count", "http_failure_count",
+    "get_count", "post_count", "status_codes"
+)
 Write-CsvRows -Rows $javaRows -Path (Join-Path $outputPath "java-library-evidence.csv") -Headers @(
     "batch_id", "run_id", "agent_name", "graph_name", "file", "line",
     "timestamp", "java_event", "prefix", "message"
@@ -952,6 +1004,7 @@ $summary = [ordered]@{
     decisionCount = $decisionRows.Count
     contingencyRowCount = $contingencyRows.Count
     moveActionCorrelationRowCount = $moveActionCorrelationRows.Count
+    moveDurationRowCount = $moveDurationRows.Count
     javaEvidenceCount = $javaRows.Count
     artifacts = @(
         "runs.csv",
@@ -965,6 +1018,7 @@ $summary = [ordered]@{
         "opportunistic.csv",
         "actions.csv",
         "move-action-correlation.csv",
+        "move-durations.csv",
         "java-library-evidence.csv",
         "path-analysis-inputs"
     )

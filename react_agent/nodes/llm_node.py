@@ -3,11 +3,13 @@ from datetime import datetime, timezone
 from typing import Any
 from langchain_core.runnables import RunnableConfig
 from langchain_openai import ChatOpenAI
+from react_agent.ccrs.audit import log_ccrs_event
 from react_agent.state.state import AgentState
 from react_agent.tools import tools
 from react_agent.prompts.react_prompt import react_prompt
 from react_agent.nodes.message_window import sliding_message_window
 
+logger = logging.getLogger(__name__)
 
 # Create model and bind tools
 def llm_node(
@@ -48,10 +50,21 @@ def llm_node(
     logging.info(f"LLM node tool calls: {response.tool_calls}")
 
     next_cycle = int(state.get("cycle", {}).get("number", 0)) + 1
+    cycle_timestamp = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+    log_ccrs_event(
+        logger,
+        "react.loop.cycle",
+        {
+            "cycle": next_cycle,
+            "cycle_timestamp": cycle_timestamp,
+            "agent_name": agent_name,
+            "tool_call_count": len(response.tool_calls or []),
+        },
+    )
     return {
         "messages": [response],
         "cycle": {
             "number": next_cycle,
-            "timestamp": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
+            "timestamp": cycle_timestamp,
         },
     }

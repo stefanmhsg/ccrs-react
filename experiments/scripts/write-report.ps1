@@ -207,6 +207,36 @@ function Get-CycleRowsForRuns {
     return @($Cycles | Where-Object { $runIds -contains $_.run_id })
 }
 
+function New-MoveDurationRows {
+    param([object[]]$Moves)
+
+    $rows = [System.Collections.ArrayList]::new()
+    foreach ($group in ($Moves | Group-Object run_id | Sort-Object Name)) {
+        $sortedMoves = @($group.Group | Sort-Object @{ Expression = { Convert-ToIntOrZero $_.sequence }; Ascending = $true })
+        for ($i = 0; $i -lt $sortedMoves.Count; $i++) {
+            $current = $sortedMoves[$i]
+            $durationMs = $null
+            if ($i -gt 0) {
+                $previousTimestamp = Convert-ToDoubleOrNull $sortedMoves[$i - 1].timestamp
+                $currentTimestamp = Convert-ToDoubleOrNull $current.timestamp
+                if ($null -ne $previousTimestamp -and $null -ne $currentTimestamp) {
+                    $durationMs = [math]::Round($currentTimestamp - $previousTimestamp, 3)
+                }
+            }
+            [void]$rows.Add([pscustomobject][ordered]@{
+                batch_id = $current.batch_id
+                run_id = $current.run_id
+                sequence = Convert-ToIntOrZero $current.sequence
+                cycle = Convert-ToIntOrZero $current.sequence
+                cycle_timestamp = $current.timestamp
+                duration_ms = $durationMs
+                cell = $current.cell
+            })
+        }
+    }
+    return @($rows)
+}
+
 function Get-CcrsOppAverage {
     param(
         [object[]]$Cycles,
@@ -512,6 +542,558 @@ function Add-TableHeader {
     $Lines.Add($separatorLine)
 }
 
+function Convert-ToSvgText {
+    param($Value)
+
+    if ($null -eq $Value) {
+        return ""
+    }
+    return [System.Security.SecurityElement]::Escape("$Value")
+}
+
+function Get-StepAxisTicks {
+    param(
+        [double]$MaxStep,
+        [int]$Interval = 25
+    )
+
+    $ticks = [System.Collections.Generic.List[double]]::new()
+    $tick = 0
+    while ($tick -le $MaxStep) {
+        $ticks.Add([double]$tick)
+        $tick += $Interval
+    }
+
+    if (-not $ticks.Contains([double]$MaxStep)) {
+        $ticks.Add([double]$MaxStep)
+    }
+
+    return @($ticks | Sort-Object -Unique)
+}
+
+function Format-CellLabel {
+    param($Cell)
+
+    if ($null -eq $Cell -or "$Cell" -eq "") {
+        return "unknown cell"
+    }
+
+    $text = "$Cell"
+    if ($text -match "/cells/(.+)$") {
+        return "cells/$($matches[1])"
+    }
+
+    return $text
+}
+
+function Get-ChartStep {
+    param($Row)
+
+    if ($Row -and $Row.PSObject.Properties["sequence"] -and "$($Row.sequence)" -ne "") {
+        return Convert-ToIntOrZero $Row.sequence
+    }
+    if ($Row -and $Row.PSObject.Properties["move_sequence"] -and "$($Row.move_sequence)" -ne "") {
+        return Convert-ToIntOrZero $Row.move_sequence
+    }
+    return 0
+}
+
+function Add-EndpointLabel {
+    param(
+        [System.Collections.Generic.List[string]]$Svg,
+        [double]$PointX,
+        [double]$PointY,
+        [string]$Color,
+        [string]$Label,
+        [int]$SeriesIndex,
+        [double]$PlotX,
+        [double]$PlotY,
+        [double]$PlotWidth,
+        [double]$PlotHeight
+    )
+
+    $labelText = Convert-ToSvgText $Label
+    $labelWidth = [math]::Max(96, [math]::Min(210, ($Label.Length * 6.2) + 12))
+    $isRightEdge = $PointX -gt ($PlotX + $PlotWidth - 150)
+    $anchor = if ($isRightEdge) { "end" } else { "start" }
+    $labelXValue = if ($isRightEdge) {
+        [math]::Max($PlotX + $labelWidth + 8, $PointX - 14)
+    } else {
+        [math]::Min($PlotX + $PlotWidth - $labelWidth - 8, $PointX + 14)
+    }
+    $offsetY = if (($SeriesIndex % 2) -eq 0) { -45 } else { 48 }
+    $labelYValue = [math]::Min([math]::Max($PlotY + 12, $PointY + $offsetY), $PlotY + $PlotHeight - 12)
+    $pointXText = $PointX.ToString("0.##", [System.Globalization.CultureInfo]::InvariantCulture)
+    $pointYText = $PointY.ToString("0.##", [System.Globalization.CultureInfo]::InvariantCulture)
+    $rectX = ($PointX - 3).ToString("0.##", [System.Globalization.CultureInfo]::InvariantCulture)
+    $rectY = ($PointY - 3).ToString("0.##", [System.Globalization.CultureInfo]::InvariantCulture)
+    $labelX = $labelXValue.ToString("0.##", [System.Globalization.CultureInfo]::InvariantCulture)
+    $labelY = $labelYValue.ToString("0.##", [System.Globalization.CultureInfo]::InvariantCulture)
+
+    $Svg.Add("<rect x=""$rectX"" y=""$rectY"" width=""6"" height=""6"" fill=""#ffffff"" stroke=""$Color"" stroke-width=""2""/>")
+    $Svg.Add("<line x1=""$pointXText"" y1=""$pointYText"" x2=""$labelX"" y2=""$labelY"" stroke=""$Color"" stroke-width=""1"" opacity=""0.65""/>")
+    $Svg.Add("<text x=""$labelX"" y=""$labelY"" text-anchor=""$anchor"" dominant-baseline=""middle"" font-family=""Arial, sans-serif"" font-size=""11"" fill=""#222"">$labelText</text>")
+}
+
+function Write-CycleDurationChart {
+    param(
+        [object[]]$Cycles,
+        [object[]]$Runs,
+        [object[]]$Agents,
+        [string]$Path,
+        [string]$Title = "Cycle duration comparison",
+        [string]$Description = "Line chart comparing cycle duration by step for React experiment runs. The y-axis is linear milliseconds.",
+        [string]$SubtitlePrefix = "Y-axis is linear duration in ms.",
+        [string]$XAxisLabel = "Step number",
+        [string]$MarkdownLabel = "duration",
+        [object[]]$HttpRows = @(),
+        [double]$DurationLinearThresholdMs = 0,
+        [double]$DurationLinearScaleFraction = 0.67,
+        [double]$DurationLogBase = 100,
+        [switch]$DurationLogScale,
+        [double]$DurationAxisMinMs = 1,
+        [double]$DurationAxisMaxMs = 0,
+        [object[]]$DurationTickValues = @(),
+        [int]$HttpAxisMaxCalls = 0,
+        [int]$HttpAxisTickInterval = 1
+    )
+
+    $pointsByRun = [ordered]@{}
+    $runMetadata = @{}
+    foreach ($run in $Runs) {
+        $runId = "$($run.run_id)"
+        $rows = @($Cycles |
+            Where-Object {
+                "$($_.run_id)" -eq $runId -and
+                $null -ne (Convert-ToDoubleOrNull $_.duration_ms)
+            } |
+            Sort-Object @{ Expression = { Get-ChartStep $_ }; Ascending = $true })
+
+        if ($rows.Count -eq 0) {
+            continue
+        }
+
+        $agentRow = Get-AgentRowForRun -AgentRows $Agents -Run $run
+        $runMetadata[$runId] = [pscustomobject][ordered]@{
+            isCcrs = Test-CcrsRun $run
+            finalCell = if ($agentRow) { "$($agentRow.final_cell)" } else { "" }
+        }
+        $pointsByRun[$runId] = @($rows | ForEach-Object {
+            [pscustomobject][ordered]@{
+                step = Get-ChartStep $_
+                duration = Convert-ToDoubleOrNull $_.duration_ms
+            }
+        })
+    }
+
+    if ($pointsByRun.Count -eq 0) {
+        return $false
+    }
+
+    $allPoints = @()
+    foreach ($runId in $pointsByRun.Keys) {
+        $allPoints += @($pointsByRun[$runId])
+    }
+
+    $minStep = 0
+    $maxStep = [int]($allPoints | Measure-Object -Property step -Maximum).Maximum
+    $maxDuration = [double]($allPoints | Measure-Object -Property duration -Maximum).Maximum
+    $maxHttpCalls = 0
+    foreach ($row in $HttpRows) {
+        $maxHttpCalls = [math]::Max($maxHttpCalls, (Convert-ToIntOrZero $row.action_count))
+    }
+    if ($maxStep -le $minStep) {
+        $maxStep = $minStep + 1
+    }
+    if ($maxDuration -le 0) {
+        $maxDuration = 1
+    }
+    $durationAxisMax = $maxDuration
+    if ($DurationAxisMaxMs -gt 0) {
+        $durationAxisMax = [math]::Max($maxDuration, $DurationAxisMaxMs)
+    }
+    if ($DurationAxisMinMs -le 0) {
+        $DurationAxisMinMs = 1
+    }
+    $useHybridDurationScale = (
+        -not $DurationLogScale -and
+        $DurationLinearThresholdMs -gt 0 -and
+        $durationAxisMax -gt $DurationLinearThresholdMs
+    )
+    $httpAxisMax = $maxHttpCalls
+    if ($HttpAxisMaxCalls -gt 0) {
+        $httpAxisMax = [math]::Max($maxHttpCalls, $HttpAxisMaxCalls)
+    }
+    if ($HttpAxisTickInterval -le 0) {
+        $HttpAxisTickInterval = 1
+    }
+
+    $width = 1040
+    $height = 520
+    $left = 72
+    $top = 128
+    $plotWidth = 880
+    $plotHeight = 300
+    $baselineColor = "#1f77b4"
+    $ccrsColor = "#d62728"
+    $otherColors = @("#2ca02c", "#9467bd", "#ff7f0e", "#0891b2")
+
+    function Get-X {
+        param([int]$Step)
+        return $left + (($Step - $minStep) / ($maxStep - $minStep)) * $plotWidth
+    }
+
+    function Get-Y {
+        param([double]$Duration)
+        if ($DurationLogScale) {
+            $clampedDuration = [math]::Max($DurationAxisMinMs, [math]::Min($Duration, $durationAxisMax))
+            $logRange = [math]::Max(1.0, [math]::Log(($durationAxisMax / $DurationAxisMinMs), $DurationLogBase))
+            $logValue = [math]::Log(($clampedDuration / $DurationAxisMinMs), $DurationLogBase)
+            return $top + ($plotHeight - (($logValue / $logRange) * $plotHeight))
+        }
+        if (-not $useHybridDurationScale) {
+            return $top + ($plotHeight - (($Duration / $durationAxisMax) * $plotHeight))
+        }
+        if ($Duration -le $DurationLinearThresholdMs) {
+            $linearHeight = $plotHeight * $DurationLinearScaleFraction
+            return $top + $plotHeight - (($Duration / $DurationLinearThresholdMs) * $linearHeight)
+        }
+        $logHeight = $plotHeight * (1.0 - $DurationLinearScaleFraction)
+        $logRange = [math]::Max(1.0, [math]::Log(($durationAxisMax / $DurationLinearThresholdMs), $DurationLogBase))
+        $logValue = [math]::Log(($Duration / $DurationLinearThresholdMs), $DurationLogBase)
+        return $top + ($logHeight - (($logValue / $logRange) * $logHeight))
+    }
+
+    function Get-DurationTicks {
+        if ($DurationTickValues.Count -gt 0) {
+            $ticks = [System.Collections.Generic.List[double]]::new()
+            foreach ($tick in $DurationTickValues) {
+                $tickValue = Convert-ToDoubleOrNull $tick
+                if ($null -ne $tickValue -and $tickValue -le $durationAxisMax -and (-not $DurationLogScale -or $tickValue -ge $DurationAxisMinMs)) {
+                    $ticks.Add([double]$tickValue)
+                }
+            }
+            if ($maxDuration -gt $durationAxisMax -and -not $ticks.Contains([double]$maxDuration)) {
+                $ticks.Add([double]$maxDuration)
+            }
+            return @($ticks | Sort-Object -Unique)
+        }
+
+        if (-not $useHybridDurationScale) {
+            $ticks = [System.Collections.Generic.List[double]]::new()
+            for ($tick = 0; $tick -le 5; $tick++) {
+                $ticks.Add(($durationAxisMax / 5) * $tick)
+            }
+            return @($ticks)
+        }
+
+        $ticks = [System.Collections.Generic.List[double]]::new()
+        foreach ($tick in @(0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000)) {
+            if ($tick -le $DurationLinearThresholdMs -and $tick -le $durationAxisMax) {
+                $ticks.Add([double]$tick)
+            }
+        }
+        $multiplier = 1.0
+        while (($DurationLinearThresholdMs * $multiplier) -lt $durationAxisMax) {
+            $multiplier *= $DurationLogBase
+            $tickValue = $DurationLinearThresholdMs * $multiplier
+            if ($tickValue -le ($durationAxisMax * 1.05)) {
+                $ticks.Add([double][math]::Min($tickValue, $durationAxisMax))
+            }
+        }
+        if (-not $ticks.Contains([double]$durationAxisMax)) {
+            $ticks.Add([double]$durationAxisMax)
+        }
+        return @($ticks | Sort-Object -Unique)
+    }
+
+    $svg = [System.Collections.Generic.List[string]]::new()
+    $svg.Add('<svg xmlns="http://www.w3.org/2000/svg" width="' + $width + '" height="' + $height + '" viewBox="0 0 ' + $width + ' ' + $height + '" role="img" aria-labelledby="title desc">')
+    $svg.Add('<title id="title">' + (Convert-ToSvgText $Title) + '</title>')
+    $svg.Add('<desc id="desc">' + (Convert-ToSvgText $Description) + '</desc>')
+    $svg.Add('<rect width="100%" height="100%" fill="#ffffff"/>')
+    $svg.Add('<text x="' + $left + '" y="28" font-family="Arial, sans-serif" font-size="14" font-weight="700">' + (Convert-ToSvgText $Title) + '</text>')
+    $scaleText = if ($DurationLogScale) {
+        "Y-axis is log-base-" + $DurationLogBase.ToString("0.##", [System.Globalization.CultureInfo]::InvariantCulture) + " duration in ms."
+    } elseif ($useHybridDurationScale) {
+        "Y-axis is linear to " + $DurationLinearThresholdMs.ToString("0", [System.Globalization.CultureInfo]::InvariantCulture) + " ms, then log-base-" + $DurationLogBase.ToString("0.##", [System.Globalization.CultureInfo]::InvariantCulture) + "."
+    } else {
+        $SubtitlePrefix
+    }
+    $svg.Add('<text x="' + $left + '" y="50" font-family="Arial, sans-serif" font-size="12" fill="#555">' + (Convert-ToSvgText $scaleText) + ' Max observed: ' + $maxDuration.ToString("0.##", [System.Globalization.CultureInfo]::InvariantCulture) + ' ms.</text>')
+    $svg.Add(('<line x1="{0}" y1="{1}" x2="{2}" y2="{1}" stroke="#333" stroke-width="1"/>' -f $left, ($top + $plotHeight), ($left + $plotWidth)))
+    $svg.Add(('<line x1="{0}" y1="{1}" x2="{0}" y2="{2}" stroke="#333" stroke-width="1"/>' -f $left, $top, ($top + $plotHeight)))
+    if ($httpAxisMax -gt 0) {
+        $rightAxisX = $left + $plotWidth
+        $svg.Add(('<line x1="{0}" y1="{1}" x2="{0}" y2="{2}" stroke="#666" stroke-width="1"/>' -f $rightAxisX, $top, ($top + $plotHeight)))
+        $httpTicks = [System.Collections.Generic.List[int]]::new()
+        for ($tick = 0; $tick -le $httpAxisMax; $tick += $HttpAxisTickInterval) {
+            $httpTicks.Add($tick)
+        }
+        if (-not $httpTicks.Contains($httpAxisMax)) {
+            $httpTicks.Add($httpAxisMax)
+        }
+        foreach ($tick in $httpTicks) {
+            $y = $top + ($plotHeight - (($tick / $httpAxisMax) * $plotHeight))
+            $svg.Add(('<text x="{0}" y="{1:0.##}" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" fill="#555">{2}</text>' -f ($rightAxisX + 8), $y, $tick))
+        }
+        $svg.Add(('<text x="{0}" y="{1}" text-anchor="middle" transform="rotate(90 {0} {1})" font-family="Arial, sans-serif" font-size="12" fill="#555">HTTP calls</text>' -f ($rightAxisX + 44), ($top + ($plotHeight / 2))))
+        $barLegendY = 74
+        $barLegendItems = @(
+            @("baseline HTTP success", "#93c5fd"),
+            @("baseline HTTP failure", "#1e3a8a"),
+            @("CCRS HTTP success", "#fca5a5"),
+            @("CCRS HTTP failure", "#991b1b")
+        )
+        for ($legendIndex = 0; $legendIndex -lt $barLegendItems.Count; $legendIndex++) {
+            $item = $barLegendItems[$legendIndex]
+            $legendItemX = $left + 610 + (($legendIndex % 2) * 150)
+            $legendItemY = $barLegendY + ([math]::Floor($legendIndex / 2) * 18)
+            $svg.Add(('<rect x="{0}" y="{1}" width="10" height="10" fill="{2}" opacity="0.65"/>' -f $legendItemX, ($legendItemY - 8), $item[1]))
+            $svg.Add(('<text x="{0}" y="{1}" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#555">{2}</text>' -f ($legendItemX + 15), ($legendItemY - 3), (Convert-ToSvgText $item[0])))
+        }
+    }
+
+    foreach ($value in Get-DurationTicks) {
+        $y = Get-Y $value
+        $label = ([double]$value).ToString("0", [System.Globalization.CultureInfo]::InvariantCulture)
+        $svg.Add(('<line x1="{0}" y1="{1:0.##}" x2="{2}" y2="{1:0.##}" stroke="#e5e7eb" stroke-width="1"/>' -f $left, $y, ($left + $plotWidth)))
+        $svg.Add(('<text x="{0}" y="{1:0.##}" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#222">{2}</text>' -f ($left - 8), $y, $label))
+    }
+
+    $xTicks = Get-StepAxisTicks -MaxStep $maxStep -Interval 25
+    foreach ($step in $xTicks) {
+        $x = Get-X $step
+        $label = ([double]$step).ToString("0.##", [System.Globalization.CultureInfo]::InvariantCulture)
+        $svg.Add(('<line x1="{0:0.##}" y1="{1}" x2="{0:0.##}" y2="{2}" stroke="#333" stroke-width="1"/>' -f $x, ($top + $plotHeight), ($top + $plotHeight + 5)))
+        $svg.Add(('<text x="{0:0.##}" y="{1}" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#222">{2}</text>' -f $x, ($top + $plotHeight + 18), $label))
+    }
+
+    $svg.Add(('<text x="{0}" y="{1}" text-anchor="middle" font-family="Arial, sans-serif" font-size="13">{2}</text>' -f ($left + ($plotWidth / 2)), ($height - 24), (Convert-ToSvgText $XAxisLabel)))
+    $svg.Add(('<text x="18" y="{0}" text-anchor="middle" transform="rotate(-90 18 {0})" font-family="Arial, sans-serif" font-size="13">Duration ms</text>' -f ($top + ($plotHeight / 2))))
+
+    $legendX = $left + 610
+    $legendY = 34
+    $index = 0
+    $otherColorIndex = 0
+    $runOrder = @($pointsByRun.Keys)
+    if ($httpAxisMax -gt 0) {
+        $barGroupWidth = [math]::Min(18, [math]::Max(6, ($plotWidth / [math]::Max(1, $maxStep)) * 0.7))
+        $barWidth = [math]::Max(2, $barGroupWidth / [math]::Max(1, $runOrder.Count))
+        for ($runIndex = 0; $runIndex -lt $runOrder.Count; $runIndex++) {
+            $runId = $runOrder[$runIndex]
+            $metadata = $runMetadata[$runId]
+            $successColor = if ($metadata.isCcrs) { "#fca5a5" } else { "#93c5fd" }
+            $failureColor = if ($metadata.isCcrs) { "#991b1b" } else { "#1e3a8a" }
+            foreach ($row in @($HttpRows | Where-Object { $_.run_id -eq $runId } | Sort-Object @{ Expression = { Get-ChartStep $_ }; Ascending = $true })) {
+                $step = Get-ChartStep $row
+                $successCount = Convert-ToIntOrZero $row.http_success_count
+                $failureCount = Convert-ToIntOrZero $row.http_failure_count
+                $xCenter = Get-X $step
+                $x = $xCenter - ($barGroupWidth / 2) + ($runIndex * $barWidth)
+                $successHeight = ($successCount / $httpAxisMax) * $plotHeight
+                $failureHeight = ($failureCount / $httpAxisMax) * $plotHeight
+                $successY = $top + $plotHeight - $successHeight
+                $failureY = $successY - $failureHeight
+                if ($successCount -gt 0) {
+                    $svg.Add(('<rect x="{0:0.##}" y="{1:0.##}" width="{2:0.##}" height="{3:0.##}" fill="{4}" opacity="0.45"/>' -f $x, $successY, ($barWidth - 0.5), $successHeight, $successColor))
+                }
+                if ($failureCount -gt 0) {
+                    $svg.Add(('<rect x="{0:0.##}" y="{1:0.##}" width="{2:0.##}" height="{3:0.##}" fill="{4}" opacity="0.7"/>' -f $x, $failureY, ($barWidth - 0.5), $failureHeight, $failureColor))
+                }
+            }
+        }
+    }
+    foreach ($runId in $pointsByRun.Keys) {
+        $metadata = $runMetadata[$runId]
+        $color = if ($metadata.isCcrs) {
+            $ccrsColor
+        } elseif ($index -eq 0) {
+            $baselineColor
+        } else {
+            $otherColors[$otherColorIndex % $otherColors.Count]
+        }
+        if (-not $metadata.isCcrs -and $index -ne 0) {
+            $otherColorIndex++
+        }
+
+        $points = @($pointsByRun[$runId] | ForEach-Object {
+            "{0:0.##},{1:0.##}" -f (Get-X $_.step), (Get-Y $_.duration)
+        })
+        $svg.Add(('<polyline points="{0}" fill="none" stroke="{1}" stroke-width="2"/>' -f ($points -join " "), $color))
+        $seriesLegendY = $legendY + ($index * 20)
+        $svg.Add(('<line x1="{0}" y1="{1}" x2="{2}" y2="{1}" stroke="{3}" stroke-width="2"/>' -f $legendX, $seriesLegendY, ($legendX + 30), $color))
+        $svg.Add(('<text x="{0}" y="{1}" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12">{2}</text>' -f ($legendX + 38), $seriesLegendY, (Convert-ToSvgText $runId)))
+
+        $lastPoint = @($pointsByRun[$runId])[-1]
+        if ($lastPoint) {
+            Add-EndpointLabel `
+                -Svg $svg `
+                -PointX (Get-X $lastPoint.step) `
+                -PointY (Get-Y $lastPoint.duration) `
+                -Color $color `
+                -Label ((Format-CellLabel $metadata.finalCell) + " at step " + $lastPoint.step) `
+                -SeriesIndex $index `
+                -PlotX $left `
+                -PlotY $top `
+                -PlotWidth $plotWidth `
+                -PlotHeight $plotHeight
+        }
+        $index++
+    }
+
+    $svg.Add('</svg>')
+    $svg | Set-Content -Path $Path -Encoding UTF8
+    return $true
+}
+
+function Write-HttpCallsChart {
+    param(
+        [object[]]$Rows,
+        [object[]]$Runs,
+        [string]$Path,
+        [int]$HttpAxisMaxCalls = 35,
+        [int]$HttpAxisTickInterval = 2
+    )
+
+    $rowsByRun = [ordered]@{}
+    foreach ($run in $Runs) {
+        $runId = "$($run.run_id)"
+        $runRows = @($Rows |
+            Where-Object { "$($_.run_id)" -eq $runId } |
+            Sort-Object @{ Expression = { Get-ChartStep $_ }; Ascending = $true })
+        if ($runRows.Count -gt 0) {
+            $rowsByRun[$runId] = $runRows
+        }
+    }
+
+    if ($rowsByRun.Count -eq 0) {
+        return $false
+    }
+
+    $allRows = @()
+    foreach ($runId in $rowsByRun.Keys) {
+        $allRows += @($rowsByRun[$runId])
+    }
+
+    $minStep = 0
+    $maxStep = [int]($allRows | ForEach-Object { Get-ChartStep $_ } | Measure-Object -Maximum).Maximum
+    if ($maxStep -le $minStep) {
+        $maxStep = $minStep + 1
+    }
+
+    $maxObserved = 0
+    foreach ($row in $allRows) {
+        $maxObserved = [math]::Max($maxObserved, (Convert-ToIntOrZero $row.action_count))
+    }
+    $axisMax = [math]::Max($maxObserved, $HttpAxisMaxCalls)
+    if ($axisMax -le 0) {
+        $axisMax = 1
+    }
+    if ($HttpAxisTickInterval -le 0) {
+        $HttpAxisTickInterval = 1
+    }
+
+    $width = 1040
+    $height = 520
+    $left = 72
+    $top = 128
+    $plotWidth = 880
+    $plotHeight = 300
+    $baselineSuccessColor = "#93c5fd"
+    $baselineFailureColor = "#1e3a8a"
+    $ccrsSuccessColor = "#fca5a5"
+    $ccrsFailureColor = "#991b1b"
+
+    function Get-X {
+        param([int]$Step)
+        return $left + (($Step - $minStep) / ($maxStep - $minStep)) * $plotWidth
+    }
+
+    function Get-Y {
+        param([double]$Value)
+        return $top + ($plotHeight - (($Value / $axisMax) * $plotHeight))
+    }
+
+    $svg = [System.Collections.Generic.List[string]]::new()
+    $svg.Add('<svg xmlns="http://www.w3.org/2000/svg" width="' + $width + '" height="' + $height + '" viewBox="0 0 ' + $width + ' ' + $height + '" role="img" aria-labelledby="title desc">')
+    $svg.Add('<title id="title">HTTP calls by move window</title>')
+    $svg.Add('<desc id="desc">Stacked bar chart of successful and failed HTTP calls per movement step for React experiment runs.</desc>')
+    $svg.Add('<rect width="100%" height="100%" fill="#ffffff"/>')
+    $svg.Add('<text x="' + $left + '" y="28" font-family="Arial, sans-serif" font-size="14" font-weight="700">HTTP calls by move window</text>')
+    $svg.Add('<text x="' + $left + '" y="50" font-family="Arial, sans-serif" font-size="12" fill="#555">Y-axis is linear HTTP calls per move window. Max observed: ' + $maxObserved + '.</text>')
+    $svg.Add(('<line x1="{0}" y1="{1}" x2="{2}" y2="{1}" stroke="#333" stroke-width="1"/>' -f $left, ($top + $plotHeight), ($left + $plotWidth)))
+    $svg.Add(('<line x1="{0}" y1="{1}" x2="{0}" y2="{2}" stroke="#333" stroke-width="1"/>' -f $left, $top, ($top + $plotHeight)))
+
+    $httpTicks = [System.Collections.Generic.List[int]]::new()
+    for ($tick = 0; $tick -le $axisMax; $tick += $HttpAxisTickInterval) {
+        $httpTicks.Add($tick)
+    }
+    if (-not $httpTicks.Contains($axisMax)) {
+        $httpTicks.Add($axisMax)
+    }
+    foreach ($tick in $httpTicks) {
+        $y = Get-Y $tick
+        $svg.Add(('<line x1="{0}" y1="{1:0.##}" x2="{2}" y2="{1:0.##}" stroke="#e5e7eb" stroke-width="1"/>' -f $left, $y, ($left + $plotWidth)))
+        $svg.Add(('<text x="{0}" y="{1:0.##}" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#222">{2}</text>' -f ($left - 8), $y, $tick))
+    }
+
+    $xTicks = Get-StepAxisTicks -MaxStep $maxStep -Interval 25
+    foreach ($step in $xTicks) {
+        $x = Get-X $step
+        $svg.Add(('<line x1="{0:0.##}" y1="{1}" x2="{0:0.##}" y2="{2}" stroke="#333" stroke-width="1"/>' -f $x, ($top + $plotHeight), ($top + $plotHeight + 5)))
+        $svg.Add(('<text x="{0:0.##}" y="{1}" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#222">{2}</text>' -f $x, ($top + $plotHeight + 18), $step))
+    }
+
+    $runOrder = @($rowsByRun.Keys)
+    $barGroupWidth = [math]::Min(18, [math]::Max(6, ($plotWidth / [math]::Max(1, $maxStep)) * 0.7))
+    $barWidth = [math]::Max(2, $barGroupWidth / [math]::Max(1, $runOrder.Count))
+    for ($runIndex = 0; $runIndex -lt $runOrder.Count; $runIndex++) {
+        $runId = $runOrder[$runIndex]
+        $run = @($Runs | Where-Object { "$($_.run_id)" -eq $runId })[0]
+        $isCcrs = Test-CcrsRun $run
+        $successColor = if ($isCcrs) { $ccrsSuccessColor } else { $baselineSuccessColor }
+        $failureColor = if ($isCcrs) { $ccrsFailureColor } else { $baselineFailureColor }
+        foreach ($row in $rowsByRun[$runId]) {
+            $step = Get-ChartStep $row
+            $successCount = Convert-ToIntOrZero $row.http_success_count
+            $failureCount = Convert-ToIntOrZero $row.http_failure_count
+            $xCenter = Get-X $step
+            $x = $xCenter - ($barGroupWidth / 2) + ($runIndex * $barWidth)
+            $successHeight = ($successCount / $axisMax) * $plotHeight
+            $failureHeight = ($failureCount / $axisMax) * $plotHeight
+            $successY = $top + $plotHeight - $successHeight
+            $failureY = $successY - $failureHeight
+            if ($successCount -gt 0) {
+                $svg.Add(('<rect x="{0:0.##}" y="{1:0.##}" width="{2:0.##}" height="{3:0.##}" fill="{4}" opacity="0.55"/>' -f $x, $successY, ($barWidth - 0.5), $successHeight, $successColor))
+            }
+            if ($failureCount -gt 0) {
+                $svg.Add(('<rect x="{0:0.##}" y="{1:0.##}" width="{2:0.##}" height="{3:0.##}" fill="{4}" opacity="0.75"/>' -f $x, $failureY, ($barWidth - 0.5), $failureHeight, $failureColor))
+            }
+        }
+    }
+
+    $legendItems = @(
+        @("baseline HTTP success", $baselineSuccessColor),
+        @("baseline HTTP failure", $baselineFailureColor),
+        @("CCRS HTTP success", $ccrsSuccessColor),
+        @("CCRS HTTP failure", $ccrsFailureColor)
+    )
+    for ($legendIndex = 0; $legendIndex -lt $legendItems.Count; $legendIndex++) {
+        $item = $legendItems[$legendIndex]
+        $legendItemX = $left + 610 + (($legendIndex % 2) * 150)
+        $legendItemY = 72 + ([math]::Floor($legendIndex / 2) * 18)
+        $svg.Add(('<rect x="{0}" y="{1}" width="10" height="10" fill="{2}" opacity="0.75"/>' -f $legendItemX, ($legendItemY - 8), $item[1]))
+        $svg.Add(('<text x="{0}" y="{1}" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#555">{2}</text>' -f ($legendItemX + 15), ($legendItemY - 3), (Convert-ToSvgText $item[0])))
+    }
+
+    $svg.Add(('<text x="{0}" y="{1}" text-anchor="middle" font-family="Arial, sans-serif" font-size="13">Movement step number</text>' -f ($left + ($plotWidth / 2)), ($height - 24)))
+    $svg.Add(('<text x="18" y="{0}" text-anchor="middle" transform="rotate(-90 18 {0})" font-family="Arial, sans-serif" font-size="13">HTTP calls</text>' -f ($top + ($plotHeight / 2))))
+    $svg.Add('</svg>')
+    $svg | Set-Content -Path $Path -Encoding UTF8
+    return $true
+}
+
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 if (-not $RunRoot) {
     if (-not $BatchId) {
@@ -539,12 +1121,14 @@ if ($OutputDir) { $parseArgs["OutputDir"] = $outputPath }
 
 $runs = @(Import-CsvIfPresent (Join-Path $outputPath "runs.csv"))
 $agents = @(Import-CsvIfPresent (Join-Path $outputPath "agents.csv"))
+$maseMoves = @(Import-CsvIfPresent (Join-Path $outputPath "mase-agent-moved.csv"))
 $cycles = @(Import-CsvIfPresent (Join-Path $outputPath "cycle-durations.csv"))
 $decisions = @(Import-CsvIfPresent (Join-Path $outputPath "decisions.csv"))
 $contingency = @(Import-CsvIfPresent (Join-Path $outputPath "contingency.csv"))
 $opportunistic = @(Import-CsvIfPresent (Join-Path $outputPath "opportunistic.csv"))
 $actions = @(Import-CsvIfPresent (Join-Path $outputPath "actions.csv"))
 $moveActionCorrelation = @(Import-CsvIfPresent (Join-Path $outputPath "move-action-correlation.csv"))
+$moveDurationRows = @(Import-CsvIfPresent (Join-Path $outputPath "move-durations.csv"))
 $javaEvidence = @(Import-CsvIfPresent (Join-Path $outputPath "java-library-evidence.csv"))
 
 $maxAdvisoryRank = 1
@@ -565,6 +1149,44 @@ foreach ($runId in $invocationCyclesByRun.Keys) {
     $maxContingencyInvocation = [math]::Max($maxContingencyInvocation, @($invocationCyclesByRun[$runId]).Count)
 }
 
+$moveDurationChartName = "move-duration-comparison.svg"
+$moveDurationChartPath = Join-Path $outputPath $moveDurationChartName
+$hasMoveDurationChart = Write-CycleDurationChart `
+    -Cycles $moveDurationRows `
+    -Runs $runs `
+    -Agents $agents `
+    -Path $moveDurationChartPath `
+    -Title "Move duration comparison" `
+    -Description "Line chart comparing move-to-move duration by movement step for React experiment runs using a log duration axis." `
+    -SubtitlePrefix "Y-axis is log-scaled move-to-move duration in ms." `
+    -XAxisLabel "Movement step number" `
+    -DurationLogScale `
+    -DurationLogBase 2 `
+    -DurationAxisMinMs 1000 `
+    -DurationAxisMaxMs 80000 `
+    -DurationTickValues @(1000, 2000, 4000, 8000, 16000, 32000, 64000, 80000)
+
+$httpCallsChartName = "http-calls-by-move.svg"
+$httpCallsChartPath = Join-Path $outputPath $httpCallsChartName
+$hasHttpCallsChart = Write-HttpCallsChart `
+    -Rows $moveDurationRows `
+    -Runs $runs `
+    -Path $httpCallsChartPath `
+    -HttpAxisMaxCalls 35 `
+    -HttpAxisTickInterval 2
+
+$cycleDurationChartName = "cycle-duration-comparison.svg"
+$cycleDurationChartPath = Join-Path $outputPath $cycleDurationChartName
+$hasCycleDurationChart = Write-CycleDurationChart `
+    -Cycles $cycles `
+    -Runs $runs `
+    -Agents $agents `
+    -Path $cycleDurationChartPath `
+    -Title "Cycle duration comparison" `
+    -Description "Line chart comparing actual React loop cycle duration by cycle step. Fresh runs use react.loop.cycle events emitted from state cycle updates." `
+    -SubtitlePrefix "Y-axis is linear React loop-cycle duration in ms." `
+    -XAxisLabel "Cycle step number"
+
 $reportTitle = if ($BatchId) { $BatchId } else { Split-Path -Leaf $runRootPath }
 $scenarioMetadata = Get-ScenarioReportMetadata -BatchName $reportTitle
 $lines = [System.Collections.Generic.List[string]]::new()
@@ -584,12 +1206,12 @@ if ($runs.Count -eq 0) {
 } else {
     Add-TableHeader -Lines $lines -Headers @(
         "Run", "Agent", "Graph", "Mode", "Reached exit", "Total duration ms",
-        "Total moves", "Avg agent cycle duration", "Final cell"
+        "Total moves", "Avg move duration", "Final cell"
     )
     foreach ($run in $runs) {
-        $runCycles = @($cycles | Where-Object { $_.run_id -eq $run.run_id })
-        $avgCycleMs = Get-Average -Rows $runCycles -Field "duration_ms"
-        $totalDurationMs = Get-Sum -Rows $runCycles -Field "duration_ms"
+        $runMoveDurations = @($moveDurationRows | Where-Object { $_.run_id -eq $run.run_id })
+        $avgCycleMs = Get-Average -Rows $runMoveDurations -Field "duration_ms"
+        $totalDurationMs = Get-Sum -Rows $runMoveDurations -Field "duration_ms"
         $agentRow = Get-AgentRowForRun -AgentRows $agents -Run $run
         $finalCell = if ($agentRow) { $agentRow.final_cell } else { $null }
         $exitCell = Get-RunExitCell -Run $run -ScenarioMetadata $scenarioMetadata
@@ -632,9 +1254,41 @@ foreach ($run in $runs) {
 }
 $lines.Add("")
 
+$lines.Add("## Move Duration Summary")
+$lines.Add("")
+$moveSummaryHeaders = @("Baseline move avg ms", "CCRS move avg ms")
+Add-TableHeader -Lines $lines -Headers $moveSummaryHeaders
+$baselineMoveRows = Get-CycleRowsForRuns -Cycles $moveDurationRows -Runs $runs -Ccrs $false
+$ccrsMoveRows = Get-CycleRowsForRuns -Cycles $moveDurationRows -Runs $runs -Ccrs $true
+$moveSummaryCells = @(
+    (Format-Ms (Get-Average -Rows $baselineMoveRows -Field "duration_ms")),
+    (Format-Ms (Get-Average -Rows $ccrsMoveRows -Field "duration_ms"))
+)
+$lines.Add("| " + ($moveSummaryCells -join " | ") + " |")
+$lines.Add("")
+$lines.Add("Move averages use `move-durations.csv`, derived from `move-action-correlation.csv`. HTTP calls use the same move windows and are plotted separately.")
+$lines.Add("")
+if ($hasMoveDurationChart) {
+    $lines.Add("## Move Duration Chart")
+    $lines.Add("")
+    $lines.Add("![Move duration by step]($moveDurationChartName)")
+    $lines.Add("")
+    $lines.Add("X-axis is movement step number; y-axis is log-scaled move duration with ticks at 1000, 2000, 4000, 8000, 16000, 32000, 64000, and 80000 ms.")
+    $lines.Add("")
+}
+
+if ($hasHttpCallsChart) {
+    $lines.Add("## HTTP Calls Chart")
+    $lines.Add("")
+    $lines.Add("![HTTP calls by move window]($httpCallsChartName)")
+    $lines.Add("")
+    $lines.Add("X-axis is movement step number; y-axis is linear HTTP calls from 0 to 35 in 2-call steps, stacked by success and failure per agent.")
+    $lines.Add("")
+}
+
 $lines.Add("## Cycle Duration Summary")
 $lines.Add("")
-$cycleSummaryHeaders = @("Baseline avg ms", "CCRS avg ms")
+$cycleSummaryHeaders = @("Baseline cycle avg ms", "CCRS cycle avg ms")
 for ($count = 0; $count -le $maxOppCountForCycleSummary; $count++) {
     $cycleSummaryHeaders += ("CCRS opp {0} avg ms" -f $count)
 }
@@ -656,8 +1310,16 @@ for ($index = 1; $index -le $maxContingencyInvocation; $index++) {
 }
 $lines.Add("| " + ($cycleSummaryCells -join " | ") + " |")
 $lines.Add("")
-$lines.Add("Opportunistic CCRS cycle averages exclude cycles where contingency CCRS was activated. Contingency columns are dynamically generated ordered invocation cycles, not counts per cycle.")
+$lines.Add('Cycle averages use `cycle-durations.csv`. Fresh runs populate this from `react.loop.cycle` events emitted from the React state cycle channel; historical CCRS-only rows may fall back to older structured CCRS cycle events. Opportunistic CCRS cycle averages exclude cycles where contingency CCRS was activated.')
 $lines.Add("")
+if ($hasCycleDurationChart) {
+    $lines.Add("## Cycle Duration Chart")
+    $lines.Add("")
+    $lines.Add("![Cycle duration by step]($cycleDurationChartName)")
+    $lines.Add("")
+    $lines.Add("X-axis is React loop-cycle step number; y-axis is linear cycle duration in milliseconds.")
+    $lines.Add("")
+}
 
 $lines.Add("## Advisory-Follow Evidence")
 $lines.Add("")
@@ -719,7 +1381,11 @@ $artifactNames = @(
     "opportunistic.csv",
     "actions.csv",
     "move-action-correlation.csv",
+    "move-durations.csv",
     "java-library-evidence.csv",
+    "move-duration-comparison.svg",
+    "http-calls-by-move.svg",
+    "cycle-duration-comparison.svg",
     "path-analysis-inputs/",
     "summary.json",
     "summary.md"
@@ -752,6 +1418,7 @@ $summaryObject = [ordered]@{
     opportunisticRowCount = $opportunistic.Count
     actionRowCount = $actions.Count
     moveActionCorrelationRowCount = $moveActionCorrelation.Count
+    moveDurationRowCount = $moveDurationRows.Count
     javaEvidenceCount = $javaEvidence.Count
     summaryMarkdown = "summary.md"
     metricsDocumentation = "..\..\METRICS.md"

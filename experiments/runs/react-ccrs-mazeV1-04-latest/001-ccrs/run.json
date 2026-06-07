@@ -1,0 +1,71 @@
+﻿{
+    "batchId":  "react-ccrs-mazeV1-04-latest",
+    "runId":  "001-ccrs",
+    "agentName":  "react_ccrs_mazeV1_04",
+    "agentNames":  [
+                       "react_ccrs_mazeV1_04"
+                   ],
+    "graphName":  "graph_ccrs",
+    "runMode":  "notebook",
+    "scenarioId":  "",
+    "optimalMoves":  null,
+    "exitCell":  "",
+    "command":  "manual",
+    "importedAt":  "2026-06-07T21:32:32.1500518+02:00",
+    "sourceDir":  "S:\\dev\\ma\\ccrs-react\\experiments\\runs\\latest",
+    "status":  "manual_import",
+    "reactLogFile":  "react_ccrs_mazeV1_04_20260607_211522.log",
+    "javaLogFile":  "react_ccrs_mazeV1_04_20260607_211522.java.log",
+    "logFiles":  [
+                     "react_ccrs_mazeV1_04_20260607_211522.log",
+                     "react_ccrs_mazeV1_04_20260607_211522.java.log"
+                 ],
+    "enableContingencyEscalationTool":  true,
+    "maseMode":  "manual",
+    "maseEventCapture":  "viewer_export",
+    "maseCaptureStatus":  "completed",
+    "maseCaptureFile":  "mase-events.jsonl",
+    "maseCaptureEventCount":  5014,
+    "maseCaptureParseErrors":  0,
+    "maseCaptureAgents":  [
+                              "ccrs-agent-1.1",
+                              "ccrs-agent-1.2",
+                              "ccrs-agent-1.3",
+                              "ccrs-agent-1.4",
+                              "ccrs-agent-1.5",
+                              "ccrs-agent-1.6",
+                              "ccrs-agent-1.7",
+                              "ccrs-agent-1.8",
+                              "ccrs-agent-1.9",
+                              "ccrs-agent-2.1",
+                              "ccrs-agent-2.2",
+                              "ccrs-agent-3",
+                              "http://127.0.1.1:8080/agents/ccrs-agent-1.1",
+                              "http://127.0.1.1:8080/agents/ccrs-agent-1.2",
+                              "http://127.0.1.1:8080/agents/ccrs-agent-1.3",
+                              "http://127.0.1.1:8080/agents/ccrs-agent-1.4",
+                              "http://127.0.1.1:8080/agents/ccrs-agent-1.5",
+                              "http://127.0.1.1:8080/agents/ccrs-agent-1.6",
+                              "http://127.0.1.1:8080/agents/ccrs-agent-1.7",
+                              "http://127.0.1.1:8080/agents/ccrs-agent-1.8",
+                              "http://127.0.1.1:8080/agents/ccrs-agent-1.9",
+                              "http://127.0.1.1:8080/agents/ccrs-agent-2.1",
+                              "http://127.0.1.1:8080/agents/ccrs-agent-2.2",
+                              "http://127.0.1.1:8080/agents/ccrs-agent-3",
+                              "http://127.0.1.1:8080/agents/key-holder-agent-1",
+                              "http://127.0.1.1:8080/agents/react_ccrs_mazeV1_04",
+                              "key-holder-agent-1",
+                              "react_ccrs_mazeV1_04"
+                          ],
+    "maseEventTypeCounts":  {
+                                "TRANSACTION":  2529,
+                                "AGENT_MOVED":  2485
+                            },
+    "sourceExportFiles":  [
+                              "mase-viewer-run-2026-06-07T19-05-57-608Z-2026-06-07T19-31-43-525Z.ndjson"
+                          ],
+    "metadataFiles":  [
+
+                      ],
+    "notes":  "V1-04 CCRS notebook run"
+}

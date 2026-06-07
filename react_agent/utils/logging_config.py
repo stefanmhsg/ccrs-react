@@ -18,5 +18,9 @@ def setup_logging(level: int = logging.INFO, run_name: str = "run") -> Logger:
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         filename=str(log_path),
         filemode="w",
+        # Notebook kernels often configure root logging before launch_agent runs.
+        # Without force=True, basicConfig is a no-op and the Python run log is
+        # not created even though the Java log path is exported above.
+        force=True,
     )
     return logging.getLogger(__name__)

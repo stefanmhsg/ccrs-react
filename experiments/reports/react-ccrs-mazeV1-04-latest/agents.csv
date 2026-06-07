@@ -1,0 +1,2 @@
+﻿"batch_id","run_id","agent","move_count","first_cell","final_cell"
+"react-ccrs-mazeV1-04-latest","001-ccrs","http://127.0.1.1:8080/agents/react_ccrs_mazeV1_04","37","http://127.0.1.1:8080/cells/0","http://127.0.1.1:8080/cells/12/5"

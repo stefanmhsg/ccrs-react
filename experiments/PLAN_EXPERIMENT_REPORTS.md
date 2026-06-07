@@ -36,6 +36,10 @@ The first target is a manual and auditable workflow rather than a fully automate
   Reason: BDI and React use different CCRS adapters. Java core logs can prove library behavior, but adapter decisions such as option prioritization, prompt injection, escalation, and selected tool calls must come from adapter-specific React events.
   Added/Updated: 2026-05-31 / Codex.
 
+- Rule: Keep React move-time and loop-cycle-time metrics separate.
+  Reason: BDI agents produce deterministic moves at comparable cycles, so the BDI report can use a combined move/cycle timing view. React agents may emit several tool calls per LLM turn and may require several turns per successful move, so React reports need one metric for successful move windows and one metric for actual React loop cycles.
+  Added/Updated: 2026-06-07 / Codex.
+
 - Rule: Base report generation on archived file logs, not notebook console output.
   Reason: Notebook output is useful for inspection, but reports need reproducible inputs under `experiments/runs/<batch-id>/<run-id>/`.
   Added/Updated: 2026-05-31 / Codex.
@@ -69,6 +73,7 @@ The first target is a manual and auditable workflow rather than a fully automate
 - [x] (2026-06-07 15:46Z) Fixed MASE parsing to filter events, movement rows, transaction rows, agent rows, and path-analysis inputs to the imported experiment agent instead of counting scenario infrastructure agents from the full viewer export.
 - [x] (2026-06-07 16:05Z) Confirmed additional option-set logging is unnecessary for the first advisory-follow metrics; reports infer rank buckets from existing selection events plus same-cycle opportunistic detection rows.
 - [x] (2026-06-07 17:10Z) Aligned the top-level React summary layout with the BDI report shape: core metrics, move optimality, cycle duration summary, advisory-follow evidence, and generated artifacts.
+- [x] (2026-06-07 20:50Z) Split React timing into `Move Duration Summary/Chart` and `Cycle Duration Summary/Chart`; added `move-durations.csv` and structured `react.loop.cycle` logging for future baseline and CCRS loop-cycle timing.
 
 ## Surprises & Discoveries
 
@@ -120,6 +125,10 @@ The first target is a manual and auditable workflow rather than a fully automate
 - Decision: React v1 reports will use React-native "followed highest-ranked injected suggestion" metrics instead of BDI overrule metrics.
   Rationale: JaCaMo `ccrs.opportunistic.prioritize` records deterministic option reordering, but React CCRS guidance is advisory prompt context. React reports should measure whether the LLM selected the highest-ranked injected target from `opportunistic_ccrs`, from `opportunistic_guidance_by_contingency_ccrs`, or from a cycle where both channels were visible. Strict reordering and overrule fields are not applicable to React and should be documented as a conceptual mismatch instead of represented as report columns.
   Date/Author: 2026-05-31 / Codex.
+
+- Decision: React reports separate move duration from React loop-cycle duration.
+  Rationale: The BDI report's combined timing view is valid there because BDI moves are deterministic and comparable to agent cycles. React loop cycles are LLM turns, and a turn can emit multiple tool calls or fail to produce a successful move. Therefore `move-durations.csv` measures successful move windows from `move-action-correlation.csv`, while `cycle-durations.csv` measures actual React loop cycles from the `state["cycle"]` channel via `react.loop.cycle` events.
+  Date/Author: 2026-06-07 / Codex.
 
 - Decision: React import copies explicit React and Java log files instead of moving them out of `logs/`.
   Rationale: The disposable staging directory is for MASE viewer exports and metadata; file logs under `logs/` are live run artifacts that should remain available after archival. The importer still moves staged MASE exports by default unless `-KeepSource` is supplied.
@@ -545,4 +554,6 @@ Revision note 2026-06-07 / Codex: Replaced the option-set logging direction with
 Revision note 2026-06-07 / Codex: Updated the React summary layout to remove the separate MASE Evidence and React CCRS Evidence sections, add Move Optimality and Cycle Duration Summary, and rename core metrics to match the BDI report wording.
 
 Revision note 2026-06-07 / Codex: Added structured tool-result logging for future HTTP status reporting, enriched `actions.csv` with result/status fields, and added `move-action-correlation.csv` to group tool actions between successful MASE movement POSTs.
+
+Revision note 2026-06-07 / Codex: Split timing reports into move duration and React loop-cycle duration. Move duration now uses `move-action-correlation.csv` and exposes HTTP success/failure call counts for stacked chart bars; cycle duration now relies on explicit `react.loop.cycle` events emitted from the React state cycle channel, with historical CCRS rows retaining older structured cycle evidence where available.
 

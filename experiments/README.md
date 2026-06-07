@@ -86,8 +86,12 @@ CSV files into `experiments/reports/<batch-id>/`.
   experiment agent.
 - `mase-transactions.csv`: normalized MASE transaction rows filtered to the
   imported experiment agent.
-- `cycle-durations.csv`: React cycle rows derived from structured CCRS cycle
-  timestamps.
+- `move-durations.csv`: one row per successful move window from
+  `move-action-correlation.csv`, with move-to-move duration and HTTP
+  success/failure call counts.
+- `cycle-durations.csv`: React loop-cycle rows. Fresh logs populate these from
+  `react.loop.cycle` events emitted from the React state cycle channel; older
+  CCRS logs may contain historical structured cycle rows.
 - `decisions.csv`: one row per `react.ccrs.opportunistic.selection` event.
 - `advisory-follow.csv`: aggregate opportunistic CCRS rank-follow buckets
   derived from `decisions.csv` and `opportunistic.csv`.
@@ -99,6 +103,10 @@ CSV files into `experiments/reports/<batch-id>/`.
   `http_ok`, `response_length`, and error details.
 - `move-action-correlation.csv`: action windows keyed by successful movement
   POSTs matched to filtered MASE `AGENT_MOVED` rows.
+- `move-duration-comparison.svg`: SVG chart of move-to-move duration by
+  movement step, with HTTP success/failure calls stacked on a second y-axis.
+- `cycle-duration-comparison.svg`: SVG chart of React loop-cycle duration by
+  cycle step.
 - `java-library-evidence.csv`: Java companion log evidence, kept separate from
   React adapter decisions.
 - `path-analysis-inputs/*.cells.txt`: movement paths grouped by run and MASE
