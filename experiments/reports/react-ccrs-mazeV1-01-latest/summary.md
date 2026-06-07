@@ -1,6 +1,6 @@
 ﻿# React Experiment Summary: react-ccrs-mazeV1-01-latest
 
-Generated: 2026-06-07 19:45:00 +02:00
+Generated: 2026-06-07 20:06:07 +02:00
 
 Run root: `S:\dev\ma\ccrs-react\experiments\runs\react-ccrs-mazeV1-01-latest`
 
@@ -51,6 +51,7 @@ Ranks are inferred by joining each selection to `react.ccrs.opportunistic.detect
 - `contingency.csv`
 - `opportunistic.csv`
 - `actions.csv`
+- `move-action-correlation.csv`
 - `java-library-evidence.csv`
 - `path-analysis-inputs/`
 - `summary.json`

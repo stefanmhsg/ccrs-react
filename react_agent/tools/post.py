@@ -3,6 +3,7 @@ from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field
 from typing import Mapping
 import requests
+from react_agent.tools.http_result import from_response
 
 RDF_ACCEPT = "text/turtle, text/plain;q=0.1"
 
@@ -20,7 +21,7 @@ def http_post(url: str, data: str, config: RunnableConfig, headers: Mapping[str,
     agent_name = configuration.get("agent_name", "React")
     headers = _request_headers(agent_name, headers)
     r = requests.post(url, data=data, headers=headers, timeout=30)
-    return r.text
+    return from_response("POST", url, r)
 
 
 def _request_headers(agent_name: str, headers: Mapping[str, str] = None) -> dict[str, str]:

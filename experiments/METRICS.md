@@ -224,6 +224,42 @@ Historical logs that predate `react.ccrs.opportunistic.selection` remain valid
 for MASE, cycle, opportunistic, contingency, action, and Java evidence metrics.
 Their run rows are marked `decision_metric_quality=missing_selection_event`.
 
+## Action And Move Correlation
+
+### Actions
+
+`actions.csv` contains one row per parsed `[TOOL_NODE] Invoking tool...` log
+line. These rows represent attempted tool invocations. For fresh runs, the tool
+node also emits a structured `[TOOL_NODE] Tool result: {...}` line after
+execution; the parser joins that result back into the latest matching action row
+and fills:
+
+- `tool_call_id`
+- `outcome`
+- `http_status`
+- `http_ok`
+- `response_length`
+- `content_type`
+- `error`
+- `error_type`
+- `result_line`
+- `result_timestamp`
+
+Historical logs that do not contain structured tool-result lines keep these
+fields blank. Their action rows still prove that a tool was invoked, but not
+whether the HTTP response was successful.
+
+### Move-Action Correlation
+
+`move-action-correlation.csv` groups actions by successful movement windows. A
+window starts at the `http_post` action whose target matches a filtered MASE
+`AGENT_MOVED` cell, and ends before the next matched successful movement POST.
+This makes repeated GETs, failed POSTs, and recovery behavior visible per
+successful move. The first perception actions before the first successful move
+are intentionally outside these windows.
+
+Sources: `actions.csv` and `mase-agent-moved.csv`.
+
 ## Not Yet Reported
 
 The following metrics are planned but intentionally excluded from the first

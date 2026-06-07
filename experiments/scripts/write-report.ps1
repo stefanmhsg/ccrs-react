@@ -544,6 +544,7 @@ $decisions = @(Import-CsvIfPresent (Join-Path $outputPath "decisions.csv"))
 $contingency = @(Import-CsvIfPresent (Join-Path $outputPath "contingency.csv"))
 $opportunistic = @(Import-CsvIfPresent (Join-Path $outputPath "opportunistic.csv"))
 $actions = @(Import-CsvIfPresent (Join-Path $outputPath "actions.csv"))
+$moveActionCorrelation = @(Import-CsvIfPresent (Join-Path $outputPath "move-action-correlation.csv"))
 $javaEvidence = @(Import-CsvIfPresent (Join-Path $outputPath "java-library-evidence.csv"))
 
 $maxAdvisoryRank = 1
@@ -717,6 +718,7 @@ $artifactNames = @(
     "contingency.csv",
     "opportunistic.csv",
     "actions.csv",
+    "move-action-correlation.csv",
     "java-library-evidence.csv",
     "path-analysis-inputs/",
     "summary.json",
@@ -749,6 +751,7 @@ $summaryObject = [ordered]@{
     contingencyRowCount = $contingency.Count
     opportunisticRowCount = $opportunistic.Count
     actionRowCount = $actions.Count
+    moveActionCorrelationRowCount = $moveActionCorrelation.Count
     javaEvidenceCount = $javaEvidence.Count
     summaryMarkdown = "summary.md"
     metricsDocumentation = "..\..\METRICS.md"

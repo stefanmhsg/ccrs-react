@@ -1,6 +1,6 @@
 ﻿{
     "batchId":  "react-ccrs-mazeV1-01-latest",
-    "generatedAt":  "2026-06-07T19:45:01.1951906+02:00",
+    "generatedAt":  "2026-06-07T20:06:08.3840656+02:00",
     "runRoot":  "S:\\dev\\ma\\ccrs-react\\experiments\\runs\\react-ccrs-mazeV1-01-latest",
     "outputDir":  "S:\\dev\\ma\\ccrs-react\\experiments\\reports\\react-ccrs-mazeV1-01-latest",
     "runCount":  1,
@@ -10,6 +10,7 @@
     "contingencyRowCount":  1503,
     "opportunisticRowCount":  2511,
     "actionRowCount":  679,
+    "moveActionCorrelationRowCount":  120,
     "javaEvidenceCount":  1688,
     "summaryMarkdown":  "summary.md",
     "metricsDocumentation":  "..\\..\\METRICS.md",
@@ -25,6 +26,7 @@
                       "contingency.csv",
                       "opportunistic.csv",
                       "actions.csv",
+                      "move-action-correlation.csv",
                       "java-library-evidence.csv",
                       "path-analysis-inputs/",
                       "summary.json",

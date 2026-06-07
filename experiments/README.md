@@ -94,7 +94,11 @@ CSV files into `experiments/reports/<batch-id>/`.
 - `contingency.csv`: React contingency CCRS and contingency-produced guidance
   events.
 - `opportunistic.csv`: React opportunistic CCRS lifecycle events.
-- `actions.csv`: parsed tool invocations from `[TOOL_NODE]` log lines.
+- `actions.csv`: parsed tool invocations from `[TOOL_NODE]` log lines. Fresh
+  runs also populate tool result fields such as `tool_call_id`, `http_status`,
+  `http_ok`, `response_length`, and error details.
+- `move-action-correlation.csv`: action windows keyed by successful movement
+  POSTs matched to filtered MASE `AGENT_MOVED` rows.
 - `java-library-evidence.csv`: Java companion log evidence, kept separate from
   React adapter decisions.
 - `path-analysis-inputs/*.cells.txt`: movement paths grouped by run and MASE

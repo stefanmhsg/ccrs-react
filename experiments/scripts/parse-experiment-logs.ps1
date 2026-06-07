@@ -291,6 +291,177 @@ function Write-CsvRows {
     }
 }
 
+function ConvertTo-EpochMilliseconds {
+    param($Timestamp)
+
+    if ($null -eq $Timestamp -or "$Timestamp" -eq "") {
+        return $null
+    }
+    $text = "$Timestamp"
+    $number = 0L
+    if ([int64]::TryParse($text, [ref]$number)) {
+        return $number
+    }
+    $formats = @("yyyy-MM-dd HH:mm:ss,fff", "yyyy-MM-dd HH:mm:ss.fff", "yyyy-MM-ddTHH:mm:ss.fffK")
+    foreach ($format in $formats) {
+        try {
+            $date = [datetime]::ParseExact(
+                $text,
+                $format,
+                [System.Globalization.CultureInfo]::InvariantCulture
+            )
+            return [int64](($date.ToUniversalTime() - [datetime]'1970-01-01T00:00:00Z').TotalMilliseconds)
+        } catch {
+        }
+    }
+    try {
+        $date = [datetime]::Parse($text, [System.Globalization.CultureInfo]::InvariantCulture)
+        return [int64](($date.ToUniversalTime() - [datetime]'1970-01-01T00:00:00Z').TotalMilliseconds)
+    } catch {
+        return $null
+    }
+}
+
+function ConvertFrom-ToolResultJson {
+    param([string]$Line)
+
+    $match = [regex]::Match($Line, "\[TOOL_NODE\] Tool result: (?<json>\{.*\})\s*$")
+    if (-not $match.Success) {
+        return $null
+    }
+    try {
+        return ($match.Groups["json"].Value | ConvertFrom-Json)
+    } catch {
+        return $null
+    }
+}
+
+function Update-LatestActionWithToolResult {
+    param(
+        [System.Collections.ArrayList]$ActionRows,
+        $RunMeta,
+        $ToolResult,
+        [string]$Line,
+        [int]$LineNumber
+    )
+
+    if ($null -eq $ToolResult) {
+        return
+    }
+
+    $toolName = Get-MapValue $ToolResult "tool_name"
+    $target = Get-MapValue $ToolResult "target"
+    for ($idx = $ActionRows.Count - 1; $idx -ge 0; $idx--) {
+        $row = $ActionRows[$idx]
+        if ($row.run_id -ne $RunMeta.runId) {
+            continue
+        }
+        if ($row.result_line -and "$($row.result_line)" -ne "") {
+            continue
+        }
+        if ($toolName -and $row.action_type -ne $toolName) {
+            continue
+        }
+        if ($target -and $row.target -ne $target) {
+            continue
+        }
+
+        $row.tool_call_id = Get-MapValue $ToolResult "tool_call_id"
+        $row.outcome = Get-MapValue $ToolResult "outcome" $row.outcome
+        $row.http_status = Get-MapValue $ToolResult "http_status"
+        $row.http_ok = Get-MapValue $ToolResult "http_ok"
+        $row.response_length = Get-MapValue $ToolResult "response_length"
+        $row.content_type = Get-MapValue $ToolResult "content_type"
+        $row.error = Get-MapValue $ToolResult "error"
+        $row.error_type = Get-MapValue $ToolResult "error_type"
+        $row.result_line = $LineNumber
+        $row.result_timestamp = Get-LineTimestamp -Line $Line
+        return
+    }
+}
+
+function New-MoveActionCorrelationRows {
+    param(
+        [object[]]$Runs,
+        [object[]]$ActionRows,
+        [object[]]$MoveRows
+    )
+
+    $rows = [System.Collections.ArrayList]::new()
+    foreach ($run in $Runs) {
+        $runId = $run.run_id
+        $actions = @($ActionRows | Where-Object { $_.run_id -eq $runId } | Sort-Object `
+            @{ Expression = { $value = ConvertTo-EpochMilliseconds $_.timestamp; if ($null -eq $value) { [int64]::MaxValue } else { $value } }; Ascending = $true },
+            @{ Expression = { [int]$_.line }; Ascending = $true })
+        $moves = @($MoveRows | Where-Object { $_.run_id -eq $runId } | Sort-Object @{ Expression = { [int]$_.sequence }; Ascending = $true })
+
+        $starts = @()
+        $searchStart = 0
+        foreach ($move in $moves) {
+            $moveTimestamp = ConvertTo-EpochMilliseconds $move.timestamp
+            $matchedIndex = -1
+            for ($idx = $searchStart; $idx -lt $actions.Count; $idx++) {
+                $action = $actions[$idx]
+                if ($action.action_type -ne "http_post") {
+                    continue
+                }
+                if ($action.target -ne $move.cell) {
+                    continue
+                }
+                $actionTimestamp = ConvertTo-EpochMilliseconds $action.timestamp
+                if ($null -ne $moveTimestamp -and $null -ne $actionTimestamp -and $actionTimestamp -gt ($moveTimestamp + 10000)) {
+                    continue
+                }
+                $matchedIndex = $idx
+                break
+            }
+
+            if ($matchedIndex -ge 0) {
+                $starts += [pscustomobject][ordered]@{
+                    move = $move
+                    action_index = $matchedIndex
+                }
+                $searchStart = $matchedIndex + 1
+            }
+        }
+
+        for ($i = 0; $i -lt $starts.Count; $i++) {
+            $start = $starts[$i]
+            $endIndex = if ($i + 1 -lt $starts.Count) { $starts[$i + 1].action_index } else { $actions.Count }
+            $windowActions = @()
+            for ($idx = $start.action_index; $idx -lt $endIndex; $idx++) {
+                $windowActions += $actions[$idx]
+            }
+            $statusCodes = @($windowActions | Where-Object { $_.http_status -ne $null -and "$($_.http_status)" -ne "" } | ForEach-Object { "$($_.http_status)" })
+            $httpErrorCount = @($windowActions | Where-Object {
+                $status = Get-MapValue $_ "http_status"
+                ($status -ne $null -and "$status" -ne "" -and [int]$status -ge 400) -or $_.outcome -eq "error"
+            }).Count
+
+            [void]$rows.Add([pscustomobject][ordered]@{
+                batch_id = $run.batch_id
+                run_id = $runId
+                move_sequence = $start.move.sequence
+                move_cell = $start.move.cell
+                move_timestamp = $start.move.timestamp
+                move_line = $start.move.line
+                start_action_line = $actions[$start.action_index].line
+                start_action_timestamp = $actions[$start.action_index].timestamp
+                end_before_action_line = if ($endIndex -lt $actions.Count) { $actions[$endIndex].line } else { "" }
+                action_count = $windowActions.Count
+                get_count = @($windowActions | Where-Object { $_.action_type -eq "http_get" }).Count
+                post_count = @($windowActions | Where-Object { $_.action_type -eq "http_post" }).Count
+                http_error_count = $httpErrorCount
+                status_codes = ($statusCodes -join ";")
+                action_lines = (($windowActions | ForEach-Object { "$($_.line)" }) -join ";")
+                action_targets = (($windowActions | ForEach-Object { "$($_.target)" }) -join ";")
+                match_quality = "target_timestamp_order"
+            })
+        }
+    }
+    return @($rows)
+}
+
 function New-RunMeta {
     param(
         [System.IO.DirectoryInfo]$RunDir,
@@ -344,6 +515,7 @@ $decisionRows = [System.Collections.ArrayList]::new()
 $contingencyRows = [System.Collections.ArrayList]::new()
 $opportunisticRows = [System.Collections.ArrayList]::new()
 $actionRows = [System.Collections.ArrayList]::new()
+$moveActionCorrelationRows = @()
 $javaRows = [System.Collections.ArrayList]::new()
 $maseRows = [System.Collections.ArrayList]::new()
 $moveRows = [System.Collections.ArrayList]::new()
@@ -478,10 +650,25 @@ foreach ($runDir in Get-ChildItem -Path $runRootPath -Directory | Sort-Object Na
                     file = Split-Path -Leaf $reactLogFile
                     line = $lineNumber
                     timestamp = Get-LineTimestamp -Line $line
+                    tool_call_id = ""
                     action_type = $actionMatch.Groups["tool"].Value
                     target = $target
                     outcome = "invoked"
+                    http_status = ""
+                    http_ok = ""
+                    response_length = ""
+                    content_type = ""
+                    error = ""
+                    error_type = ""
+                    result_line = ""
+                    result_timestamp = ""
                 })
+                continue
+            }
+
+            $toolResult = ConvertFrom-ToolResultJson -Line $line
+            if ($toolResult) {
+                Update-LatestActionWithToolResult -ActionRows $actionRows -RunMeta $runMeta -ToolResult $toolResult -Line $line -LineNumber $lineNumber
             }
         }
     }
@@ -673,6 +860,8 @@ foreach ($runDir in Get-ChildItem -Path $runRootPath -Directory | Sort-Object Na
     })
 }
 
+$moveActionCorrelationRows = New-MoveActionCorrelationRows -Runs $runsRows -ActionRows $actionRows -MoveRows $moveRows
+
 $pathInputDir = Join-Path $outputPath "path-analysis-inputs"
 if (Test-Path -LiteralPath $pathInputDir -PathType Container) {
     Get-ChildItem -LiteralPath $pathInputDir -Force | Remove-Item -Recurse -Force
@@ -737,7 +926,16 @@ Write-CsvRows -Rows $opportunisticRows -Path (Join-Path $outputPath "opportunist
 )
 Write-CsvRows -Rows $actionRows -Path (Join-Path $outputPath "actions.csv") -Headers @(
     "batch_id", "run_id", "agent_name", "graph_name", "file", "line",
-    "timestamp", "action_type", "target", "outcome"
+    "timestamp", "tool_call_id", "action_type", "target", "outcome",
+    "http_status", "http_ok", "response_length", "content_type",
+    "error", "error_type", "result_line", "result_timestamp"
+)
+Write-CsvRows -Rows $moveActionCorrelationRows -Path (Join-Path $outputPath "move-action-correlation.csv") -Headers @(
+    "batch_id", "run_id", "move_sequence", "move_cell", "move_timestamp",
+    "move_line", "start_action_line", "start_action_timestamp",
+    "end_before_action_line", "action_count", "get_count", "post_count",
+    "http_error_count", "status_codes", "action_lines", "action_targets",
+    "match_quality"
 )
 Write-CsvRows -Rows $javaRows -Path (Join-Path $outputPath "java-library-evidence.csv") -Headers @(
     "batch_id", "run_id", "agent_name", "graph_name", "file", "line",
@@ -753,6 +951,7 @@ $summary = [ordered]@{
     maseEventCount = $maseRows.Count
     decisionCount = $decisionRows.Count
     contingencyRowCount = $contingencyRows.Count
+    moveActionCorrelationRowCount = $moveActionCorrelationRows.Count
     javaEvidenceCount = $javaRows.Count
     artifacts = @(
         "runs.csv",
@@ -765,6 +964,7 @@ $summary = [ordered]@{
         "contingency.csv",
         "opportunistic.csv",
         "actions.csv",
+        "move-action-correlation.csv",
         "java-library-evidence.csv",
         "path-analysis-inputs"
     )
