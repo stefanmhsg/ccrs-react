@@ -143,7 +143,8 @@ the CCRS graph variant:
   `enable_contingency_escalation_tool`. Optional Java contingency strategies
   are requested through semantic graph options such as
   `enable_contingency_llm_prediction` and
-  `enable_contingency_a2a_consultation`.
+  `enable_contingency_a2a_consultation`. Java strategy behavior can be tuned
+  with `contingency_configuration`.
 - [api.py](../api.py) builds the selected graph and passes matching keyword
   arguments into the graph builder. The same keyword arguments are also placed
   in LangGraph `configurable` run configuration so nodes can read runtime
@@ -457,6 +458,49 @@ python main.py --graph-name graph_ccrs --contingency-ccrs-modules "ccrs-core,ccr
 The React adapter does not provide its own Python LLM client for Java
 contingency strategies. Java strategy providers should use the Java capability
 configuration supplied by the CCRS Maven libraries.
+
+The Python wrapper accepts a `contingency_configuration` mapping and converts it
+to Java
+[`ContingencyConfiguration.java`](../../../ccrs-bdi/ccrs-core/src/main/java/ccrs/core/contingency/ContingencyConfiguration.java)
+before constructing Java contingency CCRS. Use snake_case keys in Python; the
+wrapper maps them to the Java builder API:
+
+```python
+from react_agent.ccrs.contingency import ContingencyCcrs
+
+contingency_ccrs = ContingencyCcrs.from_maven_local(
+    contingency_configuration={
+        "retry": {
+            "max_attempts": 5,
+            "initial_delay_ms": 500,
+        },
+        "prediction_llm": {
+            "max_history_actions": 20,
+            "max_interaction_state_triples": 50,
+        },
+        "stop": {
+            "exhaustion_threshold": 1,
+        },
+    },
+)
+```
+
+The same mapping can be passed to the CCRS graph through the Python API:
+
+```python
+await launch_agent(
+    query=QUERY_V2,
+    graph_name="graph_ccrs",
+    contingency_configuration={
+        "retry": {"max_attempts": 5},
+        "prediction_llm": {"max_history_actions": 20},
+    },
+)
+```
+
+For advanced cases, pass a prebuilt Java `ContingencyConfiguration` object or a
+prebuilt `ContingencyCcrs` wrapper through the existing `contingency_ccrs`
+graph-build option.
 
 The LangChain4j provider reads API configuration from environment variables,
 Java system properties, or `.env` through the Java capability module. It looks

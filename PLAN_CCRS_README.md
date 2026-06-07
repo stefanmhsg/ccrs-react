@@ -48,6 +48,8 @@ The goal is to make the Python ReAct/LangGraph agent consume the reusable Java C
 - [x] (2026-05-31) Implemented Package C escalation hardening: the default controller now escalates after consecutive HTTP API error responses in `ToolMessage` content or metadata, `--contingency-http-error-threshold` exposes the default threshold, and `escalate_to_contingency_ccrs` now describes its agent-facing use and graph consequence.
 - [x] (2026-06-06) Hardened optional Java capability classpath resolution after a notebook run with both LangChain4j prediction and A2A consultation reached contingency CCRS but failed with `NoClassDefFoundError: com/fasterxml/jackson/core/JsonProcessingException`.
 - [x] (2026-06-06) Hardened HTTP-status extraction so contingency decision routing ignores successful non-RDF tool bodies such as `Graph updated: ...` while still recognizing RDF/Turtle HTTP error bodies.
+- [x] (2026-06-07) Hardened JPype classpath stability for local CCRS SNAPSHOT jars by loading fingerprinted temp copies and validating the Backtrack nested runtime class before long-running contingency runs.
+- [x] (2026-06-07) Added a Python-side `contingency_configuration` bridge that maps React adapter dictionaries to Java `ContingencyConfiguration` before constructing Java contingency CCRS.
 - [x] Continue contingency CCRS adapter design discussion; current working notes are recorded in the `Contingency CCRS Design Discussion` section.
 - [x] Implement first-pass contingency CCRS escalation for explicit LLM escalation and repeated tool invocation failures. Richer semantic escalation remains a controller customization concern.
 - [x] Ensure the same `InMemoryCcrsTraceHistory` instance survives across contingency CCRS cycles when graph routing is implemented.
@@ -106,6 +108,9 @@ The goal is to make the Python ReAct/LangGraph agent consume the reusable Java C
 - Observation: Provider discovery must use JPype's classloader after the JVM has already started.
   Evidence: A lifecycle smoke that first created a core-only `ContingencyCcrs` and then created an A2A-enabled wrapper did not discover `consultation` through the default thread context classloader. Passing `org.jpype.JPypeContext.getInstance().getClassLoader()` to `ContingencyCcrsFactory.withDefaultsAndDiscoveredProviders(...)` made the same lifecycle discover and register `consultation`.
 
+- Observation: React can pass central Java contingency strategy options without introducing Python-owned strategy semantics.
+  Evidence: [contingency/contingency_ccrs.py](react_agent/ccrs/contingency/contingency_ccrs.py) accepts `contingency_configuration`, maps nested Python dictionaries to Java option builders, and passes the resulting Java `ContingencyConfiguration` into `ContingencyCcrs.withDefaults(...)` or `ContingencyCcrsFactory.withDefaultsAndDiscoveredProviders(...)`. A smoke with `{'retry': {'max_attempts': 5, 'initial_delay_ms': 500}}` produced a retry suggestion whose Java action params reported `maxAttempts=5` and `delayMs=500`.
+
 - Observation: Notebook reloads can leave same-shaped `Situation` objects whose class identity differs from the `Situation` class imported by [contingency_ccrs.py](react_agent/ccrs/contingency/contingency_ccrs.py).
   Evidence: A simulated notebook reload created an old `SituationType.UNCERTAINTY` value that no longer satisfied `isinstance(..., Situation)` in the reloaded Java wrapper. Structural normalization in [situation.py](react_agent/ccrs/contingency/situation.py) now converts old situation instances to `UNCERTAINTY` before Java evaluation.
 
@@ -118,6 +123,10 @@ The goal is to make the Python ReAct/LangGraph agent consume the reusable Java C
 - Decision: Keep the baseline ReAct graph free of CCRS imports, CCRS state keys, and CCRS prompt variables.
   Rationale: CCRS should be an opt-in graph variant and adapter layer. The baseline graph remains the control path for experiments.
   Date/Author: 2026-05-14 / Codex
+
+- Decision: Represent React-side contingency strategy configuration as a thin mapping into Java `ContingencyConfiguration`, not as Python option classes.
+  Rationale: Java remains the source of strategy semantics and validation. Python needs an ergonomic adapter surface for graph/API callers, but duplicating option classes would create a second public model to keep in sync.
+  Date/Author: 2026-06-07 / Codex
 
 - Decision: Keep opportunistic CCRS advisory-only for now.
   Rationale: The current prompt injects JSON CCRS annotations as additional system context. It does not force or override the next tool call. Control-policy changes belong to a later contingency CCRS milestone.
@@ -548,6 +557,16 @@ Deprecated compatibility aliases such as `scan_turtle` and `scan_triples` should
     ContingencyCcrs.from_maven_local(...)
     ContingencyCcrs.evaluate(situation, context=None)
 
+`ContingencyCcrs.from_maven_local(...)` also accepts `contingency_configuration`.
+Callers may pass either a Java `ContingencyConfiguration` object or a Python
+mapping that mirrors the Java builder with snake_case keys, for example:
+
+    {
+        "retry": {"max_attempts": 5, "initial_delay_ms": 500},
+        "prediction_llm": {"max_history_actions": 20},
+        "stop": {"exhaustion_threshold": 1},
+    }
+
 The current Package A context boundary in [ccrs_context.py](react_agent/ccrs/contingency/ccrs_context.py) is `InMemoryCcrsContext`. It provides a minimal Java `CcrsContext` proxy with RDF query, current resource, agent id, and CCRS trace-history methods. Its trace store is `InMemoryCcrsTraceHistory` in [in_memory_ccrs_trace_history.py](react_agent/ccrs/contingency/in_memory_ccrs_trace_history.py), matching the Java helper name and Java trace-history method names. Package B derives that context from normal LangGraph messages through [interaction.py](react_agent/ccrs/contingency/interaction.py), which owns Java `Interaction` values and outcome-classifier hooks. Package C must preserve one trace-history instance across contingency cycles for an agent run.
 
 `CcrsAgentState` in `react_agent/ccrs/state.py` should continue to include:
@@ -621,3 +640,5 @@ Optional Java capabilities are resolved through local Maven module names. [capab
 2026-06-06: Hardened optional Java capability classpath resolution after an explicit contingency escalation in the notebook failed inside Java with missing Jackson classes. [java_runtime.py](react_agent/ccrs/java_runtime.py) now includes the LangChain4j and A2A transitive runtime jars needed for provider discovery and evaluation, and a fresh smoke with both optional modules enabled reached normal contingency result conversion instead of `NoClassDefFoundError`.
 
 2026-06-06: Hardened decision-side HTTP status extraction after a notebook run crashed while parsing the successful non-RDF `http_post` response `Graph updated: ...` as Turtle. [http_status.py](react_agent/ccrs/contingency/http_status.py) now treats RDF parse errors as no HTTP status for escalation counting, preserving RDF/Turtle error detection without making non-RDF success messages fatal.
+
+2026-06-07: Added the React contingency strategy configuration bridge. [contingency/contingency_ccrs.py](react_agent/ccrs/contingency/contingency_ccrs.py) now accepts a Java `ContingencyConfiguration` object or a Python mapping with snake_case strategy option keys, converts mappings to Java configuration through JPype, and passes that configuration into the Java factory path. [graph_ccrs.py](react_agent/graph/graph_ccrs.py) forwards `contingency_configuration`, and [README.md](react_agent/ccrs/README.md) documents direct wrapper and `launch_agent(...)` usage.

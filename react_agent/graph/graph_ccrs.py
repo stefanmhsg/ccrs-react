@@ -31,6 +31,7 @@ def build_graph(
     enable_contingency_llm_prediction: bool = False,
     enable_contingency_a2a_consultation: bool = False,
     discover_contingency_strategy_providers: bool = False,
+    contingency_configuration=None,
 ):
     workflow = StateGraph(CcrsAgentState)
     active_trace_history = ccrs_trace_history or InMemoryCcrsTraceHistory()
@@ -40,6 +41,7 @@ def build_graph(
         enable_contingency_llm_prediction=enable_contingency_llm_prediction,
         enable_contingency_a2a_consultation=enable_contingency_a2a_consultation,
         discover_contingency_strategy_providers=discover_contingency_strategy_providers,
+        contingency_configuration=contingency_configuration,
     )
     active_tools = list(tools)
     if enable_contingency_escalation_tool:
@@ -100,6 +102,7 @@ def _contingency_ccrs_from_options(
     enable_contingency_llm_prediction: bool = False,
     enable_contingency_a2a_consultation: bool = False,
     discover_contingency_strategy_providers: bool = False,
+    contingency_configuration=None,
 ):
     if contingency_ccrs is not None:
         return contingency_ccrs
@@ -125,4 +128,5 @@ def _contingency_ccrs_from_options(
     return ContingencyCcrs.from_maven_local(
         modules=modules,
         discover_strategy_providers=discover,
+        contingency_configuration=contingency_configuration,
     )

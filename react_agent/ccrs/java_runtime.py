@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import logging
 import os
+import shutil
+import tempfile
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -241,7 +243,10 @@ class CcrsJavaRuntime:
             log.exception("%s Failed to configure Java CCRS library logging level.", log_prefix)
 
     def _resolve_module_jars(self) -> list[Path]:
-        return [self._find_maven_artifact_jar(module) for module in self.modules]
+        return [
+            _stable_classpath_copy(self._find_maven_artifact_jar(module))
+            for module in self.modules
+        ]
 
     def _find_maven_artifact_jar(self, artifact_id: str) -> Path:
         artifact_dir = self.maven_repo.joinpath(*self.group.split("."), artifact_id, self.version)
@@ -353,6 +358,24 @@ def require_jpype() -> Any:
 def _is_non_runtime_jar(path: Path) -> bool:
     name = path.name
     return name.endswith("-sources.jar") or name.endswith("-javadoc.jar")
+
+
+def _stable_classpath_copy(path: Path) -> Path:
+    """Return an immutable copy of a local CCRS jar for JPype class loading.
+
+    Maven-local SNAPSHOT jars are overwritten in place by `publishToMavenLocal`.
+    A long-running JPype JVM may keep the original jar open while later class
+    loading expects entries from the replacement jar. Loading from a fingerprinted
+    copy keeps each Python process on one coherent jar image.
+    """
+
+    stat = path.stat()
+    cache_dir = Path(tempfile.gettempdir()) / "react_agent_ccrs_classpath"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cached = cache_dir / f"{path.stem}-{stat.st_mtime_ns}-{stat.st_size}{path.suffix}"
+    if not cached.exists() or cached.stat().st_size != stat.st_size:
+        shutil.copy2(path, cached)
+    return cached
 
 
 _default_java_runtime: CcrsJavaRuntime | None = None

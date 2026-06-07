@@ -30,6 +30,7 @@ class ContingencyCcrs:
 
     java_runtime: CcrsJavaRuntime = field(default_factory=CcrsJavaRuntime.from_maven_local)
     discover_strategy_providers: bool = False
+    contingency_configuration: Any = None
 
     _contingency_ccrs: Any = field(default=None, init=False, repr=False)
     _classes: dict[str, Any] = field(default_factory=dict, init=False, repr=False)
@@ -46,6 +47,7 @@ class ContingencyCcrs:
         gradle_cache: str | Path | None = None,
         extra_classpath: Iterable[str | Path] = (),
         discover_strategy_providers: bool = False,
+        contingency_configuration: Any = None,
     ) -> "ContingencyCcrs":
         return cls(
             java_runtime=CcrsJavaRuntime.from_maven_local(
@@ -57,6 +59,7 @@ class ContingencyCcrs:
                 extra_classpath=extra_classpath,
             ),
             discover_strategy_providers=discover_strategy_providers,
+            contingency_configuration=contingency_configuration,
         )
 
     def evaluate(
@@ -153,23 +156,205 @@ class ContingencyCcrs:
                 "Situation": self.java_runtime.class_(jpype, "ccrs.core.contingency.dto.Situation"),
                 "SituationType": self.java_runtime.class_(jpype, "ccrs.core.contingency.dto.Situation$Type"),
                 "ContingencyCcrs": self.java_runtime.class_(jpype, "ccrs.core.contingency.ContingencyCcrs"),
+                "ContingencyConfiguration": self.java_runtime.class_(
+                    jpype,
+                    "ccrs.core.contingency.ContingencyConfiguration",
+                ),
+                "EscalationPolicy": self.java_runtime.class_(
+                    jpype,
+                    "ccrs.core.contingency.ContingencyConfiguration$EscalationPolicy",
+                ),
                 "ContingencyCcrsFactory": self.java_runtime.class_(
                     jpype,
                     "ccrs.core.contingency.ContingencyCcrsFactory",
                 ),
+                "PredictionLlmStrategyOptions": self.java_runtime.class_(
+                    jpype,
+                    "ccrs.core.contingency.options.PredictionLlmStrategyOptions",
+                ),
+                "RetryStrategyOptions": self.java_runtime.class_(
+                    jpype,
+                    "ccrs.core.contingency.options.RetryStrategyOptions",
+                ),
+                "BacktrackStrategyOptions": self.java_runtime.class_(
+                    jpype,
+                    "ccrs.core.contingency.options.BacktrackStrategyOptions",
+                ),
+                "BacktrackCheckpointSource": self.java_runtime.class_(
+                    jpype,
+                    "ccrs.core.contingency.strategies.internal.BacktrackStrategy$CheckpointCandidate$Source",
+                ),
+                "ConsultationStrategyOptions": self.java_runtime.class_(
+                    jpype,
+                    "ccrs.core.contingency.options.ConsultationStrategyOptions",
+                ),
+                "StopStrategyOptions": self.java_runtime.class_(
+                    jpype,
+                    "ccrs.core.contingency.options.StopStrategyOptions",
+                ),
+                "LinkedHashSet": self.java_runtime.class_(jpype, "java.util.LinkedHashSet"),
             }
             logger.info("%s Loaded Java contingency CCRS classes through JPype.", LOG_PREFIX)
         except Exception as exc:
             raise CcrsJavaRuntimeError(
                 f"Failed to load Java contingency CCRS classes. Check that {CCRS_CORE_MODULE} "
-                "and its dependencies are on the JPype classpath."
+                "and its dependencies are on the JPype classpath. If this happens in a notebook "
+                "after republishing Java SNAPSHOT artifacts, restart the notebook kernel so JPype "
+                "can start from a coherent classpath."
             ) from exc
 
     def _new_contingency_ccrs(self, jpype: Any) -> Any:
+        java_config = self._to_java_configuration()
         if self.discover_strategy_providers:
             class_loader = jpype.JClass("org.jpype.JPypeContext").getInstance().getClassLoader()
+            if java_config is not None:
+                return self._classes["ContingencyCcrsFactory"].withDefaultsAndDiscoveredProviders(
+                    class_loader,
+                    java_config,
+                )
             return self._classes["ContingencyCcrsFactory"].withDefaultsAndDiscoveredProviders(class_loader)
+        if java_config is not None:
+            return self._classes["ContingencyCcrs"].withDefaults(java_config)
         return self._classes["ContingencyCcrs"].withDefaults()
+
+    def _to_java_configuration(self) -> Any | None:
+        """Convert a Python configuration mapping into Java `ContingencyConfiguration`."""
+
+        config = self.contingency_configuration
+        if config is None:
+            return None
+        if not isinstance(config, Mapping):
+            return config
+
+        builder = self._classes["ContingencyConfiguration"].builder()
+        _call_if_present(builder, config, "maxLevel", "max_level", "maxEscalationLevel")
+        _call_if_present(builder, config, "maxSuggestions", "max_suggestions", "maxSuggestions")
+        _call_if_present(builder, config, "trace", "trace", "trace_enabled", "traceEnabled")
+        _call_if_present(
+            builder,
+            config,
+            "learnedSelection",
+            "learned_selection",
+            "learnedSelection",
+            "learned_selection_enabled",
+            "learnedSelectionEnabled",
+        )
+        _call_if_present(builder, config, "learningHistoryLimit", "learning_history_limit", "learningHistoryLimit")
+        _call_if_present(builder, config, "minimumLearningSamples", "minimum_learning_samples", "minimumLearningSamples")
+        _call_if_present(
+            builder,
+            config,
+            "minimumExpectedConfidenceGain",
+            "minimum_expected_confidence_gain",
+            "minimumExpectedConfidenceGain",
+        )
+        _call_if_present(
+            builder,
+            config,
+            "highConfidenceEvaluationFloor",
+            "high_confidence_evaluation_floor",
+            "highConfidenceEvaluationFloor",
+        )
+        _call_if_present(builder, config, "cheapEvaluationTimeMs", "cheap_evaluation_time_ms", "cheapEvaluationTimeMs")
+
+        policy = _first_present(config, "policy", "escalation_policy", "escalationPolicy")
+        if policy is not None:
+            builder.policy(self._classes["EscalationPolicy"].valueOf(str(policy).upper()))
+
+        prediction = _first_mapping(config, "prediction_llm", "predictionLlm")
+        if prediction is not None:
+            builder.predictionLlm(self._prediction_options(prediction))
+
+        retry = _first_mapping(config, "retry")
+        if retry is not None:
+            builder.retry(self._retry_options(retry))
+
+        backtrack = _first_mapping(config, "backtrack")
+        if backtrack is not None:
+            builder.backtrack(self._backtrack_options(backtrack))
+
+        consultation = _first_mapping(config, "consultation")
+        if consultation is not None:
+            builder.consultation(self._consultation_options(consultation))
+
+        stop = _first_mapping(config, "stop")
+        if stop is not None:
+            builder.stop(self._stop_options(stop))
+
+        return builder.build()
+
+    def _prediction_options(self, options: Mapping[str, Any]) -> Any:
+        builder = self._classes["PredictionLlmStrategyOptions"].builder()
+        _call_if_present(builder, options, "maxHistoryActions", "max_history_actions", "maxHistoryActions")
+        _call_if_present(
+            builder,
+            options,
+            "maxInteractionStateTriples",
+            "max_interaction_state_triples",
+            "maxInteractionStateTriples",
+        )
+        _call_if_present(builder, options, "maxCcrsTraces", "max_ccrs_traces", "maxCcrsTraces")
+        _call_if_present(
+            builder,
+            options,
+            "maxNeighborhoodOutgoing",
+            "max_neighborhood_outgoing",
+            "maxNeighborhoodOutgoing",
+        )
+        _call_if_present(
+            builder,
+            options,
+            "maxNeighborhoodIncoming",
+            "max_neighborhood_incoming",
+            "maxNeighborhoodIncoming",
+        )
+        _call_if_present(builder, options, "baseConfidence", "base_confidence", "baseConfidence")
+        _call_if_present(
+            builder,
+            options,
+            "plainTextFallbackEnabled",
+            "plain_text_fallback_enabled",
+            "plainTextFallbackEnabled",
+        )
+        namespaces = _first_present(options, "filtered_triple_namespaces", "filteredTripleNamespaces")
+        if namespaces is not None:
+            builder.filteredTripleNamespaces(_java_list(self._classes["ArrayList"], namespaces))
+        for namespace in _as_iterable(_first_present(options, "filter_triple_namespaces", "filterTripleNamespaces")):
+            builder.filterTripleNamespace(str(namespace))
+        return builder.build()
+
+    def _retry_options(self, options: Mapping[str, Any]) -> Any:
+        builder = self._classes["RetryStrategyOptions"].builder()
+        _call_if_present(builder, options, "maxAttempts", "max_attempts", "maxAttempts")
+        _call_if_present(builder, options, "initialDelayMs", "initial_delay_ms", "initialDelayMs")
+        _call_if_present(builder, options, "backoffMultiplier", "backoff_multiplier", "backoffMultiplier")
+        _call_if_present(builder, options, "retryLookbackLimit", "retry_lookback_limit", "retryLookbackLimit")
+        codes = _first_present(options, "retriable_codes", "retriableCodes")
+        if codes is not None:
+            builder.retriableCodes(_java_set(self._classes["LinkedHashSet"], codes))
+        for code in _as_iterable(_first_present(options, "add_retriable_codes", "addRetriableCodes")):
+            builder.addRetriableCode(str(code))
+        return builder.build()
+
+    def _backtrack_options(self, options: Mapping[str, Any]) -> Any:
+        builder = self._classes["BacktrackStrategyOptions"].builder()
+        _call_if_present(builder, options, "maxRecentInteractions", "max_recent_interactions", "maxRecentInteractions")
+        return builder.build()
+
+    def _consultation_options(self, options: Mapping[str, Any]) -> Any:
+        builder = self._classes["ConsultationStrategyOptions"].builder()
+        _call_if_present(builder, options, "maxRecentInteractions", "max_recent_interactions", "maxRecentInteractions")
+        _call_if_present(builder, options, "maxAgentCandidates", "max_agent_candidates", "maxAgentCandidates")
+        _call_if_present(builder, options, "defaultConfidence", "default_confidence", "defaultConfidence")
+        _call_if_present(builder, options, "maxCcrsTraces", "max_ccrs_traces", "maxCcrsTraces")
+        return builder.build()
+
+    def _stop_options(self, options: Mapping[str, Any]) -> Any:
+        builder = self._classes["StopStrategyOptions"].builder()
+        _call_if_present(builder, options, "requireExhaustion", "require_exhaustion", "requireExhaustion")
+        _call_if_present(builder, options, "exhaustionThreshold", "exhaustion_threshold", "exhaustionThreshold")
+        _call_if_present(builder, options, "stopLookbackLimit", "stop_lookback_limit", "stopLookbackLimit")
+        return builder.build()
 
     def _to_java_situation(self, situation: Situation) -> Any:
         """Convert Python `Situation` input into Java `Situation`."""
@@ -366,6 +551,52 @@ def _java_scalar(value: Any) -> Any:
     if isinstance(value, (str, int, float, bool)):
         return value
     return str(value)
+
+
+def _call_if_present(java_builder: Any, config: Mapping[str, Any], method_name: str, *keys: str) -> None:
+    value = _first_present(config, *keys)
+    if value is not None:
+        getattr(java_builder, method_name)(value)
+
+
+def _first_present(config: Mapping[str, Any], *keys: str) -> Any | None:
+    for key in keys:
+        if key in config:
+            return config[key]
+    return None
+
+
+def _first_mapping(config: Mapping[str, Any], *keys: str) -> Mapping[str, Any] | None:
+    value = _first_present(config, *keys)
+    if value is None:
+        return None
+    if not isinstance(value, Mapping):
+        raise TypeError(f"contingency configuration section {keys[0]!r} must be a mapping")
+    return value
+
+
+def _as_iterable(value: Any | None) -> Iterable[Any]:
+    if value is None:
+        return ()
+    if isinstance(value, (str, bytes)):
+        return (value,)
+    return value
+
+
+def _java_list(array_list_class: Any, values: Any) -> Any:
+    java_list = array_list_class()
+    for value in _as_iterable(values):
+        if value is not None:
+            java_list.add(str(value))
+    return java_list
+
+
+def _java_set(linked_hash_set_class: Any, values: Any) -> Any:
+    java_set = linked_hash_set_class()
+    for value in _as_iterable(values):
+        if value is not None:
+            java_set.add(str(value))
+    return java_set
 
 
 def _none_or_str(value: Any) -> str | None:
