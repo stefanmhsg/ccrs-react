@@ -8,7 +8,7 @@ No repository-local `PLANS.md` or `.agent/PLANS.md` guide is currently checked i
 
 React CCRS experiment runs should produce the same kind of analysis package that the BDI agents already produce under [ccrs-bdi/experiments](../ccrs-bdi/experiments/). After this work, a user can run a baseline React agent and a CCRS React agent manually, export MASE viewer event logs into a clean staging directory, archive each run into a durable run directory, and generate a Markdown report plus CSV/JSON artifacts that compare outcomes, movement, cycle timing, opportunistic CCRS, contingency CCRS, and MASE-side transactions.
 
-The first target is a manual and auditable workflow rather than a fully automated runner. The experiment loop remains under the user's control: prepare a clean current-run log directory, configure the scenario, run one agent, export MASE events, import the run, repeat for the next agent, and then generate the report.
+The first target is a manual and auditable workflow rather than a fully automated runner. The experiment loop remains under the user's control: prepare a clean latest-run staging directory, configure the scenario, run one agent, export MASE events, import the run, repeat for the next agent, and then generate the report.
 
 ## Rules
 
@@ -20,7 +20,7 @@ The first target is a manual and auditable workflow rather than a fully automate
   Reason: The user runs the agent and exports MASE viewer logs manually; scripts should stage, archive, parse, and report without hiding or mutating the live run.
   Added/Updated: 2026-05-31 / Codex.
 
-- Rule: Treat `ccrs-react/experiments/runs/current-run/` as disposable staging and `ccrs-react/experiments/runs/<batch-id>/<run-id>/` as durable run archives.
+- Rule: Treat `ccrs-react/experiments/runs/latest/` as disposable staging and `ccrs-react/experiments/runs/<batch-id>/<run-id>/` as durable run archives.
   Reason: A clean staging folder makes it clear which logs belong to the just-finished run, while durable run directories support repeated report generation.
   Added/Updated: 2026-05-31 / Codex.
 
@@ -57,12 +57,18 @@ The first target is a manual and auditable workflow rather than a fully automate
 
 - [x] (2026-05-31 13:20Z) Created this React experiment-report ExecPlan and aligned its initial workflow with [ccrs-bdi/experiments/README.md](../ccrs-bdi/experiments/README.md).
 - [ ] WP1: Inventory BDI report CSV schemas and map each field to React log or MASE export sources.
-- [ ] WP1A: Add React adapter events needed for prompt-visible CCRS context and post-LLM selected-tool correlation.
-- [ ] WP2: Add React experiment staging/import/report PowerShell scripts under `ccrs-react/experiments/scripts/`.
-- [ ] WP3: Implement a parser that reads React run logs, Java companion logs, and MASE viewer exports into normalized CSVs.
+- [x] (2026-06-07 15:20Z) WP1A: Added React adapter reportability events for prompt-visible CCRS context and post-LLM selected-tool correlation.
+- [x] (2026-06-07 15:20Z) WP2: Added React experiment staging/import PowerShell scripts under `ccrs-react/experiments/scripts/`.
+- [x] (2026-06-07 15:20Z) WP3 initial: Added a first-pass parser for archived React logs, Java companion logs, and MASE viewer exports into normalized CSVs.
 - [ ] WP4: Generate `summary.md`, `summary.json`, CSVs, path-analysis inputs, and metrics documentation with the same report layout used by BDI where possible.
+- [x] (2026-06-07 15:36Z) WP4 first version: Added `write-report.ps1`, first-version `summary.md` generation, refreshed `summary.json`, and separate metric definitions in `METRICS.md`.
 - [ ] WP5: Add small smoke fixtures or smoke commands that exercise report generation without a live OpenAI or MaSE run.
 - [x] (2026-05-31 14:10Z) Prepared the next implementation packages by separating React reportability events from report parsing and documenting the remaining adapter-specific metric gaps.
+- [x] (2026-06-07 15:20Z) Added [experiments/README.md](README.md) with the manual workflow, run package shape, CSV artifacts, and React advisory-follow metric definitions.
+- [x] (2026-06-07 15:20Z) Validated new PowerShell scripts with parser syntax checks, validated React adapter changes with `S:\anaconda\agent\python.exe -m compileall react_agent`, and smoke-tested import/parse into `C:\tmp` using the current `react_ccrs_mazeV1_03_20260606_194101` logs and MASE export.
+- [x] (2026-06-07 15:46Z) Fixed MASE parsing to filter events, movement rows, transaction rows, agent rows, and path-analysis inputs to the imported experiment agent instead of counting scenario infrastructure agents from the full viewer export.
+- [x] (2026-06-07 16:05Z) Confirmed additional option-set logging is unnecessary for the first advisory-follow metrics; reports infer rank buckets from existing selection events plus same-cycle opportunistic detection rows.
+- [x] (2026-06-07 17:10Z) Aligned the top-level React summary layout with the BDI report shape: core metrics, move optimality, cycle duration summary, advisory-follow evidence, and generated artifacts.
 
 ## Surprises & Discoveries
 
@@ -87,6 +93,12 @@ The first target is a manual and auditable workflow rather than a fully automate
 - Observation: Core opportunistic scanning and adapter truth-logging are separate concerns.
   Evidence: Java [VocabularyMatcher.java](../ccrs-bdi/ccrs-core/src/main/java/ccrs/core/opportunistic/VocabularyMatcher.java) is the reusable `ccrs-core` implementation that performs opportunistic matching, and React calls it through [vocabulary_matcher.py](../react_agent/ccrs/opportunistic/vocabulary_matcher.py). The core matcher currently does not emit detailed Java logs for each match or ranking decision. BDI experiment logs still contain detailed opportunistic decision evidence because the JaCaMo adapter emits it from [prioritize.java](../ccrs-bdi/ccrs-jacamo/src/main/java/ccrs/jacamo/jason/opportunistic/prioritize.java). React uses a different adapter path, so its Java companion log does not contain equivalent adapter decision evidence. It may still be worth adding generally valid `INFO`-level core logs for matcher behavior, but experiment reports should treat the React adapter's prompt-injection and selection events as the ultimate source for React-specific behavior.
 
+- Observation: The current 2026-06-06 React CCRS log predates the new `react.ccrs.opportunistic.selection` event.
+  Evidence: A smoke parse of `react_ccrs_mazeV1_03_20260606_194101.log` plus its Java companion log and the latest MASE viewer NDJSON produced 1 run, 4,855 MASE events, 625 contingency rows, 560 Java evidence rows, and 0 decisions; `runs.csv` marked `decision_metric_quality=missing_selection_event`.
+
+- Observation: MASE viewer exports may contain scenario infrastructure agents and other concurrent experiment agents.
+  Evidence: The initial React parser generated rows for agents such as `ccrs-agent-1.5`, `key-holder-agent-1`, and older `react_ccrs_mazeV1_01` / `react_ccrs_mazeV1_02` runs. Regenerating after label-based experiment-agent filtering reduced the latest React run report from 4,855 MASE events and 2,403 moves to 87 MASE events and 40 moves for `react_ccrs_mazeV1_03`.
+
 ## Decision Log
 
 - Decision: Create the React report plan as [PLAN_EXPERIMENT_REPORTS.md](../PLAN_EXPERIMENT_REPORTS.md) in `ccrs-react`.
@@ -97,9 +109,9 @@ The first target is a manual and auditable workflow rather than a fully automate
   Rationale: Matching `experiments/runs/`, `experiments/reports/`, and `experiments/scripts/` makes React reports easier to compare with BDI reports and keeps generated artifacts out of the agent package.
   Date/Author: 2026-05-31 / Codex.
 
-- Decision: Use a disposable `current-run` staging directory for the manual loop.
-  Rationale: The user wants to prepare a clean current-run log directory, run the agent, export MASE event logs there, and then let scripts archive that exact run into a durable run package.
-  Date/Author: 2026-05-31 / Codex.
+- Decision: Use a disposable `latest` staging directory for the manual loop.
+  Rationale: The React experiment workflow should behave like the BDI implementation: the user exports MASE event logs into `experiments/runs/latest`, then the import script archives that exact run into a durable run package.
+  Date/Author: 2026-05-31, updated 2026-06-07 / Codex.
 
 - Decision: React report generation must distinguish Java-library evidence from React-adapter evidence.
   Rationale: Java CCRS logs differ depending on which adapter uses the library and cannot by themselves reproduce adapter-specific BDI report metrics. React reports should parse Java companion logs as library evidence, but metrics such as opportunistic influence, prompt injection, escalation, and selected actions require React adapter events.
@@ -109,6 +121,10 @@ The first target is a manual and auditable workflow rather than a fully automate
   Rationale: JaCaMo `ccrs.opportunistic.prioritize` records deterministic option reordering, but React CCRS guidance is advisory prompt context. React reports should measure whether the LLM selected the highest-ranked injected target from `opportunistic_ccrs`, from `opportunistic_guidance_by_contingency_ccrs`, or from a cycle where both channels were visible. Strict reordering and overrule fields are not applicable to React and should be documented as a conceptual mismatch instead of represented as report columns.
   Date/Author: 2026-05-31 / Codex.
 
+- Decision: React import copies explicit React and Java log files instead of moving them out of `logs/`.
+  Rationale: The disposable staging directory is for MASE viewer exports and metadata; file logs under `logs/` are live run artifacts that should remain available after archival. The importer still moves staged MASE exports by default unless `-KeepSource` is supplied.
+  Date/Author: 2026-06-07 / Codex.
+
 ## Context and Orientation
 
 The repository for this plan is `ccrs-react`. It contains the React/LangGraph agent, including the baseline graph and the CCRS graph. The current CCRS graph is [react_agent/graph/graph_ccrs.py](../react_agent/graph/graph_ccrs.py). Users can run it through [main.py](../main.py) or [react_agent/api.py](../react_agent/api.py). The active React CCRS adapter documentation is [react_agent/ccrs/README.md](../react_agent/ccrs/README.md), and the adapter implementation plan is [PLAN_CCRS_README.md](../PLAN_CCRS_README.md).
@@ -117,11 +133,11 @@ The reference implementation for experiment reports is in the sibling BDI reposi
 
 The React report pipeline should start with the same manual procedure:
 
-1. Prepare a clean staging directory at `ccrs-react/experiments/runs/current-run/`.
+1. Prepare a clean staging directory at `ccrs-react/experiments/runs/latest/`.
 2. Set up the MaSE scenario outside this repository.
 3. Run one React agent, usually baseline or CCRS.
 4. Let React logs be captured under `ccrs-react/logs/`.
-5. After the run ends, export MASE viewer event logs and place the export in `ccrs-react/experiments/runs/current-run/`.
+5. After the run ends, export MASE viewer event logs and place the export in `ccrs-react/experiments/runs/latest/`.
 6. Run a PowerShell import script that copies or moves the relevant React logs and MASE export into `ccrs-react/experiments/runs/<batch-id>/<run-id>/`.
 7. Reset/recreate the scenario, run the second agent, and import that run into the same batch.
 8. Run a PowerShell report script that writes `ccrs-react/experiments/reports/<batch-id>/summary.md`.
@@ -166,6 +182,7 @@ React advisory-follow metrics should be derived from `decisions.csv` or a compan
 - Count cycles where only `opportunistic_guidance_by_contingency_ccrs` was injected. Group by the number of injected contingency-produced guidance entries in the cycle, from 1 up to the maximum observed count. For each group, count followed and not-followed outcomes for the highest-ranked target.
 - Count cycles where both channels were injected. Group dynamically by the pair `(opportunistic_ccrs_count, contingency_guidance_count)` and count whether the agent followed the highest-ranked target from either channel, plus channel-specific followed flags.
 - Define "highest-ranked" as the entry with the highest numeric rank signal. Prefer `utility` for opportunistic CCRS. For contingency-produced guidance, prefer `utility` when present, then `confidence`, then explicit `rank` or list order as a final fallback. The selected tool target follows a suggestion when it exactly equals the highest-ranked entry's `target`.
+- For opportunistic choice metrics, infer dynamic rank buckets from `decisions.csv` joined to `opportunistic.csv` by run and cycle. Group by `opportunistic_count`; sort same-cycle `react.ccrs.opportunistic.detected` targets by descending `utility`; count selections of rank 1, rank 2, and so on, plus selections that matched none of the detected opportunistic targets.
 
 Todos:
 
@@ -207,12 +224,12 @@ The proposed events are:
 
 Todos:
 
-- [ ] Add `prompt_context_id` to the prompt context object so pre-LLM and post-LLM events can be correlated.
-- [ ] Emit `react.ccrs.prompt_context.visible` from [prompt_context.py](../react_agent/ccrs/prompt_context.py).
-- [ ] Add a small matching helper that extracts selected tool target URIs from LLM tool calls, ranks prompt-visible opportunistic targets, and computes channel-specific followed flags.
-- [ ] Emit `react.ccrs.opportunistic.selection` from [llm_node_ccrs_v2.py](../react_agent/nodes/llm_node_ccrs_v2.py) after the model response.
-- [ ] Keep the existing human-readable prompt context logging for debugging, but do not make the parser depend on it.
-- [ ] Update [react_agent/ccrs/README.md](../react_agent/ccrs/README.md) logging section with the new event names.
+- [x] Add `prompt_context_id` to the prompt context object so pre-LLM and post-LLM events can be correlated.
+- [x] Emit `react.ccrs.prompt_context.visible` from [prompt_context.py](../react_agent/ccrs/prompt_context.py).
+- [x] Add a small matching helper that extracts selected tool target URIs from LLM tool calls, ranks prompt-visible opportunistic targets, and computes channel-specific followed flags.
+- [x] Emit `react.ccrs.opportunistic.selection` from [llm_node_ccrs_v2.py](../react_agent/nodes/llm_node_ccrs_v2.py) after the model response.
+- [x] Keep the existing human-readable prompt context logging for debugging, but do not make the parser depend on it.
+- [x] Update [react_agent/ccrs/README.md](../react_agent/ccrs/README.md) logging section with the new event names.
 
 Concrete steps: Add reportability events with no behavior change. Validate by running a short Python smoke that invokes the CCRS graph with fixture state or by using an existing short run log. The expected evidence is a log line like:
 
@@ -221,7 +238,9 @@ Concrete steps: Add reportability events with no behavior change. Validate by ru
 
 Validation and acceptance: Existing graph behavior must remain unchanged. `S:\anaconda\agent\python.exe -m compileall react_agent` should pass. A log from a CCRS run with prompt-visible opportunistic context should include both new events, and a run without prompt-visible CCRS should still emit selection events with zero guidance counts and all followed flags set to false.
 
-Outcome and notes: Not started.
+Outcome and notes: Implemented 2026-06-07. [reportability.py](../react_agent/ccrs/reportability.py) contains the target extraction and top-target ranking helpers. `prompt_context_id` is generated for every CCRS prompt context; `react.ccrs.prompt_context.visible` is emitted only when any CCRS context is prompt-visible; `react.ccrs.opportunistic.selection` is emitted after each selected LLM tool call. Existing prompt text and human-readable prompt-context logging are unchanged. Validation: `S:\anaconda\agent\python.exe -m compileall react_agent` passed. A live or fixture run using the updated adapter is still needed to observe both new event types in a fresh log.
+
+Revision note: Updated 2026-06-07 to keep selection logging small. Rank-follow classifications are now report-side aggregates derived from selection rows and same-cycle opportunistic detection rows, so no outgoing option-set extraction is required in the adapter.
 
 ### WP2: Add manual staging and import scripts
 
@@ -235,13 +254,13 @@ Discussion: The import script should not run the agent. The user runs the agent 
 
 Todos:
 
-- [ ] Create `ccrs-react/experiments/scripts/prepare-current-run.ps1` to create or clean `experiments/runs/current-run/`.
-- [ ] Create `ccrs-react/experiments/scripts/import-manual-run.ps1` aligned with the BDI script but with React parameters such as `-AgentName`, `-GraphName`, `-RunMode`, `-ReactLog`, `-JavaLog`, and `-EnableContingencyEscalationTool`.
-- [ ] Add optional metadata parameters such as `-ScenarioId`, `-OptimalMoves`, `-ExitCell`, and `-Notes`; leave them blank when unknown instead of hard-coding BDI scenario assumptions.
-- [ ] Normalize MASE viewer NDJSON/JSONL exports into `mase-events.jsonl` in each run package.
-- [ ] Preserve original exports under `source-exports/`.
-- [ ] Write `run.json` with enough metadata for report generation and audit.
-- [ ] Update or create a batch-level `manifest.json` after each import.
+- [x] Create `ccrs-react/experiments/scripts/prepare-current-run.ps1` to create or clean `experiments/runs/latest/`.
+- [x] Create `ccrs-react/experiments/scripts/import-manual-run.ps1` aligned with the BDI script but with React parameters such as `-AgentName`, `-GraphName`, `-RunMode`, `-ReactLog`, `-JavaLog`, and `-EnableContingencyEscalationTool`.
+- [x] Add optional metadata parameters such as `-ScenarioId`, `-OptimalMoves`, `-ExitCell`, and `-Notes`; leave them blank when unknown instead of hard-coding BDI scenario assumptions.
+- [x] Normalize MASE viewer NDJSON/JSONL exports into `mase-events.jsonl` in each run package.
+- [x] Preserve original exports under `source-exports/`.
+- [x] Write `run.json` with enough metadata for report generation and audit.
+- [x] Update or create a batch-level `manifest.json` after each import.
 
 Concrete steps: Implement scripts under `ccrs-react/experiments/scripts/`. The intended manual commands should look like:
 
@@ -271,7 +290,7 @@ Concrete steps: Implement scripts under `ccrs-react/experiments/scripts/`. The i
 
 Validation and acceptance: Running the import command with a small staged MASE export and existing React log should create `experiments/runs/<batch-id>/<run-id>/run.json`, copy or move React logs into the run directory, write `mase-events.jsonl` when exports exist, preserve original exports under `source-exports/`, and refresh `manifest.json`.
 
-Outcome and notes: Not started.
+Outcome and notes: Implemented 2026-06-07. `prepare-current-run.ps1` cleans only `experiments/runs/latest/` and refuses to clean other run directories. `import-manual-run.ps1` accepts explicit React and Java log paths, copies those logs into a durable run package, normalizes staged MASE NDJSON/JSONL/JSON exports, preserves source exports, writes `run.json`, and refreshes `manifest.json`. Validation: syntax checks passed; a smoke import into `C:\tmp\ccrs-react-runs\codex-smoke-report\001-ccrs` copied the current React log and Java log and normalized 4,855 MASE events with 0 parse errors.
 
 ### WP3: Parse React logs and MASE exports
 
@@ -289,27 +308,30 @@ After WP1A, `decisions.csv` should be populated from `react.ccrs.opportunistic.s
 
 Todos:
 
-- [ ] Create `ccrs-react/experiments/scripts/parse-experiment-logs.ps1`.
-- [ ] Parse `[REACT-CCRS-EVENT] event=react.ccrs.opportunistic.*` into opportunistic counts and optional detail rows.
-- [ ] Parse `[REACT-CCRS-EVENT] event=react.ccrs.contingency.*` into `contingency.csv`.
-- [ ] Parse `react.ccrs.opportunistic_guidance_by_contingency_ccrs.*` into guidance match counts.
-- [ ] Do not include BDI `selected_reordered` or overruled-decision columns in the React schema; document those concepts as not applicable to advisory React prompt injection.
-- [ ] Consume `react.ccrs.opportunistic.selection` for React `decisions.csv`; mark older logs without this event as missing advisory-selection evidence.
-- [ ] Produce advisory-follow aggregate metrics grouped by `opportunistic_count`, by `contingency_guidance_count`, and by the pair `(opportunistic_count, contingency_guidance_count)` when both channels were visible.
-- [ ] Parse Java companion `.java.log` files into a separate evidence table or summary fields without double-counting adapter events.
-- [ ] Parse MASE `AGENT_MOVED` and transaction events into `mase-events.csv`, `mase-agent-moved.csv`, `mase-transactions.csv`, `agents.csv`, and path-analysis inputs.
-- [ ] Derive `cycle-durations.csv` from React cycle timestamps or add a required structured cycle marker if current logs are insufficient.
+- [x] Create `ccrs-react/experiments/scripts/parse-experiment-logs.ps1`.
+- [x] Parse `[REACT-CCRS-EVENT] event=react.ccrs.opportunistic.*` into opportunistic counts and optional detail rows.
+- [x] Parse `[REACT-CCRS-EVENT] event=react.ccrs.contingency.*` into `contingency.csv`.
+- [x] Parse `react.ccrs.opportunistic_guidance_by_contingency_ccrs.*` into guidance match counts.
+- [x] Do not include BDI `selected_reordered` or overruled-decision columns in the React schema; document those concepts as not applicable to advisory React prompt injection.
+- [x] Consume `react.ccrs.opportunistic.selection` for React `decisions.csv`; mark older logs without this event as missing advisory-selection evidence.
+- [x] Produce advisory-follow aggregate metrics grouped by `opportunistic_count`, with dynamic rank columns and a selected-none count.
+- [ ] Produce advisory-follow aggregate metrics grouped by `contingency_guidance_count` and by the pair `(opportunistic_count, contingency_guidance_count)` when both channels were visible.
+- [x] Parse Java companion `.java.log` files into a separate evidence table or summary fields without double-counting adapter events.
+- [x] Parse MASE `AGENT_MOVED` and transaction events into `mase-events.csv`, `mase-agent-moved.csv`, `mase-transactions.csv`, `agents.csv`, and path-analysis inputs.
+- [x] Derive `cycle-durations.csv` from React cycle timestamps or add a required structured cycle marker if current logs are insufficient.
+- [ ] Enrich `actions.csv` with HTTP API response evidence. Current rows only parse `[TOOL_NODE] Invoking tool...` and therefore record attempted invocations, not response status. Add structured tool-result logging after `http_get` / `http_post` execution with `tool_call_id`, `tool_name`, `target`, HTTP `status_code`, response length, and error marker; then parse those fields into `actions.csv`. Historical logs may only infer partial status from response bodies or contingency summaries.
+- [ ] Add a `move-action-correlation.csv` artifact. Define each move-action correlation window as starting at a successful navigation `http_post` whose target matches a MASE `AGENT_MOVED` cell, and ending before the next successful movement POST. Include all GET/POST attempts in the window, with status/outcome fields when available, so reports can show failed requests and repeated perception/action attempts per successful move.
 - [ ] Write per-run CSVs into the run package when useful and batch-level CSVs into `experiments/reports/<batch-id>/`.
 
 Concrete steps: Implement parser functions for run metadata, key-value records, MASE JSONL records, and output CSV writing. Reuse naming and field shapes from the BDI parser where possible, but keep React-specific fields such as `graph_name`, `react_event`, `tool_call_id`, `cycle`, `cycle_timestamp`, `strategy_id`, `top_action`, and `stop`.
 
 Validation and acceptance: A parser smoke should be able to read one small run package containing a React log with at least one opportunistic event, one contingency event, one Java companion log line, and a tiny MASE event export. It should write non-empty `runs.csv`, `mase-events.csv`, and the relevant CCRS CSVs without requiring a live LLM or MaSE server.
 
-Outcome and notes: Not started.
+Outcome and notes: Initial parser implemented 2026-06-07. It writes batch-level `runs.csv`, `agents.csv`, `mase-events.csv`, `mase-agent-moved.csv`, `mase-transactions.csv`, `cycle-durations.csv`, `decisions.csv`, `contingency.csv`, `opportunistic.csv`, `actions.csv`, `java-library-evidence.csv`, `path-analysis-inputs/*.cells.txt`, and `summary.json`. Validation: syntax checks passed. The parser now filters MASE rows to `run.json` `agentName` / `agentNames` using BDI-style resource-label matching, so infrastructure agents from full viewer exports are excluded. Regenerating `react-ccrs-mazeV1-03-latest` produced 87 filtered MASE events, 40 movement rows, 47 transactions, 1 agent row, 625 contingency rows, 560 Java evidence rows, and 0 decision rows because the source log predates `react.ccrs.opportunistic.selection`. For `react-ccrs-mazeV1-01-latest`, current `actions.csv` contains 679 invoked tool actions while `mase-agent-moved.csv` contains 120 valid moves; failed/repeated HTTP behavior materially affects the run but is not yet a first-class report metric. Remaining WP3 work: add action response status evidence, add move-action correlation, and decide whether per-run CSV copies are useful before WP4 report generation.
 
 ### WP4: Generate BDI-aligned summary reports
 
-Status: Next
+Status: Now
 
 Purpose: Produce the human-readable report and machine-readable summary package for one React experiment batch.
 
@@ -325,14 +347,16 @@ The React report should replace the BDI "overruled decisions" section with advis
 
 Todos:
 
-- [ ] Create `ccrs-react/experiments/scripts/write-report.ps1`.
-- [ ] Have it call `parse-experiment-logs.ps1` before writing the report.
-- [ ] Write `summary.md` and `summary.json`.
-- [ ] Include the generated CSV artifact list.
-- [ ] Generate path-analysis cell sequence files from MASE movement rows.
+- [x] Create `ccrs-react/experiments/scripts/write-report.ps1`.
+- [x] Have it call `parse-experiment-logs.ps1` before writing the report.
+- [x] Write `summary.md` and `summary.json`.
+- [x] Include the generated CSV artifact list.
+- [x] Generate path-analysis cell sequence files from MASE movement rows.
 - [ ] Add a cycle-duration chart if React cycle rows are available.
-- [ ] Add advisory-follow summary sections in place of BDI overruled-decision sections.
-- [ ] Add `ccrs-react/experiments/README.md` with metric definitions, CSV artifact descriptions, and notes about React-specific advisory-follow metrics versus BDI overrule metrics.
+- [x] Add a first-version advisory-follow availability section in place of BDI overruled-decision sections.
+- [x] Add grouped advisory-follow summary tables for opportunistic CCRS counts and selected target ranks.
+- [ ] Add grouped advisory-follow summary tables for contingency-guidance-only and combined guidance once fresh selection-event logs are available.
+- [x] Add `ccrs-react/experiments/README.md` and `ccrs-react/experiments/METRICS.md` with metric definitions, CSV artifact descriptions, and notes about React-specific advisory-follow metrics versus BDI overrule metrics.
 
 Concrete steps: Keep the command shape close to BDI:
 
@@ -350,7 +374,7 @@ Expected outputs should include:
 
 Validation and acceptance: The report command should be idempotent. Running it twice for the same batch should refresh generated CSVs and Markdown without modifying archived raw logs. Opening `summary.md` should show both runs, final cell or outcome, movement counts, CCRS event counts for the CCRS run, and links or filenames for generated CSV artifacts.
 
-Outcome and notes: Not started.
+Outcome and notes: First version implemented 2026-06-07 and revised the same day to match the BDI top-level section shape more closely. `write-report.ps1` refreshes parsed CSV artifacts by calling `parse-experiment-logs.ps1`, then writes `summary.md`, `summary.json`, and `advisory-follow.csv`. The summary includes core run metrics, move optimality, a dynamic cycle-duration summary, opportunistic advisory-follow rank buckets, generated artifacts, and scope notes. Metric definitions moved into `METRICS.md` so the report can stay concise while definitions evolve. Validation: syntax check passed; regenerating `react-ccrs-mazeV1-01-latest` produced 257 filtered MASE events, 704 decisions, 1,503 contingency rows, 24 ordered contingency invocation duration columns, and opportunistic duration columns through count 4. Remaining WP4 work: charts, richer BDI-aligned sections, and contingency/combined advisory-follow aggregates.
 
 ### WP5: Add smoke fixtures and validation commands
 
@@ -429,12 +453,12 @@ The plan is complete when `ccrs-react` can generate a report for a manually coll
 
     powershell -ExecutionPolicy Bypass -File experiments\scripts\prepare-current-run.ps1
     S:\anaconda\agent\python.exe main.py --graph-name graph --agent-name react_baseline_1 --log-level INFO
-    # User exports MASE viewer logs into experiments\runs\current-run\
+    # User exports MASE viewer logs into experiments\runs\latest\
     powershell -ExecutionPolicy Bypass -File experiments\scripts\import-manual-run.ps1 -BatchId react-baseline-vs-ccrs-v1 -RunId 001-baseline -AgentName react_baseline_1 -GraphName graph -ReactLog logs\<baseline-log>.log
 
     powershell -ExecutionPolicy Bypass -File experiments\scripts\prepare-current-run.ps1
     S:\anaconda\agent\python.exe main.py --graph-name graph_ccrs --enable-contingency-escalation-tool --agent-name react_ccrs_1 --log-level INFO
-    # User exports MASE viewer logs into experiments\runs\current-run\
+    # User exports MASE viewer logs into experiments\runs\latest\
     powershell -ExecutionPolicy Bypass -File experiments\scripts\import-manual-run.ps1 -BatchId react-baseline-vs-ccrs-v1 -RunId 002-ccrs -AgentName react_ccrs_1 -GraphName graph_ccrs -EnableContingencyEscalationTool -ReactLog logs\<ccrs-log>.log -JavaLog logs\<ccrs-log>.java.log
 
     powershell -ExecutionPolicy Bypass -File experiments\scripts\write-report.ps1 -BatchId react-baseline-vs-ccrs-v1
@@ -445,7 +469,7 @@ Smoke acceptance does not require a live run. A fixture or copied small run pack
 
 ## Idempotence and Recovery
 
-`prepare-current-run.ps1` should clean only `experiments/runs/current-run/`. It must not delete durable run packages, generated reports, or raw logs under `logs/`.
+`prepare-current-run.ps1` should clean only `experiments/runs/latest/`. It must not delete durable run packages, generated reports, or raw logs under `logs/`.
 
 `import-manual-run.ps1` should create a unique run directory if the requested run id already exists, or fail with a clear message unless an explicit overwrite option is introduced later. It should preserve original MASE exports under `source-exports/` and copy or move source files according to an explicit `-KeepSource` switch, following the BDI script's behavior.
 
@@ -464,6 +488,7 @@ BDI report artifacts to mirror where possible:
 - `mase-transactions.csv`: normalized MASE transaction events.
 - `cycle-durations.csv`: one row per agent cycle marker or derived cycle interval.
 - `decisions.csv`: one row per LLM tool selection with advisory-follow fields for prompt-visible CCRS targets.
+- `advisory-follow.csv`: aggregate opportunistic CCRS rank-follow metrics grouped by run and `opportunistic_count`.
 - `contingency.csv`: one row per contingency CCRS evaluation, strategy result, or no-help result.
 - `actions.csv`: parsed agent tool/action attempts when recoverable from logs.
 - `path-analysis-inputs/*.cells.txt`: copy-paste cell paths for MASE viewer path analysis.
@@ -506,4 +531,16 @@ If Python is introduced later for parsing, it should use `S:\anaconda\agent\pyth
 Revision note 2026-05-31 / Codex: Created the initial React experiment-report plan from the user's requested workflow and aligned it with the BDI experiment scripts and current React CCRS logging architecture.
 
 Revision note 2026-05-31 / Codex: Added the adapter-specific logging mismatch discovered by comparing BDI `ccrs.opportunistic.prioritize` reporting with current React CCRS logs. The plan now treats Java companion logs as library evidence and requires React adapter events or explicit unavailable fields for adapter-level decision metrics.
+
+Revision note 2026-06-07 / Codex: Implemented the first NOW slice: React reportability events, manual staging/import scripts, initial parser CSV artifacts, and experiment metrics README. Added smoke validation notes and left advisory aggregate/report-writing work for WP3/WP4 follow-up.
+
+Revision note 2026-06-07 / Codex: Added the first `write-report.ps1` implementation and separated metric definitions into `METRICS.md`. The report intentionally starts with clear source-backed metrics and leaves grouped advisory-follow aggregates, charts, and richer BDI-aligned sections for iterative expansion.
+
+Revision note 2026-06-07 / Codex: Aligned React staging with the BDI workflow by making `experiments/runs/latest` the default disposable staging directory for `prepare-current-run.ps1` and `import-manual-run.ps1`.
+
+Revision note 2026-06-07 / Codex: Corrected React MASE parsing to filter full viewer exports to the imported experiment agent, matching the BDI parser behavior and excluding scenario infrastructure agents from report metrics.
+
+Revision note 2026-06-07 / Codex: Replaced the option-set logging direction with report-side advisory-follow aggregation. The report now counts selections by prompt-visible opportunistic CCRS count and selected opportunistic target rank using `decisions.csv` plus same-cycle `opportunistic.csv` detection rows.
+
+Revision note 2026-06-07 / Codex: Updated the React summary layout to remove the separate MASE Evidence and React CCRS Evidence sections, add Move Optimality and Cycle Duration Summary, and rename core metrics to match the BDI report wording.
 

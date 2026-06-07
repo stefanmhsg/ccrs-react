@@ -5,10 +5,15 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableConfig
 from langchain_openai import ChatOpenAI
 from react_agent.ccrs.prompt_context import build_ccrs_prompt_context
+from react_agent.ccrs.audit import log_ccrs_event
+from react_agent.ccrs.reportability import selected_tool_target
 from react_agent.ccrs.state import CcrsAgentState
 from react_agent.nodes.message_window import sliding_message_window
 from react_agent.tools import tools
 from react_agent.prompts.react_prompt import react_prompt_ccrs
+
+
+logger = logging.getLogger(__name__)
 
 
 def make_llm_node(
@@ -77,6 +82,12 @@ def llm_node(
     
     logging.debug(f"[LLM_NODE_CCRS_V2]: LLM node received response: {response}")
     logging.info(f"[LLM_NODE_CCRS_V2]: LLM node tool calls: {response.tool_calls}")
+    _log_selection_events(
+        response.tool_calls or [],
+        state,
+        config,
+        ccrs_context,
+    )
 
     next_cycle = int(state.get("cycle", {}).get("number", 0)) + 1
     updates: dict[str, Any] = {
@@ -88,3 +99,50 @@ def llm_node(
     }
     updates.update(ccrs_context.post_llm_updates())
     return updates
+
+
+def _log_selection_events(
+    tool_calls: Sequence[dict[str, Any]],
+    state: CcrsAgentState,
+    config: RunnableConfig,
+    ccrs_context,
+) -> None:
+    configuration = config.get("configurable", {})
+    cycle = state.get("cycle", {})
+    for tool_call in tool_calls:
+        selected_uri = selected_tool_target(tool_call)
+        followed_top_opportunistic = (
+            bool(selected_uri)
+            and bool(ccrs_context.top_opportunistic_target)
+            and selected_uri == ccrs_context.top_opportunistic_target
+        )
+        followed_top_contingency = (
+            bool(selected_uri)
+            and bool(ccrs_context.top_contingency_guidance_target)
+            and selected_uri == ccrs_context.top_contingency_guidance_target
+        )
+        log_ccrs_event(
+            logger,
+            "react.ccrs.opportunistic.selection",
+            {
+                "cycle": str(cycle.get("number", 0)),
+                "cycle_timestamp": str(cycle.get("timestamp", "")),
+                "agent_name": str(configuration.get("agent_name", "React")),
+                "tool_name": tool_call.get("name"),
+                "tool_call_id": tool_call.get("id"),
+                "selected_uri": selected_uri,
+                "selection_mode": "advisory_prompt",
+                "opportunistic_count": ccrs_context.opportunistic_count,
+                "contingency_guidance_count": ccrs_context.contingency_guidance_count,
+                "followed_top_opportunistic": followed_top_opportunistic,
+                "followed_top_contingency_guidance": followed_top_contingency,
+                "followed_any_top_guidance": (
+                    followed_top_opportunistic or followed_top_contingency
+                ),
+                "top_opportunistic_target": ccrs_context.top_opportunistic_target,
+                "top_contingency_guidance_target": (
+                    ccrs_context.top_contingency_guidance_target
+                ),
+                "prompt_context_id": ccrs_context.prompt_context_id,
+            },
+        )

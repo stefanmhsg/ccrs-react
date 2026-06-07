@@ -508,6 +508,7 @@ Important React opportunistic event names:
 - `react.ccrs.opportunistic.evaluate`
 - `react.ccrs.opportunistic.detected`
 - `react.ccrs.opportunistic.cycle_annotations`
+- `react.ccrs.opportunistic.selection`
 - `react.ccrs.opportunistic.no_annotations`
 - `react.ccrs.opportunistic.skipped`
 - `react.ccrs.opportunistic.failed`
@@ -533,6 +534,24 @@ Important contingency-produced opportunistic guidance event names:
 - `react.ccrs.opportunistic_guidance_by_contingency_ccrs.matched`
 - `react.ccrs.opportunistic_guidance_by_contingency_ccrs.no_match`
 - `react.ccrs.opportunistic_guidance_by_contingency_ccrs.skipped`
+
+Important reportability event names:
+
+- `react.ccrs.prompt_context.visible`
+- `react.ccrs.opportunistic.selection`
+
+`react.ccrs.prompt_context.visible` is emitted before an LLM call when the prompt
+contains opportunistic CCRS entries, pending contingency CCRS entries, or
+contingency-produced opportunistic guidance. It includes the cycle, agent name,
+prompt-visible counts, top prompt-visible targets, and `prompt_context_id`.
+
+`react.ccrs.opportunistic.selection` is emitted after each LLM response tool
+call. It records the selected tool target URI, prompt-visible guidance counts,
+top targets, channel-specific followed flags, and the same
+`prompt_context_id`. React experiment reports infer rank-follow buckets by
+joining these selection records to same-cycle `react.ccrs.opportunistic.detected`
+rows. These records measure advisory prompt following, not BDI-style
+deterministic option reordering.
 
 If the React run log is `logs/<run>.log`, Java CCRS library messages are
 written to the companion file `logs/<run>.java.log`. The companion file uses
