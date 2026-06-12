@@ -7,7 +7,7 @@ from langchain_openai import ChatOpenAI
 from react_agent.ccrs.prompt_context import build_ccrs_prompt_context
 from react_agent.ccrs.audit import log_ccrs_event
 from react_agent.ccrs.reportability import selected_tool_target
-from react_agent.ccrs.state import CcrsAgentState
+from react_agent.state.state_ccrs import CcrsAgentState
 from react_agent.nodes.message_window import sliding_message_window
 from react_agent.tools import tools
 from react_agent.prompts.react_prompt import react_prompt_ccrs

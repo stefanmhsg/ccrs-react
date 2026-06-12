@@ -9,7 +9,7 @@ from react_agent.ccrs.ccrs_node import make_ccrs_node
 from react_agent.ccrs.contingency.contingency_ccrs import ContingencyCcrs
 from react_agent.ccrs.contingency.escalation import escalate_to_contingency_ccrs
 from react_agent.ccrs.contingency.in_memory_ccrs_trace_history import InMemoryCcrsTraceHistory
-from react_agent.ccrs.state import CcrsAgentState
+from react_agent.state.state_ccrs import CcrsAgentState
 from react_agent.ccrs.contingency.decision import (
     make_ccrs_decision_node,
     route_after_ccrs_decision,
