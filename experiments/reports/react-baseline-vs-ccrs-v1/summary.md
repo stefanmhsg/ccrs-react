@@ -1,6 +1,6 @@
 ﻿# React Experiment Summary: react-baseline-vs-ccrs-v1
 
-Generated: 2026-06-07 23:17:52 +02:00
+Generated: 2026-06-12 14:55:13 +02:00
 
 Run root: `S:\dev\ma\ccrs-react\experiments\runs\react-baseline-vs-ccrs-v1`
 
@@ -62,6 +62,46 @@ X-axis is React loop-cycle step number; y-axis is linear cycle duration in milli
 | `002-ccrs` | 1 | 21 | 19 | 2 | 0 |
 
 Ranks are inferred by joining each selection to `react.ccrs.opportunistic.detected` rows in the same run and cycle, ordered by descending utility. `Selected none` means the selected URI matched none of those ranked opportunistic targets.
+
+## Contingency CCRS Details
+
+### Invocation 1: `002-ccrs`
+
+| Strategy | Result | Action | Target | Confidence | Eval ms | Opportunistic guidance | No-help reason | Rationale |
+| --- | --- | --- | --- | ---: | ---: | --- | --- | --- |
+| `prediction_llm` | suggestion | post | `http://127.0.1.1:8080/cells/11/9` | 0.95 | 12211 | False | - | LLM suggests: post to http://127.0.1.1:8080/cells/11/9. Reasoning: Direct GET of the adjacent east cell is denied because movement requires first POSTing an entersFrom triple to the destination cell, as shown by prior successful moves.; situation=UNCERTAINTY; trigger=llm_self_escalation; failed_action=http_get |
+| `retry` | none | - | - | - | 1 | False | - | situation=UNCERTAINTY; trigger=llm_self_escalation; failed_action=http_get |
+| `backtrack` | none | - | - | - | 1 | False | - | situation=UNCERTAINTY; trigger=llm_self_escalation; failed_action=http_get |
+| `consultation` | none | - | - | - | 11 | False | - | situation=UNCERTAINTY; trigger=llm_self_escalation; failed_action=http_get |
+
+### Invocation 2: `002-ccrs`
+
+| Strategy | Result | Action | Target | Confidence | Eval ms | Opportunistic guidance | No-help reason | Rationale |
+| --- | --- | --- | --- | ---: | ---: | --- | --- | --- |
+| `retry` | none | - | - | - | 0 | False | - | situation=FAILURE; trigger=consecutive_http_api_errors; failed_action=http_post |
+| `backtrack` | none | - | - | - | 0 | False | - | situation=FAILURE; trigger=consecutive_http_api_errors; failed_action=http_post |
+| `consultation` | none | - | - | - | 3 | False | - | situation=FAILURE; trigger=consecutive_http_api_errors; failed_action=http_post |
+| `prediction_llm` | none | - | - | - | 0 | False | - | situation=FAILURE; trigger=consecutive_http_api_errors; failed_action=http_post |
+| `stop` | none | - | - | - | 1 | False | - | situation=FAILURE; trigger=consecutive_http_api_errors; failed_action=http_post |
+
+### Invocation 3: `002-ccrs`
+
+| Strategy | Result | Action | Target | Confidence | Eval ms | Opportunistic guidance | No-help reason | Rationale |
+| --- | --- | --- | --- | ---: | ---: | --- | --- | --- |
+| `prediction_llm` | suggestion | post | `http://127.0.1.1:8080/cells/11/11` | 0.95 | 10717 | False | - | LLM suggests: post to http://127.0.1.1:8080/cells/11/11. Reasoning: The current cell 10/11 is a dead end with only a south link to 11/11, and prior successful moves show that navigation requires POSTing an entersFrom triple to the destination using the current cell...; situation=UNCERTAINTY; trigger=llm_self_escalation |
+| `retry` | none | - | - | - | 0 | False | - | situation=UNCERTAINTY; trigger=llm_self_escalation |
+| `backtrack` | none | - | - | - | 0 | False | - | situation=UNCERTAINTY; trigger=llm_self_escalation |
+| `consultation` | none | - | - | - | 3 | False | - | situation=UNCERTAINTY; trigger=llm_self_escalation |
+
+### Invocation 4: `002-ccrs`
+
+| Strategy | Result | Action | Target | Confidence | Eval ms | Opportunistic guidance | No-help reason | Rationale |
+| --- | --- | --- | --- | ---: | ---: | --- | --- | --- |
+| `stop` | suggestion | stop | - | 1 | 0 | False | - | All 2 recovery strategies exhausted. Trigger: next_step_unclear Recommend graceful failure.; situation=UNCERTAINTY; trigger=next_step_unclear |
+| `retry` | none | - | - | - | 0 | False | - | situation=UNCERTAINTY; trigger=next_step_unclear |
+| `backtrack` | none | - | - | - | 0 | False | - | situation=UNCERTAINTY; trigger=next_step_unclear |
+| `consultation` | none | - | - | - | 1 | False | - | situation=UNCERTAINTY; trigger=next_step_unclear |
+| `prediction_llm` | no_help | - | - | - | 24376 | False | INSUFFICIENT_CONTEXT | The advertised unlock operation requires a dyn:keyValue string, but the available RDF only identifies a fitting key resource at cells/8/4#key and provides no observed literal key value, so posting an invented value would be unsafe.; situation=UNCERTAINTY; trigger=next_step_unclear |
 
 ## Generated Artifacts
 

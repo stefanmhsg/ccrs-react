@@ -1366,6 +1366,118 @@ if ($decisions.Count -eq 0) {
 }
 $lines.Add("")
 
+if ($contingency.Count -gt 0) {
+    $strategyRows = @($contingency | Where-Object { $_.react_event -eq "ccrs.contingency.strategy.evaluated" })
+    if ($strategyRows.Count -gt 0) {
+        $lines.Add("## Contingency CCRS Details")
+        $lines.Add("")
+        foreach ($group in ($strategyRows | Group-Object run_id, invocation | Sort-Object @{ Expression = { @($_.Group)[0].run_id } }, @{ Expression = { Convert-ToIntOrZero @($_.Group)[0].invocation } })) {
+            $first = @($group.Group)[0]
+            $invocation = if ($first.invocation) { $first.invocation } else { "?" }
+            $lines.Add("### Invocation $($invocation): ``$($first.run_id)``")
+            $lines.Add("")
+            $lines.Add("| Strategy | Result | Action | Target | Confidence | Eval ms | Opportunistic guidance | No-help reason | Rationale |")
+            $lines.Add("| --- | --- | --- | --- | ---: | ---: | --- | --- | --- |")
+            foreach ($row in @($group.Group | Sort-Object `
+                @{ Expression = {
+                    $number = Convert-ToDoubleOrNull $_.confidence
+                    if ($null -eq $number) { [double]::NegativeInfinity } else { $number }
+                }; Descending = $true },
+                @{ Expression = { Convert-ToIntOrZero $_.line } })) {
+                $rationaleParts = @()
+                if ($row.rationale) { $rationaleParts += $row.rationale }
+                if ($row.situation_type) { $rationaleParts += "situation=$($row.situation_type)" }
+                if ($row.trigger) { $rationaleParts += "trigger=$($row.trigger)" }
+                if ($row.failed_action) { $rationaleParts += "failed_action=$($row.failed_action)" }
+                $rationale = if ($rationaleParts.Count -gt 0) { $rationaleParts -join "; " } else { $null }
+                $lines.Add("| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} | {8} |" -f @(
+                    (Format-CodeCell $row.strategy_id),
+                    (Format-MarkdownCell $row.result_type),
+                    (Format-MarkdownCell $row.action_type),
+                    (Format-CodeCell $row.action_target),
+                    (Format-NumberCell $row.confidence),
+                    (Format-Ms $row.evaluation_time_ms),
+                    (Format-MarkdownCell $row.has_opportunistic_guidance),
+                    (Format-MarkdownCell $row.no_help_reason),
+                    (Format-MarkdownCell $rationale)
+                ))
+            }
+            $lines.Add("")
+        }
+    } else {
+        $returnedRows = @($contingency | Where-Object { $_.react_event -eq "react.ccrs.contingency.returned" })
+        if ($returnedRows.Count -gt 0) {
+            $lines.Add("## Contingency CCRS Details")
+            $lines.Add("")
+            foreach ($group in ($returnedRows | Group-Object run_id, invocation | Sort-Object @{ Expression = { @($_.Group)[0].run_id } }, @{ Expression = { Convert-ToIntOrZero @($_.Group)[0].invocation } })) {
+                $first = @($group.Group)[0]
+                $invocation = if ($first.invocation) { $first.invocation } else { "?" }
+                $lines.Add("### Invocation $($invocation): ``$($first.run_id)``")
+                $lines.Add("")
+                $lines.Add("| Strategy | Result | Action | Target | Confidence | Eval ms | Opportunistic guidance | No-help reason | Rationale |")
+                $lines.Add("| --- | --- | --- | --- | ---: | ---: | --- | --- | --- |")
+                foreach ($row in @($group.Group | Sort-Object @{ Expression = { Convert-ToIntOrZero $_.line } })) {
+                    $contextRow = @($contingency | Where-Object {
+                        $_.run_id -eq $row.run_id -and
+                        $_.invocation -eq $row.invocation -and
+                        $_.react_event -eq "react.ccrs.contingency.evaluate"
+                    } | Select-Object -First 1)[0]
+                    $suggestions = Convert-ToIntOrZero $row.suggestions
+                    $noHelp = Convert-ToIntOrZero $row.no_help
+                    $result = if ("$($row.stop)" -eq "True" -or "$($row.stop)" -eq "true") {
+                        "stop"
+                    } elseif ($suggestions -gt 0) {
+                        "suggestion"
+                    } elseif ($noHelp -gt 0) {
+                        "no_help"
+                    } else {
+                        "no_result"
+                    }
+                    $target = if ($row.target_resource) {
+                        $row.target_resource
+                    } elseif ($contextRow -and $contextRow.target_resource) {
+                        $contextRow.target_resource
+                    } elseif ($row.current_resource) {
+                        $row.current_resource
+                    } elseif ($contextRow -and $contextRow.current_resource) {
+                        $contextRow.current_resource
+                    } else {
+                        $row.target
+                    }
+                    $noHelpReason = if ($noHelp -gt 0) {
+                        if ($row.reason) { $row.reason } else { "no_help=$noHelp" }
+                    } else {
+                        $null
+                    }
+                    $rationaleParts = @()
+                    $situationType = if ($row.situation_type) { $row.situation_type } elseif ($contextRow) { $contextRow.situation_type } else { $null }
+                    $trigger = if ($row.trigger) { $row.trigger } elseif ($contextRow) { $contextRow.trigger } else { $null }
+                    $failedAction = if ($row.failed_action) { $row.failed_action } elseif ($contextRow) { $contextRow.failed_action } else { $null }
+                    if ($situationType) { $rationaleParts += "situation=$situationType" }
+                    if ($trigger) { $rationaleParts += "trigger=$trigger" }
+                    if ($failedAction) { $rationaleParts += "failed_action=$failedAction" }
+                    if ($row.evaluations) { $rationaleParts += "evaluations=$($row.evaluations)" }
+                    if ($row.suggestions) { $rationaleParts += "suggestions=$($row.suggestions)" }
+                    if ($row.trace_id) { $rationaleParts += "trace=$($row.trace_id)" }
+                    $rationale = if ($rationaleParts.Count -gt 0) { $rationaleParts -join "; " } else { $null }
+                    $lines.Add("| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} | {8} |" -f @(
+                        (Format-CodeCell $row.strategy_id),
+                        (Format-MarkdownCell $result),
+                        (Format-MarkdownCell $row.top_action),
+                        (Format-CodeCell $target),
+                        (Format-NumberCell $row.confidence),
+                        (Format-Ms $row.evaluation_time_ms),
+                        (Format-NumberCell $row.opportunistic_guidance),
+                        (Format-MarkdownCell $noHelpReason),
+                        (Format-MarkdownCell $rationale)
+                    ))
+                }
+                $lines.Add("")
+            }
+        }
+    }
+}
+
 $lines.Add("## Generated Artifacts")
 $lines.Add("")
 $artifactNames = @(

@@ -322,6 +322,29 @@ function ConvertTo-EpochMilliseconds {
     }
 }
 
+function Get-ContingencyInvocationForTimestamp {
+    param(
+        [object[]]$Invocations,
+        $TimestampMs
+    )
+
+    if ($null -eq $TimestampMs) {
+        return $null
+    }
+
+    foreach ($invocation in $Invocations) {
+        if ($null -eq $invocation.evaluate_timestamp_ms) {
+            continue
+        }
+        $returnedMs = $invocation.returned_timestamp_ms
+        if ($TimestampMs -ge $invocation.evaluate_timestamp_ms -and ($null -eq $returnedMs -or $TimestampMs -le $returnedMs)) {
+            return $invocation
+        }
+    }
+
+    return $null
+}
+
 function ConvertFrom-ToolResultJson {
     param([string]$Line)
 
@@ -587,6 +610,10 @@ foreach ($runDir in Get-ChildItem -Path $runRootPath -Directory | Sort-Object Na
 
     if ($reactLogFile -and (Test-Path -LiteralPath $reactLogFile -PathType Leaf)) {
         $lineNumber = 0
+        $contingencyInvocation = 0
+        $activeContingencyInvocation = 0
+        $pendingContingencyContext = $null
+        $contingencyInvocations = [System.Collections.ArrayList]::new()
         foreach ($line in Get-Content -LiteralPath $reactLogFile) {
             $lineNumber++
             $fields = ConvertFrom-KeyValueLine -Line $line
@@ -607,6 +634,48 @@ foreach ($runDir in Get-ChildItem -Path $runRootPath -Directory | Sort-Object Na
                 }
                 if ($eventName -like "react.ccrs.contingency.*" -or $eventName -like "react.ccrs.opportunistic_guidance_by_contingency_ccrs.*") {
                     $contingencyEventCount++
+                    if ($eventName -eq "react.ccrs.contingency.escalation.activated") {
+                        $pendingContingencyContext = [pscustomobject][ordered]@{
+                            cycle = Get-MapValue $fields "cycle"
+                            cycle_timestamp = Get-MapValue $fields "cycle_timestamp"
+                            situation_type = Get-MapValue $fields "situation_type"
+                            trigger = Get-MapValue $fields "trigger"
+                            current_resource = Get-MapValue $fields "current_resource"
+                            target_resource = Get-MapValue $fields "target_resource"
+                            failed_action = Get-MapValue $fields "failed_action"
+                        }
+                    }
+                    if ($eventName -eq "react.ccrs.contingency.evaluate") {
+                        $contingencyInvocation++
+                        $activeContingencyInvocation = $contingencyInvocation
+                        [void]$contingencyInvocations.Add([pscustomobject][ordered]@{
+                            invocation = $activeContingencyInvocation
+                            evaluate_timestamp_ms = ConvertTo-EpochMilliseconds (Get-LineTimestamp -Line $line)
+                            returned_timestamp_ms = $null
+                            cycle = if (Get-MapValue $fields "cycle") { Get-MapValue $fields "cycle" } elseif ($pendingContingencyContext) { $pendingContingencyContext.cycle } else { "" }
+                            cycle_timestamp = if (Get-MapValue $fields "cycle_timestamp") { Get-MapValue $fields "cycle_timestamp" } elseif ($pendingContingencyContext) { $pendingContingencyContext.cycle_timestamp } else { "" }
+                            situation_type = if (Get-MapValue $fields "situation_type") { Get-MapValue $fields "situation_type" } elseif ($pendingContingencyContext) { $pendingContingencyContext.situation_type } else { "" }
+                            trigger = if (Get-MapValue $fields "trigger") { Get-MapValue $fields "trigger" } elseif ($pendingContingencyContext) { $pendingContingencyContext.trigger } else { "" }
+                            current_resource = if (Get-MapValue $fields "current_resource") { Get-MapValue $fields "current_resource" } elseif ($pendingContingencyContext) { $pendingContingencyContext.current_resource } else { "" }
+                            target_resource = if (Get-MapValue $fields "target_resource") { Get-MapValue $fields "target_resource" } elseif ($pendingContingencyContext) { $pendingContingencyContext.target_resource } else { "" }
+                            failed_action = if (Get-MapValue $fields "failed_action") { Get-MapValue $fields "failed_action" } elseif ($pendingContingencyContext) { $pendingContingencyContext.failed_action } else { "" }
+                        })
+                    } elseif ($eventName -eq "react.ccrs.contingency.returned" -and $activeContingencyInvocation -eq 0) {
+                        $contingencyInvocation++
+                        $activeContingencyInvocation = $contingencyInvocation
+                        [void]$contingencyInvocations.Add([pscustomobject][ordered]@{
+                            invocation = $activeContingencyInvocation
+                            evaluate_timestamp_ms = ConvertTo-EpochMilliseconds (Get-LineTimestamp -Line $line)
+                            returned_timestamp_ms = $null
+                            cycle = if (Get-MapValue $fields "cycle") { Get-MapValue $fields "cycle" } elseif ($pendingContingencyContext) { $pendingContingencyContext.cycle } else { "" }
+                            cycle_timestamp = if (Get-MapValue $fields "cycle_timestamp") { Get-MapValue $fields "cycle_timestamp" } elseif ($pendingContingencyContext) { $pendingContingencyContext.cycle_timestamp } else { "" }
+                            situation_type = if (Get-MapValue $fields "situation_type") { Get-MapValue $fields "situation_type" } elseif ($pendingContingencyContext) { $pendingContingencyContext.situation_type } else { "" }
+                            trigger = if (Get-MapValue $fields "trigger") { Get-MapValue $fields "trigger" } elseif ($pendingContingencyContext) { $pendingContingencyContext.trigger } else { "" }
+                            current_resource = if (Get-MapValue $fields "current_resource") { Get-MapValue $fields "current_resource" } elseif ($pendingContingencyContext) { $pendingContingencyContext.current_resource } else { "" }
+                            target_resource = if (Get-MapValue $fields "target_resource") { Get-MapValue $fields "target_resource" } elseif ($pendingContingencyContext) { $pendingContingencyContext.target_resource } else { "" }
+                            failed_action = if (Get-MapValue $fields "failed_action") { Get-MapValue $fields "failed_action" } elseif ($pendingContingencyContext) { $pendingContingencyContext.failed_action } else { "" }
+                        })
+                    }
                     [void]$contingencyRows.Add([pscustomobject][ordered]@{
                         batch_id = $runMeta.batchId
                         run_id = $runMeta.runId
@@ -615,17 +684,47 @@ foreach ($runDir in Get-ChildItem -Path $runRootPath -Directory | Sort-Object Na
                         file = Split-Path -Leaf $reactLogFile
                         line = $lineNumber
                         react_event = $eventName
+                        invocation = if ($activeContingencyInvocation -gt 0) { $activeContingencyInvocation } else { "" }
                         cycle = Get-MapValue $fields "cycle"
                         cycle_timestamp = Get-MapValue $fields "cycle_timestamp"
-                        strategy_id = Get-MapValue $fields "strategy_id"
+                        strategy_id = Get-MapValue $fields @("strategy_id", "top_strategy_id")
                         trace_id = Get-MapValue $fields "trace_id"
-                        top_action = Get-MapValue $fields "top_action"
+                        top_action = Get-MapValue $fields @("top_action", "top_action_type")
                         stop = Get-MapValue $fields "stop"
                         reason = Get-MapValue $fields "reason"
-                        target = Get-MapValue $fields @("target", "current_resource")
+                        target = Get-MapValue $fields @("target", "target_resource", "current_resource")
+                        situation_type = Get-MapValue $fields "situation_type"
+                        trigger = Get-MapValue $fields "trigger"
+                        current_resource = Get-MapValue $fields "current_resource"
+                        target_resource = Get-MapValue $fields "target_resource"
+                        failed_action = Get-MapValue $fields "failed_action"
+                        evaluations = Get-MapValue $fields "evaluations"
+                        suggestions = Get-MapValue $fields "suggestions"
+                        no_help = Get-MapValue $fields "no_help"
+                        opportunistic_guidance = Get-MapValue $fields "opportunistic_guidance"
+                        result_type = ""
+                        action_type = ""
+                        action_target = ""
+                        confidence = ""
+                        evaluation_time_ms = ""
+                        has_opportunistic_guidance = ""
+                        no_help_reason = ""
+                        rationale = ""
                         matched_entries = Get-MapValue $fields "matched_entries"
                         active_entries = Get-MapValue $fields "active_entries"
                     })
+                    if ($eventName -eq "react.ccrs.contingency.returned") {
+                        foreach ($invocation in $contingencyInvocations) {
+                            if ($invocation.invocation -eq $activeContingencyInvocation) {
+                                $invocation.returned_timestamp_ms = ConvertTo-EpochMilliseconds (Get-LineTimestamp -Line $line)
+                                if (-not $invocation.cycle) { $invocation.cycle = Get-MapValue $fields "cycle" }
+                                if (-not $invocation.cycle_timestamp) { $invocation.cycle_timestamp = Get-MapValue $fields "cycle_timestamp" }
+                                break
+                            }
+                        }
+                        $activeContingencyInvocation = 0
+                        $pendingContingencyContext = $null
+                    }
                 }
                 if ($eventName -like "react.ccrs.opportunistic.*" -and $eventName -ne "react.ccrs.opportunistic.selection") {
                     [void]$opportunisticRows.Add([pscustomobject][ordered]@{
@@ -729,6 +828,7 @@ foreach ($runDir in Get-ChildItem -Path $runRootPath -Directory | Sort-Object Na
             if ($line.Contains("[JAVA-CCRS]") -or $line.Contains("[CCRS-EVENT]")) {
                 $javaEvidenceCount++
                 $fields = ConvertFrom-KeyValueLine -Line $line
+                $javaEvent = if ($fields) { Get-MapValue $fields "event" } else { "" }
                 [void]$javaRows.Add([pscustomobject][ordered]@{
                     batch_id = $runMeta.batchId
                     run_id = $runMeta.runId
@@ -737,10 +837,52 @@ foreach ($runDir in Get-ChildItem -Path $runRootPath -Directory | Sort-Object Na
                     file = Split-Path -Leaf $javaLogFile
                     line = $lineNumber
                     timestamp = Get-LineTimestamp -Line $line
-                    java_event = if ($fields) { Get-MapValue $fields "event" } else { "" }
+                    java_event = $javaEvent
                     prefix = if ($fields) { Get-MapValue $fields "_prefix" } else { "[JAVA-CCRS]" }
                     message = $line
                 })
+                if ($javaEvent -eq "ccrs.contingency.strategy.evaluated") {
+                    $invocationContext = Get-ContingencyInvocationForTimestamp `
+                        -Invocations @($contingencyInvocations) `
+                        -TimestampMs (ConvertTo-EpochMilliseconds (Get-LineTimestamp -Line $line))
+                    [void]$contingencyRows.Add([pscustomobject][ordered]@{
+                        batch_id = $runMeta.batchId
+                        run_id = $runMeta.runId
+                        agent_name = $runMeta.agentName
+                        graph_name = $runMeta.graphName
+                        file = Split-Path -Leaf $javaLogFile
+                        line = $lineNumber
+                        react_event = $javaEvent
+                        invocation = if ($invocationContext) { $invocationContext.invocation } else { "" }
+                        cycle = if ($invocationContext) { $invocationContext.cycle } else { "" }
+                        cycle_timestamp = if ($invocationContext) { $invocationContext.cycle_timestamp } else { "" }
+                        strategy_id = Get-MapValue $fields "strategy_id"
+                        trace_id = ""
+                        top_action = Get-MapValue $fields "action_type"
+                        stop = if ((Get-MapValue $fields "action_type") -eq "stop") { $true } else { "" }
+                        reason = Get-MapValue $fields "no_help_reason"
+                        target = Get-MapValue $fields "action_target"
+                        situation_type = if ($invocationContext) { $invocationContext.situation_type } else { "" }
+                        trigger = if ($invocationContext) { $invocationContext.trigger } else { "" }
+                        current_resource = if ($invocationContext) { $invocationContext.current_resource } else { "" }
+                        target_resource = if ($invocationContext) { $invocationContext.target_resource } else { "" }
+                        failed_action = if ($invocationContext) { $invocationContext.failed_action } else { "" }
+                        evaluations = ""
+                        suggestions = if ((Get-MapValue $fields "result_type") -eq "suggestion") { 1 } else { 0 }
+                        no_help = if ((Get-MapValue $fields "result_type") -eq "no_help") { 1 } else { 0 }
+                        opportunistic_guidance = Get-MapValue $fields "has_opportunistic_guidance"
+                        result_type = Get-MapValue $fields "result_type"
+                        action_type = Get-MapValue $fields "action_type"
+                        action_target = Get-MapValue $fields "action_target"
+                        confidence = Get-MapValue $fields "confidence"
+                        evaluation_time_ms = Get-MapValue $fields "evaluation_time_ms"
+                        has_opportunistic_guidance = Get-MapValue $fields "has_opportunistic_guidance"
+                        no_help_reason = Get-MapValue $fields "no_help_reason"
+                        rationale = Get-MapValue $fields "rationale"
+                        matched_entries = ""
+                        active_entries = ""
+                    })
+                }
             }
         }
     }
@@ -963,8 +1105,14 @@ Write-CsvRows -Rows $decisionRows -Path (Join-Path $outputPath "decisions.csv") 
 )
 Write-CsvRows -Rows $contingencyRows -Path (Join-Path $outputPath "contingency.csv") -Headers @(
     "batch_id", "run_id", "agent_name", "graph_name", "file", "line",
-    "react_event", "cycle", "cycle_timestamp", "strategy_id", "trace_id",
-    "top_action", "stop", "reason", "target", "matched_entries", "active_entries"
+    "react_event", "invocation", "cycle", "cycle_timestamp", "strategy_id",
+    "trace_id", "top_action", "stop", "reason", "target", "situation_type",
+    "trigger", "current_resource", "target_resource", "failed_action",
+    "evaluations", "suggestions", "no_help", "opportunistic_guidance",
+    "result_type", "action_type", "action_target", "confidence",
+    "evaluation_time_ms", "has_opportunistic_guidance", "no_help_reason",
+    "rationale",
+    "matched_entries", "active_entries"
 )
 Write-CsvRows -Rows $opportunisticRows -Path (Join-Path $outputPath "opportunistic.csv") -Headers @(
     "batch_id", "run_id", "agent_name", "graph_name", "file", "line",
