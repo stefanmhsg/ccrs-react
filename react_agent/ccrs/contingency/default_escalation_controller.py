@@ -99,16 +99,19 @@ def _consecutive_http_error_decision(
         for status in (http_status_from_tool_message(message) for message in errors)
         if status is not None
     ]
+    latest_status = status_codes[0] if status_codes else None
     situation = Situation(
         type=SituationType.FAILURE,
         trigger="consecutive_http_api_errors",
-        current_resource=configuration.get("current_resource"),
+        current_resource=configuration.get("current_resource")
+        or _latest_successful_tool_resource_before_error_streak(state, errors),
         target_resource=args.get("url") if isinstance(args, Mapping) else None,
         failed_action=tool_name,
         error_info={
             "http_error_count": len(errors),
             "http_error_threshold": max(1, int(http_error_threshold)),
-            "latest_http_status": status_codes[0] if status_codes else None,
+            "latest_http_status": latest_status,
+            "httpStatus": latest_status,
             "status_codes": status_codes,
         },
         metadata={
@@ -146,12 +149,14 @@ def _repeated_tool_failure_decision(
     situation = Situation(
         type=SituationType.FAILURE,
         trigger="repeated_tool_failure",
-        current_resource=configuration.get("current_resource"),
+        current_resource=configuration.get("current_resource")
+        or _latest_successful_tool_resource_before_message(state, latest_failure),
         target_resource=args.get("url") if isinstance(args, Mapping) else None,
         failed_action=tool_name,
         error_info={
             "failed_tool_count": len(failures),
             "latest_tool_status": latest_failure.status,
+            "errorType": latest_failure.status,
         },
         metadata={
             "tool_call_id": str(latest_failure.tool_call_id),
@@ -208,6 +213,58 @@ def _is_failed_tool_message(message: ToolMessage) -> bool:
             return False
         return isinstance(value, Mapping) and bool(value.get("error"))
     return False
+
+
+def _latest_successful_tool_resource_before_error_streak(
+    state: Mapping[str, Any],
+    errors: list[ToolMessage],
+) -> str | None:
+    if not errors:
+        return None
+    return _latest_successful_tool_resource_before_message(state, errors[-1])
+
+
+def _latest_successful_tool_resource_before_message(
+    state: Mapping[str, Any],
+    boundary: ToolMessage,
+) -> str | None:
+    messages = list(state.get("messages", []))
+    boundary_index = _message_index(messages, boundary)
+    if boundary_index is None:
+        return None
+
+    for message in reversed(messages[:boundary_index]):
+        if not isinstance(message, ToolMessage):
+            continue
+        if _is_failed_tool_message(message):
+            continue
+        status = http_status_from_tool_message(message)
+        if status is not None and status >= 400:
+            continue
+        resource = _tool_resource_for_message(state, message)
+        if resource:
+            return resource
+    return None
+
+
+def _message_index(messages: list[Any], target: ToolMessage) -> int | None:
+    for index, message in enumerate(messages):
+        if message is target:
+            return index
+        if (
+            isinstance(message, ToolMessage)
+            and str(message.tool_call_id) == str(target.tool_call_id)
+            and message.content == target.content
+        ):
+            return index
+    return None
+
+
+def _tool_resource_for_message(state: Mapping[str, Any], tool_message: ToolMessage) -> str | None:
+    call = _tool_call_for_message(state, tool_message)
+    args = call.get("args") if isinstance(call.get("args"), Mapping) else {}
+    value = args.get("url")
+    return str(value) if value else None
 
 
 def _tool_call_for_message(state: Mapping[str, Any], tool_message: ToolMessage) -> dict[str, Any]:
