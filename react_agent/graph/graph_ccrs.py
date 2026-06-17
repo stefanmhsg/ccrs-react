@@ -16,6 +16,7 @@ from react_agent.ccrs.contingency.decision import (
     route_after_ccrs_node,
 )
 from react_agent.nodes.llm_node_ccrs_v2 import make_llm_node
+from react_agent.nodes.current_cell_node import current_cell_node
 from react_agent.nodes.tool_node import tool_node
 from react_agent.tools import tools
 
@@ -61,6 +62,7 @@ def build_graph(
         ),
     )
     workflow.add_node("tools", tool_node)
+    workflow.add_node("current_cell", current_cell_node)
     workflow.add_node(
         "ccrs",
         make_ccrs_node(
@@ -82,7 +84,8 @@ def build_graph(
         },
     )
 
-    workflow.add_edge("tools", "ccrs")
+    workflow.add_edge("tools", "current_cell")
+    workflow.add_edge("current_cell", "ccrs")
     workflow.add_conditional_edges(
         "ccrs",
         route_after_ccrs_node,

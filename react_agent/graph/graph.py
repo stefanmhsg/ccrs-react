@@ -2,6 +2,7 @@ from langgraph.graph import StateGraph, END
 from react_agent.state.state import AgentState
 from react_agent.nodes.llm_node import llm_node
 from react_agent.nodes.tool_node import tool_node
+from react_agent.nodes.current_cell_node import current_cell_node
 from react_agent.nodes.decision_node import should_continue
 
 def build_graph():
@@ -11,6 +12,7 @@ def build_graph():
     # Add nodes to the graph
     workflow.add_node("llm", llm_node)
     workflow.add_node("tools", tool_node)
+    workflow.add_node("current_cell", current_cell_node)
 
     # Set the entrypoint as `llm`, this is the first node called
     workflow.set_entry_point("llm")
@@ -31,7 +33,7 @@ def build_graph():
         },
     )
 
-    # Add a normal edge after `tools` is called, `llm` node is called next.
-    workflow.add_edge("tools", "llm")
+    workflow.add_edge("tools", "current_cell")
+    workflow.add_edge("current_cell", "llm")
 
     return workflow.compile()

@@ -44,6 +44,7 @@ def llm_node(
     response = chain.invoke({
         "messages": messages,
         "agent_name": agent_name,
+        "current_cell": state.get("current_cell") or "unknown",
     }, config)
     
     logging.debug(f"LLM node received response: {response}")
