@@ -9,8 +9,10 @@ from react_agent.ccrs.audit import log_ccrs_event
 from react_agent.ccrs.reportability import selected_tool_target
 from react_agent.state.state_ccrs import CcrsAgentState
 from react_agent.nodes.message_window import sliding_message_window
+from react_agent.nodes.advertised_navigation import render_advertised_navigation_options
 from react_agent.tools import tools
 from react_agent.prompts.react_prompt import react_prompt_ccrs
+from react_agent.ccrs.contingency.escalation import ESCALATE_TO_CONTINGENCY_CCRS_TOOL_NAME
 
 
 logger = logging.getLogger(__name__)
@@ -78,6 +80,16 @@ def llm_node(
         "messages": messages,
         "agent_name": agent_name,
         "current_cell": state.get("current_cell") or "unknown",
+        "advertised_navigation_options": render_advertised_navigation_options(
+            state.get("advertised_navigation_options"),
+            agent_name=agent_name,
+            current_cell=state.get("current_cell"),
+            contingency_escalation_tool_name=(
+                ESCALATE_TO_CONTINGENCY_CCRS_TOOL_NAME
+                if _has_tool(active_tools, ESCALATE_TO_CONTINGENCY_CCRS_TOOL_NAME)
+                else None
+            ),
+        ),
         "ccrs" : ccrs_context.text,
     }, config)
     
@@ -111,6 +123,10 @@ def llm_node(
     }
     updates.update(ccrs_context.post_llm_updates())
     return updates
+
+
+def _has_tool(active_tools: Sequence[Any], name: str) -> bool:
+    return any(getattr(tool, "name", None) == name for tool in active_tools)
 
 
 def _log_selection_events(

@@ -18,7 +18,7 @@ from react_agent.ccrs.contingency.opportunistic_guidance import (
 from react_agent.ccrs.opportunistic.opportunistic_result import (
     get_opportunistic_ccrs_for_latest_tool_calls,
 )
-from react_agent.ccrs.prompt import render_ccrs_prompt_context
+from react_agent.ccrs.prompt_short import render_ccrs_prompt_context
 from react_agent.ccrs.audit import log_ccrs_event
 from react_agent.ccrs.reportability import (
     new_prompt_context_id,

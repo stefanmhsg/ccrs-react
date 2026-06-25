@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     llm_message_window_max_messages: int | None = Field(60) # Trim message history to the last N messages. 
     llm_message_window_max_tokens: int | None = Field(350000) # Trim message history to fit within N tokens. Models both have 400k token limits
 
-    recursion_limit: int = Field(10000)
+    recursion_limit: int = Field(20000)
 
     log_level: str = Field("INFO")
 

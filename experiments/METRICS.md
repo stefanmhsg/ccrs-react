@@ -36,13 +36,6 @@ The configured React agent name supplied to
 
 Source: `runs.csv` column `agent_name`.
 
-### Graph
-
-The React graph name supplied during import, for example `graph` or
-`graph_ccrs`.
-
-Source: `runs.csv` column `graph_name`.
-
 ### Reached Exit
 
 Whether the final tracked MASE cell is the configured exit cell. If `run.json`

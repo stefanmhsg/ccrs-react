@@ -9,3 +9,4 @@ class AgentState(TypedDict):
     messages: Annotated[Sequence[BaseMessage], add_messages]
     cycle: dict[str, Any]
     current_cell: NotRequired[str | None]
+    advertised_navigation_options: NotRequired[dict[str, Any] | None]

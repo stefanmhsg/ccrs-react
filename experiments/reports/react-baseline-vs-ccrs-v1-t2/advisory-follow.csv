@@ -1,0 +1,6 @@
+﻿"batch_id","run_id","opportunistic_count","selection_count","selected_rank_1_count","selected_rank_2_count","selected_rank_3_count","selected_rank_4_count","selected_none_count","rank_unavailable_count"
+"react-baseline-vs-ccrs-v1-t2","002-ccrs","0","541","0","0","0","0","0","0"
+"react-baseline-vs-ccrs-v1-t2","002-ccrs","1","533","83","0","0","0","450","0"
+"react-baseline-vs-ccrs-v1-t2","002-ccrs","2","726","68","40","0","0","618","0"
+"react-baseline-vs-ccrs-v1-t2","002-ccrs","3","157","13","11","5","0","128","0"
+"react-baseline-vs-ccrs-v1-t2","002-ccrs","4","45","2","1","2","1","39","0"

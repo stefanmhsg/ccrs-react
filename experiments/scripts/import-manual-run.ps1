@@ -4,10 +4,7 @@ param(
     [string]$RunId,
     [Parameter(Mandatory = $true)]
     [string]$AgentName,
-    [Parameter(Mandatory = $true)]
-    [string]$GraphName,
     [string]$RunMode = "manual",
-    [Parameter(Mandatory = $true)]
     [string]$ReactLog,
     [string]$JavaLog,
     [switch]$EnableContingencyEscalationTool,
@@ -48,6 +45,34 @@ function ConvertTo-SafeName {
         return $safe.Substring(0, 90)
     }
     return $safe
+}
+
+function Find-LatestAgentReactLog {
+    param(
+        [string]$RepoRoot,
+        [string]$AgentName
+    )
+
+    $logsPath = Join-Path $RepoRoot "logs"
+    if (-not (Test-Path -LiteralPath $logsPath -PathType Container)) {
+        throw "Could not infer React log because logs directory does not exist: $logsPath. Pass -ReactLog explicitly."
+    }
+
+    $escapedAgentName = [System.Text.RegularExpressions.Regex]::Escape($AgentName)
+    $namePattern = "^$escapedAgentName($|_).*\.log$"
+    $matches = @(
+        Get-ChildItem -LiteralPath $logsPath -File -Filter "*.log" |
+            Where-Object { $_.Name -notlike "*.java.log" -and $_.Name -match $namePattern } |
+            Sort-Object LastWriteTime -Descending
+    )
+
+    if ($matches.Count -eq 0) {
+        throw "Could not infer React log for agent '$AgentName' under $logsPath. Expected a file like logs\$AgentName`_YYYYMMDD_HHMMSS.log, or pass -ReactLog explicitly."
+    }
+    if ($matches.Count -gt 1) {
+        Write-Warning "Multiple React logs matched agent '$AgentName'; using newest: $($matches[0].Name)"
+    }
+    return $matches[0].FullName
 }
 
 function New-UniqueDirectory {
@@ -249,8 +274,24 @@ function Copy-OrMoveSourceFile {
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $sourcePath = Resolve-RepoPath -RepoRoot $repoRoot -Path $SourceDir
 $outputRootPath = Resolve-RepoPath -RepoRoot $repoRoot -Path $OutputRoot
-$reactLogPath = Resolve-RepoPath -RepoRoot $repoRoot -Path $ReactLog
-$javaLogPath = if ($JavaLog) { Resolve-RepoPath -RepoRoot $repoRoot -Path $JavaLog } else { $null }
+$reactLogPath = if ($ReactLog) {
+    Resolve-RepoPath -RepoRoot $repoRoot -Path $ReactLog
+} else {
+    Find-LatestAgentReactLog -RepoRoot $repoRoot -AgentName $AgentName
+}
+$javaLogPath = if ($JavaLog) {
+    Resolve-RepoPath -RepoRoot $repoRoot -Path $JavaLog
+} else {
+    $candidateJavaLogPath = [System.IO.Path]::Combine(
+        [System.IO.Path]::GetDirectoryName($reactLogPath),
+        ([System.IO.Path]::GetFileNameWithoutExtension($reactLogPath) + ".java.log")
+    )
+    if (Test-Path -LiteralPath $candidateJavaLogPath -PathType Leaf) {
+        $candidateJavaLogPath
+    } else {
+        $null
+    }
+}
 
 if (-not (Test-Path -LiteralPath $reactLogPath -PathType Leaf)) {
     throw "React log not found: $reactLogPath"
@@ -326,7 +367,6 @@ $run = [ordered]@{
     runId = Split-Path -Leaf $runDir
     agentName = $AgentName
     agentNames = @($AgentName)
-    graphName = $GraphName
     runMode = $RunMode
     scenarioId = $ScenarioId
     optimalMoves = if ($PSBoundParameters.ContainsKey("OptimalMoves")) { $OptimalMoves } else { $null }
@@ -376,7 +416,9 @@ Write-Host "Run directory: $runDir"
 Write-Host "React log: $reactLogFile"
 if ($javaLogFile) {
     Write-Host "Java log: $javaLogFile"
+} else {
+    Write-Host "Java log: none"
 }
 Write-Host "MASE events: $($maseSummary.eventCount); parse errors: $($maseSummary.parseErrors)"
-Write-Host "Generate or refresh parsed CSV artifacts with:"
-Write-Host "  powershell -ExecutionPolicy Bypass -File experiments/scripts/parse-experiment-logs.ps1 -BatchId $BatchId"
+Write-Host "Generate or refresh the report and parsed CSV artifacts with:"
+Write-Host "  powershell -ExecutionPolicy Bypass -File experiments/scripts/write-report.ps1 -BatchId $BatchId"

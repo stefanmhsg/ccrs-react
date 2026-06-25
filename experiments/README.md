@@ -25,9 +25,7 @@ Export MASE viewer events into [runs/latest](runs/latest), then import the run:
 powershell -ExecutionPolicy Bypass -File experiments\scripts\import-manual-run.ps1 `
   -BatchId react-baseline-vs-ccrs-v1 `
   -RunId 001-baseline `
-  -AgentName react_baseline_1 `
-  -GraphName graph `
-  -ReactLog logs\<baseline-log>.log
+  -AgentName react_baseline_1
 ```
 
 Repeat staging, running, MASE export, and import for the CCRS agent:
@@ -41,10 +39,7 @@ powershell -ExecutionPolicy Bypass -File experiments\scripts\import-manual-run.p
   -BatchId react-baseline-vs-ccrs-v1 `
   -RunId 002-ccrs `
   -AgentName react_ccrs_1 `
-  -GraphName graph_ccrs `
-  -EnableContingencyEscalationTool `
-  -ReactLog logs\<ccrs-log>.log `
-  -JavaLog logs\<ccrs-log>.java.log
+  -EnableContingencyEscalationTool
 ```
 
 Generate the report. This refreshes normalized CSV artifacts first, then writes
@@ -64,12 +59,13 @@ under `experiments/runs/<batch-id>/<run-id>/`.
 - `mase-events.jsonl`: normalized MASE viewer export, when present.
 - `source-exports/`: original MASE exports and staging metadata.
 - `<run>.log`: copied React log.
-- `<run>.java.log`: copied Java companion log when provided.
+- `<run>.java.log`: copied Java companion log when present.
 - `manifest.json`: batch-level manifest refreshed after every import.
 
-React logs passed through `-ReactLog` and `-JavaLog` are copied into the run
-package. Staged MASE exports are moved out of `latest` unless `-KeepSource`
-is supplied.
+By default, the import script selects the newest `logs/<AgentName>*.log` file
+that is not a Java companion log, then copies the same-stem `.java.log` file if
+it exists. `-ReactLog` and `-JavaLog` remain available for explicit overrides.
+Staged MASE exports are moved out of `latest` unless `-KeepSource` is supplied.
 
 ## CSV Artifacts
 

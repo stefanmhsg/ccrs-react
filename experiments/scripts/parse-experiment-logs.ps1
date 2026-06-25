@@ -242,7 +242,6 @@ function Add-CycleEvent {
             batch_id = $RunMeta.batchId
             run_id = $RunMeta.runId
             agent_name = $RunMeta.agentName
-            graph_name = $RunMeta.graphName
             cycle = $key
             cycle_timestamp = Get-MapValue $Fields "cycle_timestamp"
             first_file = $FileName
@@ -533,7 +532,6 @@ function New-RunMeta {
         batchId = Get-MapValue $Raw @("batchId", "batch_id") (Split-Path -Leaf (Split-Path -Parent $RunDir.FullName))
         runId = Get-MapValue $Raw @("runId", "run_id") $RunDir.Name
         agentName = Get-MapValue $Raw @("agentName", "agent_name") ""
-        graphName = Get-MapValue $Raw @("graphName", "graph_name") ""
         runMode = Get-MapValue $Raw @("runMode", "run_mode") "manual"
         agentNames = @(Get-MapValue $Raw @("agentNames", "agent_names", "maseCaptureAgentNames", "mase_capture_agent_names") @())
         scenarioId = Get-MapValue $Raw @("scenarioId", "scenario_id") ""
@@ -680,7 +678,6 @@ foreach ($runDir in Get-ChildItem -Path $runRootPath -Directory | Sort-Object Na
                         batch_id = $runMeta.batchId
                         run_id = $runMeta.runId
                         agent_name = $runMeta.agentName
-                        graph_name = $runMeta.graphName
                         file = Split-Path -Leaf $reactLogFile
                         line = $lineNumber
                         react_event = $eventName
@@ -731,7 +728,6 @@ foreach ($runDir in Get-ChildItem -Path $runRootPath -Directory | Sort-Object Na
                         batch_id = $runMeta.batchId
                         run_id = $runMeta.runId
                         agent_name = $runMeta.agentName
-                        graph_name = $runMeta.graphName
                         file = Split-Path -Leaf $reactLogFile
                         line = $lineNumber
                         react_event = $eventName
@@ -753,7 +749,6 @@ foreach ($runDir in Get-ChildItem -Path $runRootPath -Directory | Sort-Object Na
                         batch_id = $runMeta.batchId
                         run_id = $runMeta.runId
                         agent_name = $runMeta.agentName
-                        graph_name = $runMeta.graphName
                         file = Split-Path -Leaf $reactLogFile
                         line = $lineNumber
                         cycle = Get-MapValue $fields "cycle"
@@ -788,7 +783,6 @@ foreach ($runDir in Get-ChildItem -Path $runRootPath -Directory | Sort-Object Na
                     batch_id = $runMeta.batchId
                     run_id = $runMeta.runId
                     agent_name = $runMeta.agentName
-                    graph_name = $runMeta.graphName
                     file = Split-Path -Leaf $reactLogFile
                     line = $lineNumber
                     timestamp = Get-LineTimestamp -Line $line
@@ -833,7 +827,6 @@ foreach ($runDir in Get-ChildItem -Path $runRootPath -Directory | Sort-Object Na
                     batch_id = $runMeta.batchId
                     run_id = $runMeta.runId
                     agent_name = $runMeta.agentName
-                    graph_name = $runMeta.graphName
                     file = Split-Path -Leaf $javaLogFile
                     line = $lineNumber
                     timestamp = Get-LineTimestamp -Line $line
@@ -849,7 +842,6 @@ foreach ($runDir in Get-ChildItem -Path $runRootPath -Directory | Sort-Object Na
                         batch_id = $runMeta.batchId
                         run_id = $runMeta.runId
                         agent_name = $runMeta.agentName
-                        graph_name = $runMeta.graphName
                         file = Split-Path -Leaf $javaLogFile
                         line = $lineNumber
                         react_event = $javaEvent
@@ -1003,7 +995,6 @@ foreach ($runDir in Get-ChildItem -Path $runRootPath -Directory | Sort-Object Na
                 batch_id = $current.batch_id
                 run_id = $current.run_id
                 agent_name = $current.agent_name
-                graph_name = $current.graph_name
                 sequence = $i + 1
                 cycle = $current.cycle
                 cycle_timestamp = $current.cycle_timestamp
@@ -1024,7 +1015,6 @@ foreach ($runDir in Get-ChildItem -Path $runRootPath -Directory | Sort-Object Na
         batch_id = $runMeta.batchId
         run_id = $runMeta.runId
         agent_name = $runMeta.agentName
-        graph_name = $runMeta.graphName
         run_mode = $runMeta.runMode
         scenario_id = $runMeta.scenarioId
         optimal_moves = $runMeta.optimalMoves
@@ -1065,7 +1055,7 @@ foreach ($group in ($moveRows | Group-Object run_id, agent)) {
 }
 
 Write-CsvRows -Rows $runsRows -Path (Join-Path $outputPath "runs.csv") -Headers @(
-    "batch_id", "run_id", "agent_name", "graph_name", "run_mode", "scenario_id",
+    "batch_id", "run_id", "agent_name", "run_mode", "scenario_id",
     "optimal_moves", "exit_cell", "enable_contingency_escalation_tool",
     "imported_at", "react_log_file", "java_log_file", "mase_capture_status",
     "mase_event_count", "mase_move_count", "mase_transaction_count",
@@ -1090,13 +1080,13 @@ Write-CsvRows -Rows $transactionRows -Path (Join-Path $outputPath "mase-transact
     "finished_at"
 )
 Write-CsvRows -Rows $cycleRows -Path (Join-Path $outputPath "cycle-durations.csv") -Headers @(
-    "batch_id", "run_id", "agent_name", "graph_name", "sequence", "cycle",
+    "batch_id", "run_id", "agent_name", "sequence", "cycle",
     "cycle_timestamp", "duration_ms", "file", "line", "event_count",
     "opportunistic_detected_count", "opportunistic_prompt_visible_count",
     "selection_count", "contingency_event_count", "contingency_guidance_event_count"
 )
 Write-CsvRows -Rows $decisionRows -Path (Join-Path $outputPath "decisions.csv") -Headers @(
-    "batch_id", "run_id", "agent_name", "graph_name", "file", "line", "cycle",
+    "batch_id", "run_id", "agent_name", "file", "line", "cycle",
     "cycle_timestamp", "tool_name", "tool_call_id", "selected_uri",
     "selection_mode", "opportunistic_count", "contingency_guidance_count",
     "followed_top_opportunistic", "followed_top_contingency_guidance",
@@ -1104,7 +1094,7 @@ Write-CsvRows -Rows $decisionRows -Path (Join-Path $outputPath "decisions.csv") 
     "top_contingency_guidance_target", "prompt_context_id", "metric_quality"
 )
 Write-CsvRows -Rows $contingencyRows -Path (Join-Path $outputPath "contingency.csv") -Headers @(
-    "batch_id", "run_id", "agent_name", "graph_name", "file", "line",
+    "batch_id", "run_id", "agent_name", "file", "line",
     "react_event", "invocation", "cycle", "cycle_timestamp", "strategy_id",
     "trace_id", "top_action", "stop", "reason", "target", "situation_type",
     "trigger", "current_resource", "target_resource", "failed_action",
@@ -1115,12 +1105,12 @@ Write-CsvRows -Rows $contingencyRows -Path (Join-Path $outputPath "contingency.c
     "matched_entries", "active_entries"
 )
 Write-CsvRows -Rows $opportunisticRows -Path (Join-Path $outputPath "opportunistic.csv") -Headers @(
-    "batch_id", "run_id", "agent_name", "graph_name", "file", "line",
+    "batch_id", "run_id", "agent_name", "file", "line",
     "react_event", "cycle", "cycle_timestamp", "tool_call_id", "tool_name",
     "target", "type", "pattern_id", "utility", "entries", "reason"
 )
 Write-CsvRows -Rows $actionRows -Path (Join-Path $outputPath "actions.csv") -Headers @(
-    "batch_id", "run_id", "agent_name", "graph_name", "file", "line",
+    "batch_id", "run_id", "agent_name", "file", "line",
     "timestamp", "tool_call_id", "action_type", "target", "outcome",
     "http_status", "http_ok", "response_length", "content_type",
     "error", "error_type", "result_line", "result_timestamp"
@@ -1138,7 +1128,7 @@ Write-CsvRows -Rows $moveDurationRows -Path (Join-Path $outputPath "move-duratio
     "get_count", "post_count", "status_codes"
 )
 Write-CsvRows -Rows $javaRows -Path (Join-Path $outputPath "java-library-evidence.csv") -Headers @(
-    "batch_id", "run_id", "agent_name", "graph_name", "file", "line",
+    "batch_id", "run_id", "agent_name", "file", "line",
     "timestamp", "java_event", "prefix", "message"
 )
 

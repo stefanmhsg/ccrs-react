@@ -16,6 +16,7 @@ async def run_query_async(graph, q: str, run_name: str, config: dict):
             "messages": [HumanMessage(content=q)],
             "cycle": _initial_cycle(),
             "current_cell": None,
+            "advertised_navigation_options": None,
         }
         printed_message_count = 0
         async for step in graph.astream(
@@ -39,6 +40,7 @@ def run_query_sync(graph, q: str, run_name: str, config: dict):
             "messages": [HumanMessage(content=q)],
             "cycle": _initial_cycle(),
             "current_cell": None,
+            "advertised_navigation_options": None,
         }
         printed_message_count = 0
         for state in graph.stream(

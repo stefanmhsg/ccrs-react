@@ -132,7 +132,6 @@ function Test-CcrsRun {
     param($Run)
 
     return (
-        "$($Run.graph_name)" -like "*ccrs*" -or
         "$($Run.run_id)" -like "*ccrs*" -or
         (Test-True $Run.enable_contingency_escalation_tool)
     )
@@ -1205,7 +1204,7 @@ if ($runs.Count -eq 0) {
     $lines.Add("No imported runs were found.")
 } else {
     Add-TableHeader -Lines $lines -Headers @(
-        "Run", "Agent", "Graph", "Mode", "Reached exit", "Total duration ms",
+        "Run", "Agent", "Mode", "Reached exit", "Total duration ms",
         "Total moves", "Avg move duration", "Final cell"
     )
     foreach ($run in $runs) {
@@ -1215,10 +1214,9 @@ if ($runs.Count -eq 0) {
         $agentRow = Get-AgentRowForRun -AgentRows $agents -Run $run
         $finalCell = if ($agentRow) { $agentRow.final_cell } else { $null }
         $exitCell = Get-RunExitCell -Run $run -ScenarioMetadata $scenarioMetadata
-        $lines.Add("| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} | {8} |" -f @(
+        $lines.Add("| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} |" -f @(
             (Format-CodeCell $run.run_id),
             (Format-MarkdownCell $run.agent_name),
-            (Format-CodeCell $run.graph_name),
             (Format-MarkdownCell $run.run_mode),
             (Format-MarkdownCell (Test-ReachedExit -Run $run -FinalCell $finalCell -ExitCell $exitCell)),
             (Format-Ms $totalDurationMs),

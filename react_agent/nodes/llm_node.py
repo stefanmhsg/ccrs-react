@@ -8,6 +8,7 @@ from react_agent.state.state import AgentState
 from react_agent.tools import tools
 from react_agent.prompts.react_prompt import react_prompt
 from react_agent.nodes.message_window import sliding_message_window
+from react_agent.nodes.advertised_navigation import render_advertised_navigation_options
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,11 @@ def llm_node(
         "messages": messages,
         "agent_name": agent_name,
         "current_cell": state.get("current_cell") or "unknown",
+        "advertised_navigation_options": render_advertised_navigation_options(
+            state.get("advertised_navigation_options"),
+            agent_name=agent_name,
+            current_cell=state.get("current_cell"),
+        ),
     }, config)
     
     logging.debug(f"LLM node received response: {response}")
