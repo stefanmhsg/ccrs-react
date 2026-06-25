@@ -52,24 +52,25 @@ def _render_opportunistic_guidance(entries: list[dict[str, Any]]) -> str:
         "### Opportunistic CCRS",
         "Use these ranked findings as decision support. They are derived from a scan of your recent percepts.",
     ]
-    top = ranked_entries[0]
-    lines.extend(
-        [
-            "",
-            "Top recommendation:",
-            f"- Target: `{_value(top, 'target')}`",
-            f"- Suggested because: {_suggested_because(top)}",
-            f"- Expected utility: {_utility(top):.2f} / 1.00",
-        ]
-    )
-    if len(ranked_entries) > 1:
-        lines.append("")
-        lines.append("Ranked findings:")
-        for index, entry in enumerate(ranked_entries, start=1):
-            lines.append(
-                f"{index}. `{_value(entry, 'target')}` - {_suggested_because(entry)}; "
-                f"expected utility {_utility(entry):.2f} / 1.00"
-            )
+    if _has_unique_top_utility(ranked_entries):
+        top = ranked_entries[0]
+        lines.extend(
+            [
+                "",
+                "Top recommendation:",
+                f"- Target: `{_value(top, 'target')}`",
+                f"- Suggested because: {_suggested_because(top)}",
+                f"- Expected utility: {_utility(top):.2f} / 1.00",
+            ]
+        )
+
+    lines.append("")
+    lines.append("Ranked findings:")
+    for rank, entry in _ranked_with_ties(ranked_entries):
+        lines.append(
+            f"{rank}. `{_value(entry, 'target')}` - {_suggested_because(entry)}; "
+            f"expected utility {_utility(entry):.2f} / 1.00"
+        )
     return "\n".join(lines)
 
 
@@ -120,6 +121,25 @@ def _utility(entry: dict[str, Any]) -> float:
     except (TypeError, ValueError):
         return 0.0
     return max(0.0, min(1.0, value))
+
+
+def _has_unique_top_utility(entries: list[dict[str, Any]]) -> bool:
+    if len(entries) == 1:
+        return True
+    return _utility(entries[0]) > _utility(entries[1])
+
+
+def _ranked_with_ties(entries: list[dict[str, Any]]) -> list[tuple[int, dict[str, Any]]]:
+    ranked: list[tuple[int, dict[str, Any]]] = []
+    previous_utility: float | None = None
+    current_rank = 0
+    for index, entry in enumerate(entries, start=1):
+        utility = _utility(entry)
+        if previous_utility is None or utility < previous_utility:
+            current_rank = index
+        ranked.append((current_rank, entry))
+        previous_utility = utility
+    return ranked
 
 
 def _value(entry: dict[str, Any], key: str) -> str:

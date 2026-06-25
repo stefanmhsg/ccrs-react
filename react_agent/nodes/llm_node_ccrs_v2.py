@@ -11,7 +11,11 @@ from react_agent.state.state_ccrs import CcrsAgentState
 from react_agent.nodes.message_window import sliding_message_window
 from react_agent.nodes.advertised_navigation import render_advertised_navigation_options
 from react_agent.tools import tools
-from react_agent.prompts.react_prompt import react_prompt_ccrs
+from react_agent.prompts.react_prompt import (
+    bootstrap_prompt_for_current_cell,
+    react_prompt_ccrs,
+    regular_actions_prompt_for_current_cell,
+)
 from react_agent.ccrs.contingency.escalation import ESCALATE_TO_CONTINGENCY_CCRS_TOOL_NAME
 
 
@@ -80,6 +84,10 @@ def llm_node(
         "messages": messages,
         "agent_name": agent_name,
         "current_cell": state.get("current_cell") or "unknown",
+        "bootstrap": bootstrap_prompt_for_current_cell(state.get("current_cell")),
+        "regular_actions": regular_actions_prompt_for_current_cell(
+            state.get("current_cell")
+        ),
         "advertised_navigation_options": render_advertised_navigation_options(
             state.get("advertised_navigation_options"),
             agent_name=agent_name,

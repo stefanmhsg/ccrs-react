@@ -102,6 +102,9 @@ def _advertised_navigation_options_from_latest_tool_batch(
                 current_cell=str(current_cell),
                 tool_call_id=str(tool_message.tool_call_id),
             )
+            latest_options["same_cell_get_streak"] = (
+                _same_cell_get_streak(state, current_cell=str(current_cell)) + 1
+            )
         except CcrsRdfParseError:
             logger.info(
                 "[CURRENT_CELL_NODE] Preserving previous advertised navigation options; "
@@ -109,6 +112,18 @@ def _advertised_navigation_options_from_latest_tool_batch(
             )
             continue
     return latest_options
+
+
+def _same_cell_get_streak(state: Mapping[str, Any], *, current_cell: str) -> int:
+    options_state = state.get("advertised_navigation_options")
+    if not isinstance(options_state, Mapping):
+        return 0
+    if options_state.get("current_cell") != current_cell:
+        return 0
+    try:
+        return int(options_state.get("same_cell_get_streak") or 0)
+    except (TypeError, ValueError):
+        return 0
 
 
 def _latest_tool_messages(messages: list[Any]) -> list[ToolMessage]:

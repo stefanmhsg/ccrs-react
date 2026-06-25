@@ -80,6 +80,11 @@ def render_advertised_navigation_options(
     )
     if integrity_warning:
         lines.extend(["", integrity_warning])
+    get_streak_warning = _render_same_cell_get_streak_warning(
+        options_state.get("same_cell_get_streak")
+    )
+    if get_streak_warning:
+        lines.extend(["", get_streak_warning])
     if not options:
         lines.extend(
             [
@@ -113,6 +118,21 @@ def render_advertised_navigation_options(
             ]
         )
     return "\n".join(lines)
+
+
+def _render_same_cell_get_streak_warning(value: Any) -> str:
+    try:
+        streak = int(value or 0)
+    except (TypeError, ValueError):
+        return ""
+    if streak < 2:
+        return ""
+    return (
+        f"You have successfully perceived this same current cell {streak} times in a row. "
+        "If the RDF already gives enough information, make progress with an appropriate "
+        "`http_post`: either navigate to an advertised target or perform a valid interaction "
+        "on the current cell."
+    )
 
 
 def _is_navigable_target(value: str) -> bool:
