@@ -40,8 +40,6 @@
 <text x="834.38" y="446" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#222">175</text>
 <line x1="943.29" y1="428" x2="943.29" y2="433" stroke="#333" stroke-width="1"/>
 <text x="943.29" y="446" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#222">200</text>
-<line x1="952" y1="428" x2="952" y2="433" stroke="#333" stroke-width="1"/>
-<text x="952" y="446" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#222">202</text>
 <text x="512" y="496" text-anchor="middle" font-family="Arial, sans-serif" font-size="13">Movement step number</text>
 <text x="18" y="278" text-anchor="middle" transform="rotate(-90 18 278)" font-family="Arial, sans-serif" font-size="13">Duration ms</text>
 <polyline points="80.71,335.8 85.07,297.29 89.43,331.71 93.78,256.79 98.14,185.35 102.5,247.06 106.85,277.38 111.21,322.16 115.56,285.96 119.92,285.02 124.28,204.36 128.63,300.72 132.99,314.43 137.35,196.16" fill="none" stroke="#1f77b4" stroke-width="2"/>

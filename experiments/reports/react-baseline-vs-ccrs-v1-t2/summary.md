@@ -1,6 +1,6 @@
 ﻿# React Experiment Summary: react-baseline-vs-ccrs-v1-t2
 
-Generated: 2026-06-25 19:46:01 +02:00
+Generated: 2026-06-25 21:24:39 +02:00
 
 Run root: `S:\dev\ma\ccrs-react\experiments\runs\react-baseline-vs-ccrs-v1-t2`
 
@@ -32,7 +32,7 @@ Move averages use move-durations.csv, derived from move-action-correlation.csv. 
 
 ![Move duration by step](move-duration-comparison.svg)
 
-X-axis is movement step number; y-axis is log-scaled move duration with ticks at 1000, 2000, 4000, 8000, 16000, 32000, 64000, and 80000 ms.
+X-axis is movement step number with interval ticks; y-axis is log-base-2 move duration in milliseconds starting at 1000 ms.
 
 ## HTTP Calls Chart
 
@@ -52,7 +52,7 @@ Cycle averages use `cycle-durations.csv`. Fresh runs populate this from `react.l
 
 ![Cycle duration by step](cycle-duration-comparison.svg)
 
-X-axis is React loop-cycle step number; y-axis is linear cycle duration in milliseconds.
+X-axis is React loop-cycle step number with ticks every 100 cycles; y-axis is log-base-2 cycle duration in milliseconds starting at 1000 ms.
 
 ## Advisory-Follow Evidence
 

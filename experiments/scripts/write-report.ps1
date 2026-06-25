@@ -553,7 +553,8 @@ function Convert-ToSvgText {
 function Get-StepAxisTicks {
     param(
         [double]$MaxStep,
-        [int]$Interval = 25
+        [int]$Interval = 25,
+        [switch]$IncludeMaxStep
     )
 
     $ticks = [System.Collections.Generic.List[double]]::new()
@@ -563,7 +564,7 @@ function Get-StepAxisTicks {
         $tick += $Interval
     }
 
-    if (-not $ticks.Contains([double]$MaxStep)) {
+    if ($IncludeMaxStep -and -not $ticks.Contains([double]$MaxStep)) {
         $ticks.Add([double]$MaxStep)
     }
 
@@ -654,7 +655,9 @@ function Write-CycleDurationChart {
         [double]$DurationAxisMaxMs = 0,
         [object[]]$DurationTickValues = @(),
         [int]$HttpAxisMaxCalls = 0,
-        [int]$HttpAxisTickInterval = 1
+        [int]$HttpAxisTickInterval = 1,
+        [int]$StepTickInterval = 25,
+        [switch]$IncludeFinalStepTick
     )
 
     $pointsByRun = [ordered]@{}
@@ -778,6 +781,19 @@ function Write-CycleDurationChart {
             return @($ticks | Sort-Object -Unique)
         }
 
+        if ($DurationLogScale) {
+            $ticks = [System.Collections.Generic.List[double]]::new()
+            $tickValue = [math]::Max(1.0, $DurationAxisMinMs)
+            while ($tickValue -le $durationAxisMax) {
+                $ticks.Add([double]$tickValue)
+                $tickValue *= $DurationLogBase
+            }
+            if ($ticks.Count -eq 0) {
+                $ticks.Add([double]$DurationAxisMinMs)
+            }
+            return @($ticks | Sort-Object -Unique)
+        }
+
         if (-not $useHybridDurationScale) {
             $ticks = [System.Collections.Generic.List[double]]::new()
             for ($tick = 0; $tick -le 5; $tick++) {
@@ -860,7 +876,7 @@ function Write-CycleDurationChart {
         $svg.Add(('<text x="{0}" y="{1:0.##}" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#222">{2}</text>' -f ($left - 8), $y, $label))
     }
 
-    $xTicks = Get-StepAxisTicks -MaxStep $maxStep -Interval 25
+    $xTicks = Get-StepAxisTicks -MaxStep $maxStep -Interval $StepTickInterval -IncludeMaxStep:$IncludeFinalStepTick
     foreach ($step in $xTicks) {
         $x = Get-X $step
         $label = ([double]$step).ToString("0.##", [System.Globalization.CultureInfo]::InvariantCulture)
@@ -1182,9 +1198,13 @@ $hasCycleDurationChart = Write-CycleDurationChart `
     -Agents $agents `
     -Path $cycleDurationChartPath `
     -Title "Cycle duration comparison" `
-    -Description "Line chart comparing actual React loop cycle duration by cycle step. Fresh runs use react.loop.cycle events emitted from state cycle updates." `
-    -SubtitlePrefix "Y-axis is linear React loop-cycle duration in ms." `
-    -XAxisLabel "Cycle step number"
+    -Description "Line chart comparing actual React loop cycle duration by cycle step using a base-10 log duration axis. Fresh runs use react.loop.cycle events emitted from state cycle updates." `
+    -SubtitlePrefix "Y-axis is log-scaled React loop-cycle duration in ms." `
+    -XAxisLabel "Cycle step number" `
+    -DurationLogScale `
+    -DurationLogBase 2 `
+    -DurationAxisMinMs 1000 `
+    -StepTickInterval 100
 
 $reportTitle = if ($BatchId) { $BatchId } else { Split-Path -Leaf $runRootPath }
 $scenarioMetadata = Get-ScenarioReportMetadata -BatchName $reportTitle
@@ -1271,7 +1291,7 @@ if ($hasMoveDurationChart) {
     $lines.Add("")
     $lines.Add("![Move duration by step]($moveDurationChartName)")
     $lines.Add("")
-    $lines.Add("X-axis is movement step number; y-axis is log-scaled move duration with ticks at 1000, 2000, 4000, 8000, 16000, 32000, 64000, and 80000 ms.")
+    $lines.Add("X-axis is movement step number with interval ticks; y-axis is log-base-2 move duration in milliseconds starting at 1000 ms.")
     $lines.Add("")
 }
 
@@ -1315,7 +1335,7 @@ if ($hasCycleDurationChart) {
     $lines.Add("")
     $lines.Add("![Cycle duration by step]($cycleDurationChartName)")
     $lines.Add("")
-    $lines.Add("X-axis is React loop-cycle step number; y-axis is linear cycle duration in milliseconds.")
+    $lines.Add("X-axis is React loop-cycle step number with ticks every 100 cycles; y-axis is log-base-2 cycle duration in milliseconds starting at 1000 ms.")
     $lines.Add("")
 }
 

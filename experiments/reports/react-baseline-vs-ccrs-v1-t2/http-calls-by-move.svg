@@ -62,8 +62,6 @@
 <text x="834.38" y="446" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#222">175</text>
 <line x1="943.29" y1="428" x2="943.29" y2="433" stroke="#333" stroke-width="1"/>
 <text x="943.29" y="446" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#222">200</text>
-<line x1="952" y1="428" x2="952" y2="433" stroke="#333" stroke-width="1"/>
-<text x="952" y="446" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#222">202</text>
 <rect x="73.36" y="410.86" width="2.5" height="17.14" fill="#93c5fd" opacity="0.55"/>
 <rect x="77.71" y="393.71" width="2.5" height="34.29" fill="#93c5fd" opacity="0.55"/>
 <rect x="82.07" y="410.86" width="2.5" height="17.14" fill="#93c5fd" opacity="0.55"/>
