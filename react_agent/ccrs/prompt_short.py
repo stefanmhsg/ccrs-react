@@ -82,19 +82,24 @@ def _render_contingency_guidance(
     if not (contingency_ccrs or opportunistic_guidance_by_contingency_ccrs):
         return "### Contingency CCRS\nNo contingency CCRS result is currently pending."
 
-    return "\n".join(
+    top_suggestions = _top_suggestion_blocks(contingency_ccrs)
+    lines = [
+        "### Contingency CCRS",
+        f"If you are stuck, confused, or making no progress, use the tool `{ESCALATE_TO_CONTINGENCY_CCRS_TOOL_NAME}`.",
+        "",
+        "Contingency Suggestions:",
+    ]
+    if top_suggestions:
+        lines.append("IT IS STRONGLY RECOMMENDED THAT YOU FOLLOW THIS SUGGESTION.")
+    lines.extend(
         [
-            "### Contingency CCRS",
-            "Contingency CCRS remains verbose for debugging and recovery context.",
-            f"If you are stuck, confused, or making no progress, use `{ESCALATE_TO_CONTINGENCY_CCRS_TOOL_NAME}` when available.",
+            _to_json(top_suggestions),
             "",
-            "Pending contingency results:",
-            _to_json(contingency_ccrs),
-            "",
-            "Contingency-produced opportunistic guidance:",
+            "Contingency-produced decision guidance:",
             _to_json(opportunistic_guidance_by_contingency_ccrs),
         ]
     )
+    return "\n".join(lines)
 
 
 def _suggested_because(entry: dict[str, Any]) -> str:
@@ -140,6 +145,17 @@ def _ranked_with_ties(entries: list[dict[str, Any]]) -> list[tuple[int, dict[str
         ranked.append((current_rank, entry))
         previous_utility = utility
     return ranked
+
+
+def _top_suggestion_blocks(entries: list[dict[str, Any]]) -> dict[str, Any] | list[dict[str, Any]]:
+    blocks = [
+        {"top_suggestion": entry.get("top_suggestion")}
+        for entry in entries
+        if "top_suggestion" in entry
+    ]
+    if len(blocks) == 1:
+        return blocks[0]
+    return blocks
 
 
 def _value(entry: dict[str, Any], key: str) -> str:
