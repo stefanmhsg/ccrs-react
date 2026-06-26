@@ -5,49 +5,50 @@ runs. It mirrors the BDI experiment package shape where the data is comparable,
 while documenting React-specific advisory prompt metrics instead of BDI
 deterministic option-reordering metrics.
 
-## Manual Workflow
+## Quick Start Checklist
 
-Run commands from the repository root.
+Use this table as the manual experiment loop.
 
-```powershell
-powershell -ExecutionPolicy Bypass -File experiments\scripts\prepare-current-run.ps1
-```
+### MASE Scenario V1
 
-Run the agent manually, for example:
+| Step | Where | Action | Command or UI action |
+| ---: | --- | --- | --- |
+| 1 | `\ccrs-react` | Prepare the staging folder | `powershell -ExecutionPolicy Bypass -File experiments\scripts\prepare-current-run.ps1` |
+| - | ********** | ********************** | ********************** |
+| 2 | `\mase` | Start MASE server (configure scenario in .properties) and viewer | `docker compose -f docker-compose.ccrs.yml --profile viewer up --build -d mase-viewer` |
+| 3 | `\mase` | Start CCRS scenario services for the run | `docker compose -f docker-compose.ccrs.yml up --build -d ccrs-agent keyholder-agent` |
+| 4 | Browser | Open the viewer | `http://localhost:3000` |
+| - | ********** | ********************** | ********************** |
+| 5 | `test_agent.ipynb` | **BASELINE V1** | `agent_name="react_baseline_mazeV1"` |
+| 6 | Browser | Export and reset after the run | `Reset Store` -> `Export logs`; save the NDJSON file into `S:\dev\ma\ccrs-react\experiments\runs\latest`; confirm reset |
+| 7 | `\ccrs-react` | Stage the logs | `powershell -ExecutionPolicy Bypass -File experiments\scripts\import-manual-run.ps1 -BatchId react-baseline-vs-ccrs-v1 -RunId 300-baseline -AgentName react_baseline_mazeV1` |
+| - | ********** | ********************** | ********************** |
+| 8 | `test_agent.ipynb` | **REACT V1** | Re-run step 3. to prepare environment, then run cell with `agent_name="react_ccrs_mazeV1"` |
+| 9 | Browser | Export and reset after the run | `Reset Store` -> `Export logs`; save the NDJSON file into `S:\dev\ma\ccrs-react\experiments\runs\latest`; confirm reset |
+| 10 | `\ccrs-react` | Stage the logs | `powershell -ExecutionPolicy Bypass -File experiments\scripts\import-manual-run.ps1 -BatchId react-baseline-vs-ccrs-v1 -RunId 400-baseline -AgentName react_ccrs_mazeV1` |
+| - | ********** | ********************** | ********************** |
+| 11 | `\ccrs-react` | **GENERATE REPORT** | `powershell -ExecutionPolicy Bypass -File experiments\scripts\write-report.ps1 -BatchId react-baseline-vs-ccrs-v1` |
 
-```powershell
-S:\anaconda\agent\python.exe main.py --graph-name graph --agent-name react_baseline_1 --log-level INFO
-```
+### MASE Scenario V2
 
-Export MASE viewer events into [runs/latest](runs/latest), then import the run:
+| Step | Where | Action | Command or UI action |
+| ---: | --- | --- | --- |
+| 1 | `\ccrs-react` | Prepare the staging folder | `powershell -ExecutionPolicy Bypass -File experiments\scripts\prepare-current-run.ps1` |
+| - | ********** | ********************** | ********************** |
+| 2 | `\mase` | Start MASE server (configure scenario in .properties) and viewer | `docker compose -f docker-compose.ccrs.yml --profile viewer up --build -d mase-viewer` |
+| 3 | `\mase` | Start CCRS scenario services for the run | `docker compose -f docker-compose.ccrs.yml up --build -d ccrs-agent keyholder-agent` |
+| 4 | Browser | Open the viewer | `http://localhost:3000` |
+| - | ********** | ********************** | ********************** |
+| 5 | `test_agent.ipynb` | **BASELINE V2** | `agent_name="react_baseline_mazeV2"` |
+| 6 | Browser | Export and reset after the run | `Reset Store` -> `Export logs`; save the NDJSON file into `S:\dev\ma\ccrs-react\experiments\runs\latest`; confirm reset |
+| 7 | `\ccrs-react` | Stage the logs | `powershell -ExecutionPolicy Bypass -File experiments\scripts\import-manual-run.ps1 -BatchId react-baseline-vs-ccrs-v2 -RunId 700-baseline -AgentName react_baseline_mazeV2` |
+| - | ********** | ********************** | ********************** |
+| 8 | `test_agent.ipynb` | **REACT V2** | Re-run step 3. to prepare environment, then run cell with `agent_name="react_ccrs_mazeV2"` |
+| 9 | Browser | Export and reset after the run | `Reset Store` -> `Export logs`; save the NDJSON file into `S:\dev\ma\ccrs-react\experiments\runs\latest`; confirm reset |
+| 10 | `\ccrs-react` | Stage the logs | `powershell -ExecutionPolicy Bypass -File experiments\scripts\import-manual-run.ps1 -BatchId react-baseline-vs-ccrs-v2 -RunId 800-baseline -AgentName react_ccrs_mazeV2` |
+| - | ********** | ********************** | ********************** |
+| 11 | `\ccrs-react` | **GENERATE REPORT** | `powershell -ExecutionPolicy Bypass -File experiments\scripts\write-report.ps1 -BatchId react-baseline-vs-ccrs-v2` |
 
-```powershell
-powershell -ExecutionPolicy Bypass -File experiments\scripts\import-manual-run.ps1 `
-  -BatchId react-baseline-vs-ccrs-v1 `
-  -RunId 001-baseline `
-  -AgentName react_baseline_1
-```
-
-Repeat staging, running, MASE export, and import for the CCRS agent:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File experiments\scripts\prepare-current-run.ps1
-
-S:\anaconda\agent\python.exe main.py --graph-name graph_ccrs --enable-contingency-escalation-tool --agent-name react_ccrs_1 --log-level INFO
-
-powershell -ExecutionPolicy Bypass -File experiments\scripts\import-manual-run.ps1 `
-  -BatchId react-baseline-vs-ccrs-v1 `
-  -RunId 002-ccrs `
-  -AgentName react_ccrs_1 `
-  -EnableContingencyEscalationTool
-```
-
-Generate the report. This refreshes normalized CSV artifacts first, then writes
-`summary.md` and `summary.json`:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File experiments\scripts\write-report.ps1 -BatchId react-baseline-vs-ccrs-v1
-```
 
 ## Run Package Shape
 
