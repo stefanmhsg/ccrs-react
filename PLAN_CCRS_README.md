@@ -51,6 +51,7 @@ The goal is to make the Python ReAct/LangGraph agent consume the reusable Java C
 - [x] (2026-06-07) Hardened JPype classpath stability for local CCRS SNAPSHOT jars by loading fingerprinted temp copies and validating the Backtrack nested runtime class before long-running contingency runs.
 - [x] (2026-06-07) Added a Python-side `contingency_configuration` bridge that maps React adapter dictionaries to Java `ContingencyConfiguration` before constructing Java contingency CCRS.
 - [x] (2026-06-12) Hardened default HTTP-error contingency situations so Package C supplies generic message-derived `current_resource` and Java-compatible `httpStatus` without changing Java CCRS strategy ownership.
+- [x] (2026-06-26) Added a `unittest` live A2A contingency smoke that skips unless the local key-holder agent card endpoint is running, then invokes Java contingency CCRS through the consultation strategy and verifies the projected blue-key `post` suggestion.
 - [x] Continue contingency CCRS adapter design discussion; current working notes are recorded in the `Contingency CCRS Design Discussion` section.
 - [x] Implement first-pass contingency CCRS escalation for explicit LLM escalation and repeated tool invocation failures. Richer semantic escalation remains a controller customization concern.
 - [x] Ensure the same `InMemoryCcrsTraceHistory` instance survives across contingency CCRS cycles when graph routing is implemented.

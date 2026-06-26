@@ -190,8 +190,20 @@ class CcrsJavaRuntime:
                     {"classpath_entries": len(classpath)},
                 )
                 jpype.startJVM(classpath=classpath, convertStrings=True)
+            self.configure_thread_context_classloader(jpype)
             self.configure_java_logging(jpype, log, log_prefix)
         return jpype
+
+    def configure_thread_context_classloader(self, jpype: Any) -> None:
+        """Expose JPype's dynamic classpath to Java APIs that use ServiceLoader."""
+
+        try:
+            class_loader = jpype.JClass("org.jpype.JPypeContext").getInstance().getClassLoader()
+            jpype.JClass("java.lang.Thread").currentThread().setContextClassLoader(class_loader)
+        except Exception as exc:
+            raise CcrsJavaRuntimeError(
+                "Failed to configure Java thread context classloader for CCRS runtime."
+            ) from exc
 
     def resolve_classpath(self, audit_event_namespace: str) -> list[Path]:
         """Resolve the CCRS module jar and declared runtime dependencies."""
