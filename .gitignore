@@ -1,6 +1,9 @@
 .env
 
 *.log
+!experiments/
+!experiments/runs/
+!experiments/runs/**/*.log
 
 .vscode/
 __pycache__/
