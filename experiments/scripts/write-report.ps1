@@ -607,13 +607,13 @@ function Get-ScenarioReportMetadata {
     if ($BatchName -match "(?i)((^|[-_])v1($|[-_])|mazev1)") {
         return [pscustomobject][ordered]@{
             name = "CcrsMazeV1"
-            description = "Scenario CcrsMazeV1 contains 3 locked cells. The baseline agent cannot complete the maze because it has no recovery mechanism for lock interactions. This scenario tests whether CCRS enables completion through contingency recovery, and separates normal opportunistic guidance from expensive contingency invocations."
-            optimal_moves = 138
+            description = "Scenario CcrsMazeV1 contains no locked cells. It is the baseline traversal scenario: both agents can reach the exit without contingency recovery, so the comparison focuses on path efficiency, opportunistic CCRS influence, movement count, and normal cycle-time overhead."
+            optimal_moves = 116
             exit_cell = "http://127.0.1.1:8080/cells/999"
             zone_optimal_moves = @{
-                signifier = 19
+                signifier = 17
                 stigmergy = 24
-                mixed = 57
+                mixed = 37
                 "construction-site" = 19
                 social = 19
             }
@@ -623,13 +623,13 @@ function Get-ScenarioReportMetadata {
     if ($BatchName -match "(?i)((^|[-_])v2($|[-_])|mazev2)") {
         return [pscustomobject][ordered]@{
             name = "CcrsMazeV2"
-            description = "Scenario CcrsMazeV2 contains no locked cells. It is the baseline traversal scenario: both agents can reach the exit without contingency recovery, so the comparison focuses on path efficiency, opportunistic CCRS influence, movement count, and normal cycle-time overhead."
-            optimal_moves = 116
+            description = "Scenario CcrsMazeV2 contains 3 locked cells. The baseline agent cannot complete the maze because it has no recovery mechanism for lock interactions. This scenario tests whether CCRS enables completion through contingency recovery, and separates normal opportunistic guidance from expensive contingency invocations."
+            optimal_moves = 138
             exit_cell = "http://127.0.1.1:8080/cells/999"
             zone_optimal_moves = @{
-                signifier = 17
+                signifier = 19
                 stigmergy = 24
-                mixed = 37
+                mixed = 57
                 "construction-site" = 19
                 social = 19
             }

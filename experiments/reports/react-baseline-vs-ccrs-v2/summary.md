@@ -1,6 +1,6 @@
 ﻿# React Experiment Summary: react-baseline-vs-ccrs-v2
 
-Generated: 2026-06-27 18:02:43 +02:00
+Generated: 2026-06-27 18:16:42 +02:00
 
 Run root: `S:\dev\ma\ccrs-react\experiments\runs\react-baseline-vs-ccrs-v2`
 
@@ -17,8 +17,8 @@ Metric definitions: [METRICS.md](../../METRICS.md)
 
 | Run | Agent | Optimal moves | Actual moves | Delta from optimal |
 | --- | --- | --- | --- | --- |
-| `700-baseline` | react_baseline_mazeV2 | 116 | 230 | - |
-| `800-ccrs` | react_ccrs_mazeV2 | 116 | 193 | 77 |
+| `700-baseline` | react_baseline_mazeV2 | 138 | 230 | - |
+| `800-ccrs` | react_ccrs_mazeV2 | 138 | 193 | 55 |
 
 ## Move Duration Summary
 
@@ -148,8 +148,8 @@ Starts at run start and completes when the agent enters `cells/13/5`.
 
 | Run | Optimal moves | Actual moves | Delta from optimal |
 | --- | --- | --- | --- |
-| `700-baseline` | 17 | 230 | - |
-| `800-ccrs` | 17 | 40 | 23 |
+| `700-baseline` | 19 | 230 | - |
+| `800-ccrs` | 19 | 40 | 21 |
 
 #### Cycle Duration Chart
 
@@ -215,8 +215,8 @@ Starts after `cells/28/14` and completes when the agent enters `cells/36/37`.
 
 | Run | Optimal moves | Actual moves | Delta from optimal |
 | --- | --- | --- | --- |
-| `700-baseline` | 37 | 0 | - |
-| `800-ccrs` | 37 | 81 | 44 |
+| `700-baseline` | 57 | 0 | - |
+| `800-ccrs` | 57 | 81 | 24 |
 
 #### Cycle Duration Chart
 

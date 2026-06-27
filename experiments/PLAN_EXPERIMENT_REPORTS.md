@@ -76,6 +76,7 @@ The first target is a manual and auditable workflow rather than a fully automate
 - [x] (2026-06-07 20:50Z) Split React timing into `Move Duration Summary/Chart` and `Cycle Duration Summary/Chart`; added `move-durations.csv` and structured `react.loop.cycle` logging for future baseline and CCRS loop-cycle timing.
 - [x] (2026-06-27 15:17Z) Fixed cycle-duration aggregation so `react.loop.cycle` timing rows keep same-cycle CCRS metadata from prompt-context and selection events, enabling `CCRS opp N avg ms` buckets in generated reports.
 - [x] (2026-06-27 17:05Z) Fixed contingency invocation duration attribution so `CCRS cont invocation N avg ms` uses the first React loop-cycle duration after the contingency activation event, rather than the normal-duration activation cycle itself.
+- [x] (2026-06-27 17:25Z) Corrected the scenario metadata mapping: `CcrsMazeV1` is the unlocked traversal scenario with 116 optimal moves, and `CcrsMazeV2` is the 3-locked-cell contingency scenario with 138 optimal moves.
 
 ## Surprises & Discoveries
 
@@ -114,6 +115,9 @@ The first target is a manual and auditable workflow rather than a fully automate
 
 - Observation: React contingency activation is logged before the expensive contingency work is visible in cycle timing.
   Evidence: In `react-baseline-vs-ccrs-v2`, activation cycle 84 has `duration_ms=3562`, while the next cycle 85 has `duration_ms=14138`; the same pattern repeats for later activations. Therefore `CCRS cont invocation N avg ms` must select the first cycle row after the activation cycle.
+
+- Observation: The React report script had the `CcrsMazeV1` and `CcrsMazeV2` scenario metadata reversed.
+  Evidence: The user clarified that V1 is the no-locked-cells traversal scenario and V2 is the 3-locked-cell contingency scenario. Before the 2026-06-27 correction, [write-report.ps1](scripts/write-report.ps1) assigned the locked-cell description and 138 optimal moves to V1, and the unlocked traversal description and 116 optimal moves to V2.
 
 ## Decision Log
 
@@ -453,7 +457,7 @@ Concrete steps: Start by porting the BDI zone definitions and windowing algorith
 
 Validation and acceptance: Running `powershell -ExecutionPolicy Bypass -File experiments\scripts\write-report.ps1 -BatchId react-baseline-vs-ccrs-v2` should produce `zone-summary.csv`, zone cycle charts for zones with timing rows, and a `## Zone Metrics` section with exactly five subsections in BDI order. `react-baseline-vs-ccrs-v2` should show completion through the final reached zone for each run and should use React advisory-follow metrics instead of BDI overrule metrics.
 
-Outcome and notes: Implemented 2026-06-27 in [write-report.ps1](scripts/write-report.ps1). The report now writes `zone-summary.csv`, emits five `zone-cycle-duration-<zone>.svg` charts when cycle rows exist, and inserts a `## Zone Metrics` section before generated artifacts. BDI overrule tables were not copied; React zone sections use advisory-follow rank evidence from `decisions.csv` joined to `opportunistic.csv`. Validation on `react-baseline-vs-ccrs-v2` produced 10 zone summary rows and 5 zone cycle charts. The baseline run did not reach `cells/13/5`, so it appears as incomplete in the signifier zone with all 230 successful moves assigned to that first zone and zero rows for later zones.
+Outcome and notes: Implemented 2026-06-27 in [write-report.ps1](scripts/write-report.ps1). The report now writes `zone-summary.csv`, emits five `zone-cycle-duration-<zone>.svg` charts when cycle rows exist, and inserts a `## Zone Metrics` section before generated artifacts. BDI overrule tables were not copied; React zone sections use advisory-follow rank evidence from `decisions.csv` joined to `opportunistic.csv`. Validation on `react-baseline-vs-ccrs-v2` produced 10 zone summary rows and 5 zone cycle charts. The baseline run did not reach `cells/13/5`, so it appears as incomplete in the signifier zone with all 230 successful moves assigned to that first zone and zero rows for later zones. Scenario optimal metadata was corrected later on 2026-06-27 so `react-baseline-vs-ccrs-v2` uses the 3-locked-cell V2 totals and zone optimal move counts.
 
 ## Validation and Acceptance
 
@@ -575,4 +579,6 @@ Revision note 2026-06-27 / Codex: Removed the deferred workflow-automation and c
 Revision note 2026-06-27 / Codex: Completed WP6. React reports now generate `zone-summary.csv`, five zone cycle-duration SVGs, and a `## Zone Metrics` summary section. Recorded the React-specific zone mapping decision: MASE movement boundaries define zone completion and movement counts; React log-line windows attach loop-cycle and advisory CCRS evidence to those zones.
 
 Revision note 2026-06-27 / Codex: Corrected `CCRS cont invocation N avg ms` attribution across whole-run and zone summaries. The report now measures the first loop-cycle duration after a contingency activation, matching where React records the expensive contingency work in `cycle-durations.csv`.
+
+Revision note 2026-06-27 / Codex: Corrected reversed `CcrsMazeV1`/`CcrsMazeV2` scenario metadata in the report writer and metrics documentation. V1 is now the no-locked-cells traversal scenario with 116 optimal moves; V2 is now the 3-locked-cell contingency scenario with 138 optimal moves.
 

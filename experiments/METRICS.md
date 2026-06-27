@@ -90,7 +90,7 @@ import time.
 The scenario-specific optimal move count supplied through
 `scripts/import-manual-run.ps1 -OptimalMoves`. If that metadata is blank, the
 report falls back to the same scenario metadata as the BDI writer:
-`CcrsMazeV1=138` and `CcrsMazeV2=116`.
+`CcrsMazeV1=116` and `CcrsMazeV2=138`.
 
 Source: `runs.csv` column `optimal_moves` or batch-name scenario metadata.
 
@@ -327,7 +327,7 @@ run-zone pair. Its main columns are:
 | `average_move_duration_ms` | Mean move-to-move duration for included movement rows. |
 | `react_cycle_count` | Count of React loop-cycle rows attached to the zone log-line window. |
 | `average_cycle_duration_ms` | Mean `duration_ms` for attached React loop-cycle rows. |
-| `optimal_moves` | Scenario-specific zone optimal move count. `CcrsMazeV1`: signifier 19, stigmergy 24, mixed 57, construction site 19, social 19. `CcrsMazeV2`: signifier 17, stigmergy 24, mixed 37, construction site 19, social 19. |
+| `optimal_moves` | Scenario-specific zone optimal move count. `CcrsMazeV1`: signifier 17, stigmergy 24, mixed 37, construction site 19, social 19. `CcrsMazeV2`: signifier 19, stigmergy 24, mixed 57, construction site 19, social 19. |
 | `move_delta_from_optimal` | `actual_moves - optimal_moves`, only when the zone completed. |
 | `selection_count` | Count of `react.ccrs.opportunistic.selection` rows in the zone log-line window. |
 | `followed_top_opportunistic_count` | Count of zone selection rows where the selected URI matched the highest-ranked prompt-visible opportunistic target. |
