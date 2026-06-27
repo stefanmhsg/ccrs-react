@@ -74,6 +74,7 @@ The first target is a manual and auditable workflow rather than a fully automate
 - [x] (2026-06-07 16:05Z) Confirmed additional option-set logging is unnecessary for the first advisory-follow metrics; reports infer rank buckets from existing selection events plus same-cycle opportunistic detection rows.
 - [x] (2026-06-07 17:10Z) Aligned the top-level React summary layout with the BDI report shape: core metrics, move optimality, cycle duration summary, advisory-follow evidence, and generated artifacts.
 - [x] (2026-06-07 20:50Z) Split React timing into `Move Duration Summary/Chart` and `Cycle Duration Summary/Chart`; added `move-durations.csv` and structured `react.loop.cycle` logging for future baseline and CCRS loop-cycle timing.
+- [x] (2026-06-27 15:17Z) Fixed cycle-duration aggregation so `react.loop.cycle` timing rows keep same-cycle CCRS metadata from prompt-context and selection events, enabling `CCRS opp N avg ms` buckets in generated reports.
 
 ## Surprises & Discoveries
 

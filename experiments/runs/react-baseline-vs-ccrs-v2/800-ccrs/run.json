@@ -1,6 +1,6 @@
 ﻿{
     "batchId":  "react-baseline-vs-ccrs-v2",
-    "runId":  "800-baseline",
+    "runId":  "800-ccrs",
     "agentName":  "react_ccrs_mazeV2",
     "agentNames":  [
                        "react_ccrs_mazeV2"

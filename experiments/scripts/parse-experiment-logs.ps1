@@ -262,8 +262,11 @@ function Add-CycleEvent {
     if ($EventName -eq "react.ccrs.opportunistic.detected") {
         $row.opportunistic_detected_count++
     }
-    if ($EventName -eq "react.ccrs.prompt_context.visible") {
-        $row.opportunistic_prompt_visible_count += [int](Get-MapValue $Fields "opportunistic_count" 0)
+    if ($EventName -eq "react.ccrs.prompt_context.visible" -or $EventName -eq "react.ccrs.opportunistic.selection") {
+        $opportunisticCount = [int](Get-MapValue $Fields "opportunistic_count" 0)
+        if ($opportunisticCount -gt [int]$row.opportunistic_prompt_visible_count) {
+            $row.opportunistic_prompt_visible_count = $opportunisticCount
+        }
     }
     if ($EventName -eq "react.ccrs.opportunistic.selection") {
         $row.selection_count++
@@ -273,6 +276,30 @@ function Add-CycleEvent {
     }
     if ($EventName -like "react.ccrs.opportunistic_guidance_by_contingency_ccrs.*") {
         $row.contingency_guidance_event_count++
+    }
+}
+
+function Merge-CycleMetadata {
+    param(
+        [hashtable]$TargetCycles,
+        [hashtable]$MetadataCycles
+    )
+
+    foreach ($key in $MetadataCycles.Keys) {
+        if (-not $TargetCycles.ContainsKey($key)) {
+            continue
+        }
+        $target = $TargetCycles[$key]
+        $metadata = $MetadataCycles[$key]
+
+        $target.event_count += $metadata.event_count
+        $target.opportunistic_detected_count += $metadata.opportunistic_detected_count
+        if ([int]$metadata.opportunistic_prompt_visible_count -gt [int]$target.opportunistic_prompt_visible_count) {
+            $target.opportunistic_prompt_visible_count = $metadata.opportunistic_prompt_visible_count
+        }
+        $target.selection_count += $metadata.selection_count
+        $target.contingency_event_count += $metadata.contingency_event_count
+        $target.contingency_guidance_event_count += $metadata.contingency_guidance_event_count
     }
 }
 
@@ -976,6 +1003,9 @@ foreach ($runDir in Get-ChildItem -Path $runRootPath -Directory | Sort-Object Na
         })
     }
 
+    if ($loopCycles.Count -gt 0) {
+        Merge-CycleMetadata -TargetCycles $loopCycles -MetadataCycles $cycles
+    }
     $cycleSource = if ($loopCycles.Count -gt 0) { $loopCycles } else { $cycles }
     $sortedCycles = @($cycleSource.Values | Sort-Object @{ Expression = { [int]$_.cycle } })
     if ($sortedCycles.Count -gt 0) {

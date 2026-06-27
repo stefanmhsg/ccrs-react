@@ -1,6 +1,6 @@
 ﻿# React Experiment Summary: react-baseline-vs-ccrs-v2
 
-Generated: 2026-06-27 16:43:00 +02:00
+Generated: 2026-06-27 17:17:17 +02:00
 
 Run root: `S:\dev\ma\ccrs-react\experiments\runs\react-baseline-vs-ccrs-v2`
 
@@ -11,20 +11,20 @@ Metric definitions: [METRICS.md](../../METRICS.md)
 | Run | Agent | Mode | Reached exit | Total duration ms | Total moves | Avg move duration | Final cell |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `700-baseline` | react_baseline_mazeV2 | manual | no | 2575577 | 230 | 11247.06 | `http://127.0.1.1:8080/cells/5/7` |
-| `800-baseline` | react_ccrs_mazeV2 | manual | yes | 2147139 | 193 | 11183.02 | `http://127.0.1.1:8080/cells/999` |
+| `800-ccrs` | react_ccrs_mazeV2 | manual | yes | 2147139 | 193 | 11183.02 | `http://127.0.1.1:8080/cells/999` |
 
 ## Move Optimality
 
 | Run | Agent | Optimal moves | Actual moves | Delta from optimal |
 | --- | --- | --- | --- | --- |
 | `700-baseline` | react_baseline_mazeV2 | 116 | 230 | - |
-| `800-baseline` | react_ccrs_mazeV2 | 116 | 193 | 77 |
+| `800-ccrs` | react_ccrs_mazeV2 | 116 | 193 | 77 |
 
 ## Move Duration Summary
 
 | Baseline move avg ms | CCRS move avg ms |
 | --- | --- |
-| 11217.85 | - |
+| 11247.06 | 11183.02 |
 
 Move averages use move-durations.csv, derived from move-action-correlation.csv. HTTP calls use the same move windows and are plotted separately.
 
@@ -42,9 +42,9 @@ X-axis is movement step number; y-axis is linear HTTP calls from 0 to 35 in 2-ca
 
 ## Cycle Duration Summary
 
-| Baseline cycle avg ms | CCRS cycle avg ms | CCRS opp 0 avg ms | CCRS cont invocation 1 avg ms | CCRS cont invocation 2 avg ms | CCRS cont invocation 3 avg ms | CCRS cont invocation 4 avg ms | CCRS cont invocation 5 avg ms | CCRS cont invocation 6 avg ms | CCRS cont invocation 7 avg ms |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2946.75 | - | - | 3562 | 3608 | 4546 | 2976 | 3600 | 3939 | 4652 |
+| Baseline cycle avg ms | CCRS cycle avg ms | CCRS opp 0 avg ms | CCRS opp 1 avg ms | CCRS opp 2 avg ms | CCRS opp 3 avg ms | CCRS opp 4 avg ms | CCRS cont invocation 1 avg ms | CCRS cont invocation 2 avg ms | CCRS cont invocation 3 avg ms | CCRS cont invocation 4 avg ms | CCRS cont invocation 5 avg ms | CCRS cont invocation 6 avg ms | CCRS cont invocation 7 avg ms |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2582.85 | 3544.29 | 3790.28 | 3047.44 | 3202.64 | 3055.6 | 3742 | 3562 | 3608 | 4546 | 2976 | 3600 | 3939 | 4652 |
 
 Cycle averages use `cycle-durations.csv`. Fresh runs populate this from `react.loop.cycle` events emitted from the React state cycle channel; historical CCRS-only rows may fall back to older structured CCRS cycle events. Opportunistic CCRS cycle averages exclude cycles where contingency CCRS was activated.
 
@@ -58,17 +58,17 @@ X-axis is React loop-cycle step number with ticks every 100 cycles; y-axis is lo
 
 | Run | Opp CCRS present | Selections | Selected rank 1 (highest) | Selected rank 2 | Selected rank 3 | Selected rank 4 | Selected none | Rank unavailable |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `800-baseline` | 0 | 376 | - | - | - | - | - | - |
-| `800-baseline` | 1 | 73 | 54 | - | - | - | 19 | 0 |
-| `800-baseline` | 2 | 138 | 66 | 12 | - | - | 60 | 0 |
-| `800-baseline` | 3 | 20 | 11 | 4 | 2 | - | 3 | 0 |
-| `800-baseline` | 4 | 3 | 1 | 1 | 0 | 1 | 0 | 0 |
+| `800-ccrs` | 0 | 376 | - | - | - | - | - | - |
+| `800-ccrs` | 1 | 73 | 54 | - | - | - | 19 | 0 |
+| `800-ccrs` | 2 | 138 | 66 | 12 | - | - | 60 | 0 |
+| `800-ccrs` | 3 | 20 | 11 | 4 | 2 | - | 3 | 0 |
+| `800-ccrs` | 4 | 3 | 1 | 1 | 0 | 1 | 0 | 0 |
 
 Ranks are inferred by joining each selection to `react.ccrs.opportunistic.detected` rows in the same run and cycle, ordered by descending utility. `Selected none` means the selected URI matched none of those ranked opportunistic targets.
 
 ## Contingency CCRS Details
 
-### Invocation 1: `800-baseline`
+### Invocation 1: `800-ccrs`
 
 | Strategy | Result | Action | Target | Confidence | Eval ms | Opportunistic guidance | No-help reason | Rationale |
 | --- | --- | --- | --- | ---: | ---: | --- | --- | --- |
@@ -77,7 +77,7 @@ Ranks are inferred by joining each selection to `react.ccrs.opportunistic.detect
 | `backtrack` | none | - | - | - | 0 | False | - | situation=UNCERTAINTY; trigger=unexpected_structure |
 | `consultation` | none | - | - | - | 12 | False | - | situation=UNCERTAINTY; trigger=unexpected_structure |
 
-### Invocation 2: `800-baseline`
+### Invocation 2: `800-ccrs`
 
 | Strategy | Result | Action | Target | Confidence | Eval ms | Opportunistic guidance | No-help reason | Rationale |
 | --- | --- | --- | --- | ---: | ---: | --- | --- | --- |
@@ -86,7 +86,7 @@ Ranks are inferred by joining each selection to `react.ccrs.opportunistic.detect
 | `backtrack` | none | - | - | - | 0 | False | - | situation=UNCERTAINTY; trigger=llm_self_escalation |
 | `consultation` | none | - | - | - | 6 | False | - | situation=UNCERTAINTY; trigger=llm_self_escalation |
 
-### Invocation 3: `800-baseline`
+### Invocation 3: `800-ccrs`
 
 | Strategy | Result | Action | Target | Confidence | Eval ms | Opportunistic guidance | No-help reason | Rationale |
 | --- | --- | --- | --- | ---: | ---: | --- | --- | --- |
@@ -95,7 +95,7 @@ Ranks are inferred by joining each selection to `react.ccrs.opportunistic.detect
 | `backtrack` | none | - | - | - | 0 | False | - | situation=UNCERTAINTY; trigger=llm_self_escalation |
 | `consultation` | none | - | - | - | 6 | False | - | situation=UNCERTAINTY; trigger=llm_self_escalation |
 
-### Invocation 4: `800-baseline`
+### Invocation 4: `800-ccrs`
 
 | Strategy | Result | Action | Target | Confidence | Eval ms | Opportunistic guidance | No-help reason | Rationale |
 | --- | --- | --- | --- | ---: | ---: | --- | --- | --- |
@@ -104,7 +104,7 @@ Ranks are inferred by joining each selection to `react.ccrs.opportunistic.detect
 | `backtrack` | no_help | - | - | - | 96 | False | PRECONDITION_MISSING | All checkpoints exceed maximum graph distance; situation=FAILURE; trigger=consecutive_http_api_errors; failed_action=http_get |
 | `consultation` | none | - | - | - | 2 | False | - | situation=FAILURE; trigger=consecutive_http_api_errors; failed_action=http_get |
 
-### Invocation 5: `800-baseline`
+### Invocation 5: `800-ccrs`
 
 | Strategy | Result | Action | Target | Confidence | Eval ms | Opportunistic guidance | No-help reason | Rationale |
 | --- | --- | --- | --- | ---: | ---: | --- | --- | --- |
@@ -113,7 +113,7 @@ Ranks are inferred by joining each selection to `react.ccrs.opportunistic.detect
 | `backtrack` | none | - | - | - | 0 | False | - | situation=UNCERTAINTY; trigger=unexpected_structure |
 | `consultation` | none | - | - | - | 5 | False | - | situation=UNCERTAINTY; trigger=unexpected_structure |
 
-### Invocation 6: `800-baseline`
+### Invocation 6: `800-ccrs`
 
 | Strategy | Result | Action | Target | Confidence | Eval ms | Opportunistic guidance | No-help reason | Rationale |
 | --- | --- | --- | --- | ---: | ---: | --- | --- | --- |
@@ -122,7 +122,7 @@ Ranks are inferred by joining each selection to `react.ccrs.opportunistic.detect
 | `retry` | none | - | - | - | 0 | False | - | situation=UNCERTAINTY; trigger=unexpected_structure |
 | `backtrack` | none | - | - | - | 0 | False | - | situation=UNCERTAINTY; trigger=unexpected_structure |
 
-### Invocation 7: `800-baseline`
+### Invocation 7: `800-ccrs`
 
 | Strategy | Result | Action | Target | Confidence | Eval ms | Opportunistic guidance | No-help reason | Rationale |
 | --- | --- | --- | --- | ---: | ---: | --- | --- | --- |
