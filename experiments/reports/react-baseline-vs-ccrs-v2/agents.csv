@@ -1,0 +1,3 @@
+﻿"batch_id","run_id","agent","move_count","first_cell","final_cell"
+"react-baseline-vs-ccrs-v2","700-baseline","http://127.0.1.1:8080/agents/react_baseline_mazeV2","230","http://127.0.1.1:8080/cells/0","http://127.0.1.1:8080/cells/5/7"
+"react-baseline-vs-ccrs-v2","800-baseline","http://127.0.1.1:8080/agents/react_ccrs_mazeV2","193","http://127.0.1.1:8080/cells/0","http://127.0.1.1:8080/cells/999"
