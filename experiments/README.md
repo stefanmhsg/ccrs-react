@@ -45,7 +45,7 @@ Use this table as the manual experiment loop.
 | - | ********** | ********************** | ********************** |
 | 8 | `test_agent.ipynb` | **REACT V2** | Re-run step 3. to prepare environment, then run cell with `agent_name="react_ccrs_mazeV2"` |
 | 9 | Browser | Export and reset after the run | `Reset Store` -> `Export logs`; save the NDJSON file into `S:\dev\ma\ccrs-react\experiments\runs\latest`; confirm reset |
-| 10 | `\ccrs-react` | Stage the logs | `powershell -ExecutionPolicy Bypass -File experiments\scripts\import-manual-run.ps1 -BatchId react-baseline-vs-ccrs-v2 -RunId 800-baseline -AgentName react_ccrs_mazeV2` |
+| 10 | `\ccrs-react` | Stage the logs | `powershell -ExecutionPolicy Bypass -File experiments\scripts\import-manual-run.ps1 -BatchId react-baseline-vs-ccrs-v2 -RunId 800-ccrs -AgentName react_ccrs_mazeV2` |
 | - | ********** | ********************** | ********************** |
 | 11 | `\ccrs-react` | **GENERATE REPORT** | `powershell -ExecutionPolicy Bypass -File experiments\scripts\write-report.ps1 -BatchId react-baseline-vs-ccrs-v2` |
 
