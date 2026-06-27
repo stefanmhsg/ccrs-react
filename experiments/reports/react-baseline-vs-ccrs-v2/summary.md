@@ -1,6 +1,6 @@
 ﻿# React Experiment Summary: react-baseline-vs-ccrs-v2
 
-Generated: 2026-06-27 17:17:17 +02:00
+Generated: 2026-06-27 18:02:43 +02:00
 
 Run root: `S:\dev\ma\ccrs-react\experiments\runs\react-baseline-vs-ccrs-v2`
 
@@ -44,9 +44,9 @@ X-axis is movement step number; y-axis is linear HTTP calls from 0 to 35 in 2-ca
 
 | Baseline cycle avg ms | CCRS cycle avg ms | CCRS opp 0 avg ms | CCRS opp 1 avg ms | CCRS opp 2 avg ms | CCRS opp 3 avg ms | CCRS opp 4 avg ms | CCRS cont invocation 1 avg ms | CCRS cont invocation 2 avg ms | CCRS cont invocation 3 avg ms | CCRS cont invocation 4 avg ms | CCRS cont invocation 5 avg ms | CCRS cont invocation 6 avg ms | CCRS cont invocation 7 avg ms |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2582.85 | 3544.29 | 3790.28 | 3047.44 | 3202.64 | 3055.6 | 3742 | 3562 | 3608 | 4546 | 2976 | 3600 | 3939 | 4652 |
+| 2582.85 | 3544.29 | 3790.28 | 3047.44 | 3202.64 | 3055.6 | 3742 | 14138 | 21258 | 15998 | 15219 | 12293 | 18278 | 37661 |
 
-Cycle averages use `cycle-durations.csv`. Fresh runs populate this from `react.loop.cycle` events emitted from the React state cycle channel; historical CCRS-only rows may fall back to older structured CCRS cycle events. Opportunistic CCRS cycle averages exclude cycles where contingency CCRS was activated.
+Cycle averages use `cycle-durations.csv`. Fresh runs populate this from `react.loop.cycle` events emitted from the React state cycle channel; historical CCRS-only rows may fall back to older structured CCRS cycle events. Opportunistic CCRS cycle averages exclude cycles where contingency CCRS was activated. Contingency invocation averages use the first loop-cycle duration after each activation event, because that is where the expensive contingency work appears in React cycle timing.
 
 ## Cycle Duration Chart
 
@@ -131,6 +131,179 @@ Ranks are inferred by joining each selection to `react.ccrs.opportunistic.detect
 | `backtrack` | none | - | - | - | 0 | False | - | situation=UNCERTAINTY; trigger=unexpected_adjacency_count |
 | `consultation` | none | - | - | - | 1 | False | - | situation=UNCERTAINTY; trigger=unexpected_adjacency_count |
 
+## Zone Metrics
+
+Zone windows use the BDI completion cells, with completion checked from filtered MASE movement rows. React loop cycles, selections, opportunistic detections, and contingency activations are attached to a zone by React log-line windows derived from the successful movement action that enters each boundary cell.
+
+### Signifier Zone
+
+Starts at run start and completes when the agent enters `cells/13/5`.
+
+| Run | Agent | Completed | Move duration ms | Moves | Avg move ms | React cycles | Avg cycle ms | Final cell |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `700-baseline` | react_baseline_mazeV2 | no | 2575577 | 230 | 11247.06 | 1001 | 2582.85 | `cells/5/7` |
+| `800-ccrs` | react_ccrs_mazeV2 | yes | 275534 | 40 | 7064.97 | 87 | 3262.62 | `cells/13/5` |
+
+#### Move Optimality
+
+| Run | Optimal moves | Actual moves | Delta from optimal |
+| --- | --- | --- | --- |
+| `700-baseline` | 17 | 230 | - |
+| `800-ccrs` | 17 | 40 | 23 |
+
+#### Cycle Duration Chart
+
+![Cycle duration inside Signifier Zone](zone-cycle-duration-signifier.svg)
+
+#### Cycle Duration Summary
+
+| Baseline cycle avg ms | CCRS cycle avg ms | CCRS opp 0 avg ms | CCRS opp 1 avg ms | CCRS cont invocation 1 avg ms |
+| --- | --- | --- | --- | --- |
+| 2582.85 | 3262.62 | 3563.11 | 2672.03 | 14138 |
+
+#### Advisory-Follow Evidence
+
+| Run | Opp CCRS present | Selections | Selected rank 1 (highest) | Selected rank 2 | Selected rank 3 | Selected rank 4 | Selected none | Rank unavailable |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `800-ccrs` | 0 | 58 | - | - | - | - | - | - |
+| `800-ccrs` | 1 | 29 | 29 | - | - | - | 0 | 0 |
+
+### Stigmergy Zone
+
+Starts after `cells/13/5` and completes when the agent enters `cells/28/14`.
+
+| Run | Agent | Completed | Move duration ms | Moves | Avg move ms | React cycles | Avg cycle ms | Final cell |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `700-baseline` | react_baseline_mazeV2 | no | - | 0 | - | 0 | - | - |
+| `800-ccrs` | react_ccrs_mazeV2 | yes | 156973 | 24 | 6540.54 | 48 | 3270.27 | `cells/28/14` |
+
+#### Move Optimality
+
+| Run | Optimal moves | Actual moves | Delta from optimal |
+| --- | --- | --- | --- |
+| `700-baseline` | 24 | 0 | - |
+| `800-ccrs` | 24 | 24 | 0 |
+
+#### Cycle Duration Chart
+
+![Cycle duration inside Stigmergy Zone](zone-cycle-duration-stigmergy.svg)
+
+#### Cycle Duration Summary
+
+| Baseline cycle avg ms | CCRS cycle avg ms | CCRS opp 0 avg ms | CCRS opp 1 avg ms | CCRS opp 2 avg ms |
+| --- | --- | --- | --- | --- |
+| - | 3270.27 | 3754.83 | 2832.17 | 2646.33 |
+
+#### Advisory-Follow Evidence
+
+| Run | Opp CCRS present | Selections | Selected rank 1 (highest) | Selected rank 2 | Selected rank 3 | Selected rank 4 | Selected none | Rank unavailable |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `800-ccrs` | 0 | 24 | - | - | - | - | - | - |
+| `800-ccrs` | 1 | 18 | 18 | - | - | - | 0 | 0 |
+| `800-ccrs` | 2 | 6 | 6 | 0 | - | - | 0 | 0 |
+
+### Mixed Zone
+
+Starts after `cells/28/14` and completes when the agent enters `cells/36/37`.
+
+| Run | Agent | Completed | Move duration ms | Moves | Avg move ms | React cycles | Avg cycle ms | Final cell |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `700-baseline` | react_baseline_mazeV2 | no | - | 0 | - | 0 | - | - |
+| `800-ccrs` | react_ccrs_mazeV2 | yes | 1067941 | 81 | 13184.46 | 289 | 3695 | `cells/36/37` |
+
+#### Move Optimality
+
+| Run | Optimal moves | Actual moves | Delta from optimal |
+| --- | --- | --- | --- |
+| `700-baseline` | 37 | 0 | - |
+| `800-ccrs` | 37 | 81 | 44 |
+
+#### Cycle Duration Chart
+
+![Cycle duration inside Mixed Zone](zone-cycle-duration-mixed.svg)
+
+#### Cycle Duration Summary
+
+| Baseline cycle avg ms | CCRS cycle avg ms | CCRS opp 0 avg ms | CCRS opp 1 avg ms | CCRS opp 2 avg ms | CCRS opp 3 avg ms | CCRS opp 4 avg ms | CCRS cont invocation 1 avg ms | CCRS cont invocation 2 avg ms | CCRS cont invocation 3 avg ms | CCRS cont invocation 4 avg ms |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| - | 3695 | 4348.22 | 3792 | 3227.92 | 3055.6 | 3742 | 21258 | 15998 | 15219 | 12293 |
+
+#### Advisory-Follow Evidence
+
+| Run | Opp CCRS present | Selections | Selected rank 1 (highest) | Selected rank 2 | Selected rank 3 | Selected rank 4 | Selected none | Rank unavailable |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `800-ccrs` | 0 | 115 | - | - | - | - | - | - |
+| `800-ccrs` | 1 | 19 | 2 | - | - | - | 17 | 0 |
+| `800-ccrs` | 2 | 132 | 60 | 12 | - | - | 60 | 0 |
+| `800-ccrs` | 3 | 20 | 11 | 4 | 2 | - | 3 | 0 |
+| `800-ccrs` | 4 | 3 | 1 | 1 | 0 | 1 | 0 | 0 |
+
+### Construction Site Zone
+
+Starts after `cells/36/37` and completes when the agent enters `cells/39/43`.
+
+| Run | Agent | Completed | Move duration ms | Moves | Avg move ms | React cycles | Avg cycle ms | Final cell |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `700-baseline` | react_baseline_mazeV2 | no | - | 0 | - | 0 | - | - |
+| `800-ccrs` | react_ccrs_mazeV2 | yes | 209207 | 19 | 11010.89 | 60 | 3486.68 | `cells/39/43` |
+
+#### Move Optimality
+
+| Run | Optimal moves | Actual moves | Delta from optimal |
+| --- | --- | --- | --- |
+| `700-baseline` | 19 | 0 | - |
+| `800-ccrs` | 19 | 19 | 0 |
+
+#### Cycle Duration Chart
+
+![Cycle duration inside Construction Site Zone](zone-cycle-duration-construction-site.svg)
+
+#### Cycle Duration Summary
+
+| Baseline cycle avg ms | CCRS cycle avg ms | CCRS opp 0 avg ms | CCRS opp 1 avg ms |
+| --- | --- | --- | --- |
+| - | 3486.68 | 3503.53 | 3301.4 |
+
+#### Advisory-Follow Evidence
+
+| Run | Opp CCRS present | Selections | Selected rank 1 (highest) | Selected rank 2 | Selected rank 3 | Selected rank 4 | Selected none | Rank unavailable |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `800-ccrs` | 0 | 55 | - | - | - | - | - | - |
+| `800-ccrs` | 1 | 5 | 4 | - | - | - | 1 | 0 |
+
+### Social Zone
+
+Starts after `cells/39/43` and completes when the agent enters `cells/999`.
+
+| Run | Agent | Completed | Move duration ms | Moves | Avg move ms | React cycles | Avg cycle ms | Final cell |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `700-baseline` | react_baseline_mazeV2 | no | - | 0 | - | 0 | - | - |
+| `800-ccrs` | react_ccrs_mazeV2 | yes | 437484 | 29 | 15085.66 | 124 | 3528.18 | `cells/999` |
+
+#### Move Optimality
+
+| Run | Optimal moves | Actual moves | Delta from optimal |
+| --- | --- | --- | --- |
+| `700-baseline` | 19 | 0 | - |
+| `800-ccrs` | 19 | 29 | 10 |
+
+#### Cycle Duration Chart
+
+![Cycle duration inside Social Zone](zone-cycle-duration-social.svg)
+
+#### Cycle Duration Summary
+
+| Baseline cycle avg ms | CCRS cycle avg ms | CCRS opp 0 avg ms | CCRS opp 1 avg ms | CCRS cont invocation 1 avg ms | CCRS cont invocation 2 avg ms |
+| --- | --- | --- | --- | --- | --- |
+| - | 3528.18 | 3528.86 | 2720 | 18278 | 37661 |
+
+#### Advisory-Follow Evidence
+
+| Run | Opp CCRS present | Selections | Selected rank 1 (highest) | Selected rank 2 | Selected rank 3 | Selected rank 4 | Selected none | Rank unavailable |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `800-ccrs` | 0 | 122 | - | - | - | - | - | - |
+| `800-ccrs` | 1 | 2 | 1 | - | - | - | 1 | 0 |
+
 ## Generated Artifacts
 
 - `runs.csv`
@@ -147,9 +320,11 @@ Ranks are inferred by joining each selection to `react.ccrs.opportunistic.detect
 - `move-action-correlation.csv`
 - `move-durations.csv`
 - `java-library-evidence.csv`
+- `zone-summary.csv`
 - `move-duration-comparison.svg`
 - `http-calls-by-move.svg`
 - `cycle-duration-comparison.svg`
+- `zone-cycle-duration-<zone>.svg`
 - `path-analysis-inputs/`
 - `summary.json`
 - `summary.md`

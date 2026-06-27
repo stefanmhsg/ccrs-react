@@ -1,0 +1,33 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="520" viewBox="0 0 1040 520" role="img" aria-labelledby="title desc">
+<title id="title">Construction Site Zone cycle duration comparison</title>
+<desc id="desc">Line chart comparing React loop-cycle duration inside the Construction Site Zone. Zone windows are derived from MASE movement boundaries and attached to React log lines.</desc>
+<rect width="100%" height="100%" fill="#ffffff"/>
+<text x="72" y="28" font-family="Arial, sans-serif" font-size="14" font-weight="700">Construction Site Zone cycle duration comparison</text>
+<text x="72" y="50" font-family="Arial, sans-serif" font-size="12" fill="#555">Y-axis is log-base-2 duration in ms. Max observed: 9412 ms.</text>
+<line x1="72" y1="428" x2="952" y2="428" stroke="#333" stroke-width="1"/>
+<line x1="72" y1="128" x2="72" y2="428" stroke="#333" stroke-width="1"/>
+<line x1="72" y1="428" x2="952" y2="428" stroke="#e5e7eb" stroke-width="1"/>
+<text x="64" y="428" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#222">1000</text>
+<line x1="72" y1="335.25" x2="952" y2="335.25" stroke="#e5e7eb" stroke-width="1"/>
+<text x="64" y="335.25" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#222">2000</text>
+<line x1="72" y1="242.5" x2="952" y2="242.5" stroke="#e5e7eb" stroke-width="1"/>
+<text x="64" y="242.5" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#222">4000</text>
+<line x1="72" y1="149.75" x2="952" y2="149.75" stroke="#e5e7eb" stroke-width="1"/>
+<text x="64" y="149.75" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#222">8000</text>
+<line x1="72" y1="428" x2="72" y2="433" stroke="#333" stroke-width="1"/>
+<text x="72" y="446" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#222">0</text>
+<line x1="438.67" y1="428" x2="438.67" y2="433" stroke="#333" stroke-width="1"/>
+<text x="438.67" y="446" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#222">25</text>
+<line x1="805.33" y1="428" x2="805.33" y2="433" stroke="#333" stroke-width="1"/>
+<text x="805.33" y="446" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#222">50</text>
+<line x1="952" y1="428" x2="952" y2="433" stroke="#333" stroke-width="1"/>
+<text x="952" y="446" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#222">60</text>
+<text x="512" y="496" text-anchor="middle" font-family="Arial, sans-serif" font-size="13">Local zone cycle step</text>
+<text x="18" y="278" text-anchor="middle" transform="rotate(-90 18 278)" font-family="Arial, sans-serif" font-size="13">Duration ms</text>
+<polyline points="86.67,267.8 101.33,270.74 116,234.77 130.67,265.51 145.33,258.17 160,252.97 174.67,258.24 189.33,222.27 204,266.95 218.67,287.72 233.33,273.79 248,257.87 262.67,275.79 277.33,292.44 292,286.88 306.67,276.31 321.33,275.32 336,285.99 350.67,287.67 365.33,264.64 380,296.04 394.67,275.45 409.33,251.46 424,300.04 438.67,253.8 453.33,294.45 468,254.39 482.67,284.38 497.33,264.13 512,291.04 526.67,279.8 541.33,241.73 556,299.58 570.67,219.34 585.33,212.45 600,244.39 614.67,271.86 629.33,256.93 644,297.64 658.67,260.1 673.33,283.83 688,245.1 702.67,283.56 717.33,254.61 732,272.4 746.67,262.8 761.33,269.67 776,287.76 790.67,248.63 805.33,313.61 820,270.2 834.67,215.15 849.33,260.25 864,288.71 878.67,128 893.33,229.66 908,288 922.67,229.44 937.33,296.84 952,232.95" fill="none" stroke="#d62728" stroke-width="2"/>
+<line x1="682" y1="34" x2="712" y2="34" stroke="#d62728" stroke-width="2"/>
+<text x="720" y="34" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12">800-ccrs</text>
+<rect x="949" y="229.95" width="6" height="6" fill="#ffffff" stroke="#d62728" stroke-width="2"/>
+<line x1="952" y1="232.95" x2="938" y2="187.95" stroke="#d62728" stroke-width="1" opacity="0.65"/>
+<text x="938" y="187.95" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#222">cells/39/43 at step 60</text>
+</svg>

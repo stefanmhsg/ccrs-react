@@ -277,14 +277,328 @@ function Get-CcrsInvocationAverage {
         if ($invocations.Count -lt $InvocationIndex) {
             continue
         }
-        $cycle = "$($invocations[$InvocationIndex - 1].cycle)"
-        $cycleRows = @($Cycles | Where-Object { $_.run_id -eq $runId -and "$($_.cycle)" -eq $cycle })
+        $activationCycle = Convert-ToIntOrZero $invocations[$InvocationIndex - 1].cycle
+        $cycleRows = @($Cycles |
+            Where-Object {
+                $_.run_id -eq $runId -and
+                (Convert-ToIntOrZero $_.cycle) -gt $activationCycle
+            } |
+            Sort-Object @{ Expression = { Convert-ToIntOrZero $_.cycle }; Ascending = $true })
         if ($cycleRows.Count -gt 0) {
             $rows += $cycleRows[0]
         }
     }
 
     return Get-Average -Rows $rows -Field "duration_ms"
+}
+
+function Test-CellEndsWith {
+    param(
+        $Cell,
+        [string]$Suffix
+    )
+
+    if ($null -eq $Cell -or "$Cell" -eq "" -or -not $Suffix) {
+        return $false
+    }
+
+    $text = "$Cell"
+    return ($text.EndsWith("/$Suffix") -or $text.EndsWith($Suffix))
+}
+
+function Get-ZoneDefinitions {
+    return @(
+        [pscustomobject][ordered]@{ order = 1; name = "signifier"; title = "Signifier Zone"; completion_cell = "cells/13/5"; start_cell = "" },
+        [pscustomobject][ordered]@{ order = 2; name = "stigmergy"; title = "Stigmergy Zone"; completion_cell = "cells/28/14"; start_cell = "cells/13/5" },
+        [pscustomobject][ordered]@{ order = 3; name = "mixed"; title = "Mixed Zone"; completion_cell = "cells/36/37"; start_cell = "cells/28/14" },
+        [pscustomobject][ordered]@{ order = 4; name = "construction-site"; title = "Construction Site Zone"; completion_cell = "cells/39/43"; start_cell = "cells/36/37" },
+        [pscustomobject][ordered]@{ order = 5; name = "social"; title = "Social Zone"; completion_cell = "cells/999"; start_cell = "cells/39/43" }
+    )
+}
+
+function Get-ZoneOptimalMoves {
+    param(
+        $ScenarioMetadata,
+        [string]$ZoneName
+    )
+
+    if ($ScenarioMetadata.zone_optimal_moves -and $ScenarioMetadata.zone_optimal_moves.ContainsKey($ZoneName)) {
+        return $ScenarioMetadata.zone_optimal_moves[$ZoneName]
+    }
+    return $null
+}
+
+function Select-RowsByRunAndLineWindow {
+    param(
+        [object[]]$Rows,
+        [string]$RunId,
+        [int]$StartExclusiveLine,
+        [int]$EndInclusiveLine
+    )
+
+    if (-not $RunId -or $EndInclusiveLine -le $StartExclusiveLine) {
+        return @()
+    }
+
+    return @($Rows | Where-Object {
+        $_.run_id -eq $RunId -and
+        $_.line -ne $null -and
+        "$($_.line)" -ne "" -and
+        (Convert-ToIntOrZero $_.line) -gt $StartExclusiveLine -and
+        (Convert-ToIntOrZero $_.line) -le $EndInclusiveLine
+    })
+}
+
+function Get-ZoneCycleBucketAverage {
+    param(
+        [object[]]$Cycles,
+        [hashtable]$InvocationCyclesByRun,
+        [int]$OpportunisticCount
+    )
+
+    $rows = @($Cycles | Where-Object {
+        (Convert-ToIntOrZero $_.opportunistic_prompt_visible_count) -eq $OpportunisticCount
+    })
+
+    $nonContingencyRows = @()
+    foreach ($row in $rows) {
+        $invocationCycles = @()
+        if ($InvocationCyclesByRun.ContainsKey($row.run_id)) {
+            $invocationCycles = @($InvocationCyclesByRun[$row.run_id] | ForEach-Object { "$($_.cycle)" })
+        }
+        if ($invocationCycles -notcontains "$($row.cycle)") {
+            $nonContingencyRows += $row
+        }
+    }
+
+    return Get-Average -Rows $nonContingencyRows -Field "duration_ms"
+}
+
+function Write-ZoneSummaryCsv {
+    param(
+        [object[]]$Rows,
+        [string]$Path
+    )
+
+    $headers = @(
+        "batch_id", "zone", "zone_title", "zone_order", "run_id", "agent_name",
+        "ccrs_mode", "completed", "start_boundary_cell", "completion_cell",
+        "first_included_cell", "final_cell", "first_move_sequence",
+        "final_move_sequence", "log_start_exclusive_line", "log_end_inclusive_line",
+        "total_move_duration_ms", "total_moves", "average_move_duration_ms",
+        "react_cycle_count", "average_cycle_duration_ms", "optimal_moves",
+        "actual_moves", "move_delta_from_optimal", "selection_count",
+        "followed_top_opportunistic_count", "followed_any_top_guidance_count",
+        "selected_none_count", "rank_unavailable_count",
+        "contingency_activation_count", "opportunistic_prompt_visible_max",
+        "mapping_assumption"
+    )
+
+    if ($Rows.Count -gt 0) {
+        $Rows | Select-Object $headers | Export-Csv -Path $Path -NoTypeInformation -Encoding UTF8
+    } else {
+        $headerLine = '"' + ($headers -join '","') + '"'
+        $headerLine | Set-Content -Path $Path -Encoding UTF8
+    }
+}
+
+function New-ZoneReportData {
+    param(
+        [object[]]$Runs,
+        [object[]]$MoveActionRows,
+        [object[]]$MoveDurationRows,
+        [object[]]$Cycles,
+        [object[]]$Decisions,
+        [object[]]$OpportunisticRows,
+        [object[]]$ContingencyRows,
+        $ScenarioMetadata,
+        [int]$MaxAdvisoryRank
+    )
+
+    $zoneDefinitions = Get-ZoneDefinitions
+    $summaryRows = [System.Collections.ArrayList]::new()
+    $cycleRowsByZone = @{}
+    $advisoryRowsByZone = @{}
+    $invocationCyclesByZone = @{}
+
+    foreach ($zone in $zoneDefinitions) {
+        $cycleRowsByZone[$zone.name] = [System.Collections.ArrayList]::new()
+        $advisoryRowsByZone[$zone.name] = [System.Collections.ArrayList]::new()
+        $invocationCyclesByZone[$zone.name] = @{}
+    }
+
+    foreach ($zone in $zoneDefinitions) {
+        foreach ($run in $Runs) {
+            $runId = "$($run.run_id)"
+            $runMoves = @($MoveActionRows |
+                Where-Object { $_.run_id -eq $runId } |
+                Sort-Object @{ Expression = { Convert-ToIntOrZero $_.move_sequence }; Ascending = $true })
+
+            $startBoundaryIndex = -1
+            if ($zone.start_cell) {
+                for ($i = 0; $i -lt $runMoves.Count; $i++) {
+                    if (Test-CellEndsWith -Cell $runMoves[$i].move_cell -Suffix $zone.start_cell) {
+                        $startBoundaryIndex = $i
+                        break
+                    }
+                }
+            }
+
+            $startReached = (-not $zone.start_cell) -or $startBoundaryIndex -ge 0
+            $completionIndex = -1
+            if ($startReached) {
+                $searchStart = [math]::Max(0, $startBoundaryIndex + 1)
+                for ($i = $searchStart; $i -lt $runMoves.Count; $i++) {
+                    if (Test-CellEndsWith -Cell $runMoves[$i].move_cell -Suffix $zone.completion_cell) {
+                        $completionIndex = $i
+                        break
+                    }
+                }
+            }
+
+            $completed = $completionIndex -ge 0
+            $firstIncludedIndex = if ($startReached) { $startBoundaryIndex + 1 } else { -1 }
+            $lastIncludedIndex = if ($completed) {
+                $completionIndex
+            } elseif ($startReached -and $runMoves.Count -gt 0) {
+                $runMoves.Count - 1
+            } else {
+                -1
+            }
+
+            $includedMoves = @()
+            if ($firstIncludedIndex -ge 0 -and $lastIncludedIndex -ge $firstIncludedIndex -and $runMoves.Count -gt 0) {
+                $includedMoves = @($runMoves[$firstIncludedIndex..$lastIncludedIndex])
+            }
+
+            $startExclusiveLine = 0
+            if ($startBoundaryIndex -ge 0) {
+                $startExclusiveLine = Convert-ToIntOrZero $runMoves[$startBoundaryIndex].start_action_line
+            }
+            $endInclusiveLine = [int]::MaxValue
+            if ($completionIndex -ge 0) {
+                $endInclusiveLine = Convert-ToIntOrZero $runMoves[$completionIndex].start_action_line
+            }
+            if ($includedMoves.Count -eq 0 -and -not $completed) {
+                $endInclusiveLine = $startExclusiveLine
+            }
+
+            $zoneCyclesRaw = @(Select-RowsByRunAndLineWindow -Rows $Cycles -RunId $runId -StartExclusiveLine $startExclusiveLine -EndInclusiveLine $endInclusiveLine |
+                Sort-Object @{ Expression = { Convert-ToIntOrZero $_.line }; Ascending = $true })
+            $localCycleIndex = 0
+            foreach ($cycle in $zoneCyclesRaw) {
+                $localCycleIndex++
+                [void]$cycleRowsByZone[$zone.name].Add([pscustomobject][ordered]@{
+                    batch_id = $cycle.batch_id
+                    run_id = $cycle.run_id
+                    agent_name = $cycle.agent_name
+                    sequence = $localCycleIndex
+                    cycle = $cycle.cycle
+                    cycle_timestamp = $cycle.cycle_timestamp
+                    duration_ms = $cycle.duration_ms
+                    file = $cycle.file
+                    line = $cycle.line
+                    event_count = $cycle.event_count
+                    opportunistic_detected_count = $cycle.opportunistic_detected_count
+                    opportunistic_prompt_visible_count = $cycle.opportunistic_prompt_visible_count
+                    selection_count = $cycle.selection_count
+                    contingency_event_count = $cycle.contingency_event_count
+                    contingency_guidance_event_count = $cycle.contingency_guidance_event_count
+                })
+            }
+
+            $zoneMoveDurations = @()
+            foreach ($move in $includedMoves) {
+                $sequence = "$($move.move_sequence)"
+                $match = @($MoveDurationRows | Where-Object { $_.run_id -eq $runId -and "$($_.move_sequence)" -eq $sequence } | Select-Object -First 1)
+                if ($match.Count -gt 0) {
+                    $zoneMoveDurations += $match[0]
+                }
+            }
+
+            $zoneDecisions = @(Select-RowsByRunAndLineWindow -Rows $Decisions -RunId $runId -StartExclusiveLine $startExclusiveLine -EndInclusiveLine $endInclusiveLine)
+            $zoneOpportunistic = @(Select-RowsByRunAndLineWindow -Rows $OpportunisticRows -RunId $runId -StartExclusiveLine $startExclusiveLine -EndInclusiveLine $endInclusiveLine)
+            $zoneAdvisoryRows = @(New-AdvisoryFollowRows -Runs @($run) -Decisions $zoneDecisions -OpportunisticRows $zoneOpportunistic -MaxRank $MaxAdvisoryRank)
+            foreach ($advisoryRow in $zoneAdvisoryRows) {
+                $advisoryRow | Add-Member -NotePropertyName zone -NotePropertyValue $zone.name -Force
+                $advisoryRow | Add-Member -NotePropertyName zone_title -NotePropertyValue $zone.title -Force
+                [void]$advisoryRowsByZone[$zone.name].Add($advisoryRow)
+            }
+
+            $zoneActivations = @(Select-RowsByRunAndLineWindow -Rows $ContingencyRows -RunId $runId -StartExclusiveLine $startExclusiveLine -EndInclusiveLine $endInclusiveLine |
+                Where-Object { $_.react_event -eq "react.ccrs.contingency.escalation.activated" } |
+                Sort-Object @{ Expression = { Convert-ToIntOrZero $_.cycle }; Ascending = $true })
+            if ($zoneActivations.Count -gt 0) {
+                $invocationCyclesByZone[$zone.name][$runId] = $zoneActivations
+            }
+
+            $selectedNoneCount = 0
+            $rankUnavailableCount = 0
+            foreach ($row in $zoneAdvisoryRows) {
+                $selectedNoneCount += Convert-ToIntOrZero $row.selected_none_count
+                $rankUnavailableCount += Convert-ToIntOrZero $row.rank_unavailable_count
+            }
+
+            $maxPromptVisible = 0
+            foreach ($cycle in $zoneCyclesRaw) {
+                $maxPromptVisible = [math]::Max($maxPromptVisible, (Convert-ToIntOrZero $cycle.opportunistic_prompt_visible_count))
+            }
+
+            $zoneOptimalMoves = Get-ZoneOptimalMoves -ScenarioMetadata $ScenarioMetadata -ZoneName $zone.name
+            $actualMoves = $includedMoves.Count
+            $deltaMoves = if ($null -ne $zoneOptimalMoves -and $completed) {
+                $actualMoves - (Convert-ToIntOrZero $zoneOptimalMoves)
+            } else {
+                $null
+            }
+
+            $firstMove = if ($includedMoves.Count -gt 0) { $includedMoves[0] } else { $null }
+            $finalMove = if ($includedMoves.Count -gt 0) { $includedMoves[$includedMoves.Count - 1] } else { $null }
+
+            [void]$summaryRows.Add([pscustomobject][ordered]@{
+                batch_id = $run.batch_id
+                zone = $zone.name
+                zone_title = $zone.title
+                zone_order = $zone.order
+                run_id = $runId
+                agent_name = $run.agent_name
+                ccrs_mode = if (Test-CcrsRun $run) { "ccrs" } else { "baseline" }
+                completed = if ($completed) { "yes" } else { "no" }
+                start_boundary_cell = $zone.start_cell
+                completion_cell = $zone.completion_cell
+                first_included_cell = if ($firstMove) { Format-CellLabel $firstMove.move_cell } else { "" }
+                final_cell = if ($finalMove) { Format-CellLabel $finalMove.move_cell } else { "" }
+                first_move_sequence = if ($firstMove) { $firstMove.move_sequence } else { "" }
+                final_move_sequence = if ($finalMove) { $finalMove.move_sequence } else { "" }
+                log_start_exclusive_line = if ($startExclusiveLine -gt 0) { $startExclusiveLine } else { "" }
+                log_end_inclusive_line = if ($endInclusiveLine -lt [int]::MaxValue) { $endInclusiveLine } else { "" }
+                total_move_duration_ms = Get-Sum -Rows $zoneMoveDurations -Field "duration_ms"
+                total_moves = $actualMoves
+                average_move_duration_ms = Get-Average -Rows $zoneMoveDurations -Field "duration_ms"
+                react_cycle_count = $zoneCyclesRaw.Count
+                average_cycle_duration_ms = Get-Average -Rows $zoneCyclesRaw -Field "duration_ms"
+                optimal_moves = $zoneOptimalMoves
+                actual_moves = $actualMoves
+                move_delta_from_optimal = $deltaMoves
+                selection_count = $zoneDecisions.Count
+                followed_top_opportunistic_count = @($zoneDecisions | Where-Object { Test-True $_.followed_top_opportunistic }).Count
+                followed_any_top_guidance_count = @($zoneDecisions | Where-Object { Test-True $_.followed_any_top_guidance }).Count
+                selected_none_count = $selectedNoneCount
+                rank_unavailable_count = $rankUnavailableCount
+                contingency_activation_count = $zoneActivations.Count
+                opportunistic_prompt_visible_max = $maxPromptVisible
+                mapping_assumption = "MASE movement boundaries plus React log-line windows"
+            })
+        }
+    }
+
+    return [pscustomobject][ordered]@{
+        ZoneDefinitions = $zoneDefinitions
+        SummaryRows = @($summaryRows)
+        CycleRowsByZone = $cycleRowsByZone
+        AdvisoryRowsByZone = $advisoryRowsByZone
+        InvocationCyclesByZone = $invocationCyclesByZone
+    }
 }
 
 function Get-ScenarioReportMetadata {
@@ -657,6 +971,7 @@ function Write-CycleDurationChart {
         [int]$HttpAxisMaxCalls = 0,
         [int]$HttpAxisTickInterval = 1,
         [int]$StepTickInterval = 25,
+        [hashtable]$EndpointLabelsByRun = @{},
         [switch]$IncludeFinalStepTick
     )
 
@@ -676,9 +991,16 @@ function Write-CycleDurationChart {
         }
 
         $agentRow = Get-AgentRowForRun -AgentRows $Agents -Run $run
+        $endpointLabel = if ($EndpointLabelsByRun.ContainsKey($runId)) {
+            "$($EndpointLabelsByRun[$runId])"
+        } elseif ($agentRow) {
+            "$($agentRow.final_cell)"
+        } else {
+            ""
+        }
         $runMetadata[$runId] = [pscustomobject][ordered]@{
             isCcrs = Test-CcrsRun $run
-            finalCell = if ($agentRow) { "$($agentRow.final_cell)" } else { "" }
+            finalCell = $endpointLabel
         }
         $pointsByRun[$runId] = @($rows | ForEach-Object {
             [pscustomobject][ordered]@{
@@ -1164,6 +1486,24 @@ foreach ($runId in $invocationCyclesByRun.Keys) {
     $maxContingencyInvocation = [math]::Max($maxContingencyInvocation, @($invocationCyclesByRun[$runId]).Count)
 }
 
+$reportTitle = if ($BatchId) { $BatchId } else { Split-Path -Leaf $runRootPath }
+$scenarioMetadata = Get-ScenarioReportMetadata -BatchName $reportTitle
+$zoneReportData = New-ZoneReportData `
+    -Runs $runs `
+    -MoveActionRows $moveActionCorrelation `
+    -MoveDurationRows $moveDurationRows `
+    -Cycles $cycles `
+    -Decisions $decisions `
+    -OpportunisticRows $opportunistic `
+    -ContingencyRows $contingency `
+    -ScenarioMetadata $scenarioMetadata `
+    -MaxAdvisoryRank $maxAdvisoryRank
+$zoneDefinitions = @($zoneReportData.ZoneDefinitions)
+$zoneSummaryRows = @($zoneReportData.SummaryRows)
+$zoneSummaryPath = Join-Path $outputPath "zone-summary.csv"
+Write-ZoneSummaryCsv -Rows $zoneSummaryRows -Path $zoneSummaryPath
+$zoneChartFiles = @{}
+
 $moveDurationChartName = "move-duration-comparison.svg"
 $moveDurationChartPath = Join-Path $outputPath $moveDurationChartName
 $hasMoveDurationChart = Write-CycleDurationChart `
@@ -1206,8 +1546,41 @@ $hasCycleDurationChart = Write-CycleDurationChart `
     -DurationAxisMinMs 1000 `
     -StepTickInterval 100
 
-$reportTitle = if ($BatchId) { $BatchId } else { Split-Path -Leaf $runRootPath }
-$scenarioMetadata = Get-ScenarioReportMetadata -BatchName $reportTitle
+foreach ($zone in $zoneDefinitions) {
+    $zoneCycleRows = @($zoneReportData.CycleRowsByZone[$zone.name])
+    if ($zoneCycleRows.Count -eq 0) {
+        continue
+    }
+
+    $zoneEndpointLabelsByRun = @{}
+    foreach ($row in @($zoneSummaryRows | Where-Object { $_.zone -eq $zone.name })) {
+        if ($row.final_cell) {
+            $zoneEndpointLabelsByRun["$($row.run_id)"] = "$($row.final_cell)"
+        }
+    }
+
+    $zoneChartName = "zone-cycle-duration-$($zone.name).svg"
+    $zoneChartPath = Join-Path $outputPath $zoneChartName
+    $hasZoneChart = Write-CycleDurationChart `
+        -Cycles $zoneCycleRows `
+        -Runs $runs `
+        -Agents $agents `
+        -Path $zoneChartPath `
+        -Title "$($zone.title) cycle duration comparison" `
+        -Description "Line chart comparing React loop-cycle duration inside the $($zone.title). Zone windows are derived from MASE movement boundaries and attached to React log lines." `
+        -SubtitlePrefix "Y-axis is log-scaled React loop-cycle duration in ms." `
+        -XAxisLabel "Local zone cycle step" `
+        -DurationLogScale `
+        -DurationLogBase 2 `
+        -DurationAxisMinMs 1000 `
+        -StepTickInterval 25 `
+        -EndpointLabelsByRun $zoneEndpointLabelsByRun `
+        -IncludeFinalStepTick
+    if ($hasZoneChart) {
+        $zoneChartFiles[$zone.name] = $zoneChartName
+    }
+}
+
 $lines = [System.Collections.Generic.List[string]]::new()
 $lines.Add("# React Experiment Summary: $reportTitle")
 $lines.Add("")
@@ -1328,7 +1701,7 @@ for ($index = 1; $index -le $maxContingencyInvocation; $index++) {
 }
 $lines.Add("| " + ($cycleSummaryCells -join " | ") + " |")
 $lines.Add("")
-$lines.Add('Cycle averages use `cycle-durations.csv`. Fresh runs populate this from `react.loop.cycle` events emitted from the React state cycle channel; historical CCRS-only rows may fall back to older structured CCRS cycle events. Opportunistic CCRS cycle averages exclude cycles where contingency CCRS was activated.')
+$lines.Add('Cycle averages use `cycle-durations.csv`. Fresh runs populate this from `react.loop.cycle` events emitted from the React state cycle channel; historical CCRS-only rows may fall back to older structured CCRS cycle events. Opportunistic CCRS cycle averages exclude cycles where contingency CCRS was activated. Contingency invocation averages use the first loop-cycle duration after each activation event, because that is where the expensive contingency work appears in React cycle timing.')
 $lines.Add("")
 if ($hasCycleDurationChart) {
     $lines.Add("## Cycle Duration Chart")
@@ -1496,6 +1869,144 @@ if ($contingency.Count -gt 0) {
     }
 }
 
+if ($zoneSummaryRows.Count -gt 0) {
+    $lines.Add("## Zone Metrics")
+    $lines.Add("")
+    $lines.Add("Zone windows use the BDI completion cells, with completion checked from filtered MASE movement rows. React loop cycles, selections, opportunistic detections, and contingency activations are attached to a zone by React log-line windows derived from the successful movement action that enters each boundary cell.")
+
+    foreach ($zone in $zoneDefinitions) {
+        $zoneRows = @($zoneSummaryRows | Where-Object { $_.zone -eq $zone.name } | Sort-Object @{ Expression = { $_.run_id }; Ascending = $true })
+        if ($zoneRows.Count -eq 0) {
+            continue
+        }
+
+        $lines.Add("")
+        $lines.Add("### $($zone.title)")
+        $lines.Add("")
+        $startText = if ($zone.start_cell) { "after ``$($zone.start_cell)``" } else { "at run start" }
+        $lines.Add("Starts $startText and completes when the agent enters ``$($zone.completion_cell)``.")
+        $lines.Add("")
+        Add-TableHeader -Lines $lines -Headers @(
+            "Run", "Agent", "Completed", "Move duration ms", "Moves",
+            "Avg move ms", "React cycles", "Avg cycle ms", "Final cell"
+        )
+        foreach ($row in $zoneRows) {
+            $lines.Add("| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} | {8} |" -f @(
+                (Format-CodeCell $row.run_id),
+                (Format-MarkdownCell $row.agent_name),
+                (Format-MarkdownCell $row.completed),
+                (Format-Ms $row.total_move_duration_ms),
+                (Format-NumberCell $row.total_moves),
+                (Format-Ms $row.average_move_duration_ms),
+                (Format-NumberCell $row.react_cycle_count),
+                (Format-Ms $row.average_cycle_duration_ms),
+                (Format-CodeCell $row.final_cell)
+            ))
+        }
+
+        $lines.Add("")
+        $lines.Add("#### Move Optimality")
+        $lines.Add("")
+        Add-TableHeader -Lines $lines -Headers @("Run", "Optimal moves", "Actual moves", "Delta from optimal")
+        foreach ($row in $zoneRows) {
+            $lines.Add("| {0} | {1} | {2} | {3} |" -f @(
+                (Format-CodeCell $row.run_id),
+                (Format-NumberCell $row.optimal_moves),
+                (Format-NumberCell $row.actual_moves),
+                (Format-NumberCell $row.move_delta_from_optimal)
+            ))
+        }
+
+        if ($zoneChartFiles.ContainsKey($zone.name)) {
+            $lines.Add("")
+            $lines.Add("#### Cycle Duration Chart")
+            $lines.Add("")
+            $lines.Add("![Cycle duration inside $($zone.title)]($($zoneChartFiles[$zone.name]))")
+        }
+
+        $zoneCycleRows = @($zoneReportData.CycleRowsByZone[$zone.name])
+        $baselineZoneCycleRows = Get-CycleRowsForRuns -Cycles $zoneCycleRows -Runs $runs -Ccrs $false
+        $ccrsZoneCycleRows = Get-CycleRowsForRuns -Cycles $zoneCycleRows -Runs $runs -Ccrs $true
+        $zoneInvocationCyclesByRun = $zoneReportData.InvocationCyclesByZone[$zone.name]
+        $zoneMaxOppCount = 0
+        foreach ($cycleRow in @($ccrsZoneCycleRows)) {
+            $zoneMaxOppCount = [math]::Max($zoneMaxOppCount, (Convert-ToIntOrZero $cycleRow.opportunistic_prompt_visible_count))
+        }
+        $zoneMaxContingencyInvocation = 0
+        foreach ($runId in $zoneInvocationCyclesByRun.Keys) {
+            $zoneMaxContingencyInvocation = [math]::Max($zoneMaxContingencyInvocation, @($zoneInvocationCyclesByRun[$runId]).Count)
+        }
+
+        $lines.Add("")
+        $lines.Add("#### Cycle Duration Summary")
+        $lines.Add("")
+        $zoneCycleHeaders = @("Baseline cycle avg ms", "CCRS cycle avg ms")
+        for ($count = 0; $count -le $zoneMaxOppCount; $count++) {
+            $zoneCycleHeaders += ("CCRS opp {0} avg ms" -f $count)
+        }
+        for ($index = 1; $index -le $zoneMaxContingencyInvocation; $index++) {
+            $zoneCycleHeaders += ("CCRS cont invocation {0} avg ms" -f $index)
+        }
+        Add-TableHeader -Lines $lines -Headers $zoneCycleHeaders
+        $zoneCycleCells = @(
+            (Format-Ms (Get-Average -Rows $baselineZoneCycleRows -Field "duration_ms")),
+            (Format-Ms (Get-Average -Rows $ccrsZoneCycleRows -Field "duration_ms"))
+        )
+        for ($count = 0; $count -le $zoneMaxOppCount; $count++) {
+            $zoneCycleCells += (Format-Ms (Get-ZoneCycleBucketAverage -Cycles $ccrsZoneCycleRows -InvocationCyclesByRun $zoneInvocationCyclesByRun -OpportunisticCount $count))
+        }
+        for ($index = 1; $index -le $zoneMaxContingencyInvocation; $index++) {
+            $zoneCycleCells += (Format-Ms (Get-CcrsInvocationAverage -Cycles $zoneCycleRows -InvocationCyclesByRun $zoneInvocationCyclesByRun -InvocationIndex $index))
+        }
+        $lines.Add("| " + ($zoneCycleCells -join " | ") + " |")
+
+        $zoneAdvisoryRows = @($zoneReportData.AdvisoryRowsByZone[$zone.name])
+        $lines.Add("")
+        $lines.Add("#### Advisory-Follow Evidence")
+        $lines.Add("")
+        if ($zoneAdvisoryRows.Count -eq 0) {
+            $lines.Add("No `react.ccrs.opportunistic.selection` rows were found inside this zone window.")
+        } else {
+            $zoneAdvisoryHeaders = @("Run", "Opp CCRS present", "Selections")
+            for ($rank = 1; $rank -le $maxAdvisoryRank; $rank++) {
+                if ($rank -eq 1) {
+                    $zoneAdvisoryHeaders += "Selected rank 1 (highest)"
+                } else {
+                    $zoneAdvisoryHeaders += ("Selected rank {0}" -f $rank)
+                }
+            }
+            $zoneAdvisoryHeaders += @("Selected none", "Rank unavailable")
+            Add-TableHeader -Lines $lines -Headers $zoneAdvisoryHeaders
+
+            foreach ($row in @($zoneAdvisoryRows | Sort-Object run_id, @{ Expression = { Convert-ToIntOrZero $_.opportunistic_count } })) {
+                $opportunisticCount = Convert-ToIntOrZero $row.opportunistic_count
+                $cells = @(
+                    (Format-CodeCell $row.run_id),
+                    (Format-NumberCell $opportunisticCount),
+                    (Format-NumberCell $row.selection_count)
+                )
+                for ($rank = 1; $rank -le $maxAdvisoryRank; $rank++) {
+                    if ($rank -le $opportunisticCount) {
+                        $property = "selected_rank_{0}_count" -f $rank
+                        $cells += (Format-NumberCell $row.$property)
+                    } else {
+                        $cells += "-"
+                    }
+                }
+                if ($opportunisticCount -gt 0) {
+                    $cells += (Format-NumberCell $row.selected_none_count)
+                    $cells += (Format-NumberCell $row.rank_unavailable_count)
+                } else {
+                    $cells += "-"
+                    $cells += "-"
+                }
+                $lines.Add("| " + ($cells -join " | ") + " |")
+            }
+        }
+    }
+    $lines.Add("")
+}
+
 $lines.Add("## Generated Artifacts")
 $lines.Add("")
 $artifactNames = @(
@@ -1513,9 +2024,11 @@ $artifactNames = @(
     "move-action-correlation.csv",
     "move-durations.csv",
     "java-library-evidence.csv",
+    "zone-summary.csv",
     "move-duration-comparison.svg",
     "http-calls-by-move.svg",
     "cycle-duration-comparison.svg",
+    "zone-cycle-duration-<zone>.svg",
     "path-analysis-inputs/",
     "summary.json",
     "summary.md"
@@ -1549,6 +2062,8 @@ $summaryObject = [ordered]@{
     actionRowCount = $actions.Count
     moveActionCorrelationRowCount = $moveActionCorrelation.Count
     moveDurationRowCount = $moveDurationRows.Count
+    zoneSummaryRowCount = $zoneSummaryRows.Count
+    zoneChartCount = $zoneChartFiles.Count
     javaEvidenceCount = $javaEvidence.Count
     summaryMarkdown = "summary.md"
     metricsDocumentation = "..\..\METRICS.md"

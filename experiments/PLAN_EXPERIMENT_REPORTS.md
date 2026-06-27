@@ -52,10 +52,8 @@ The first target is a manual and auditable workflow rather than a fully automate
 
 | NOW | NEXT | LATER |
 | --- | --- | --- |
-| WP1: Align schemas and event vocabulary | WP4: Add richer CCRS report sections | WP6: Automate more of the live experiment loop |
-| WP1A: Add React reportability events | WP5: Add smoke fixtures and validation scripts | WP7: Cross-repository comparison reports |
-| WP2: Implement staging and import scripts |  |  |
-| WP3: Parse React logs and MASE exports |  |  |
+| WP4: Maintain and refine generated React reports | WP1: Freeze final schema notes and BDI-only field mapping |  |
+| WP5: Add smoke fixtures and validation scripts |  |  |
 
 ## Progress
 
@@ -64,9 +62,11 @@ The first target is a manual and auditable workflow rather than a fully automate
 - [x] (2026-06-07 15:20Z) WP1A: Added React adapter reportability events for prompt-visible CCRS context and post-LLM selected-tool correlation.
 - [x] (2026-06-07 15:20Z) WP2: Added React experiment staging/import PowerShell scripts under `ccrs-react/experiments/scripts/`.
 - [x] (2026-06-07 15:20Z) WP3 initial: Added a first-pass parser for archived React logs, Java companion logs, and MASE viewer exports into normalized CSVs.
-- [ ] WP4: Generate `summary.md`, `summary.json`, CSVs, path-analysis inputs, and metrics documentation with the same report layout used by BDI where possible.
+- [x] WP4 core: Generate `summary.md`, `summary.json`, CSVs, charts, path-analysis inputs, and metrics documentation with the same report layout used by BDI where possible.
+- [ ] WP4 follow-up: Add contingency-guidance-only and combined advisory-follow aggregates once the metric contract is finalized.
 - [x] (2026-06-07 15:36Z) WP4 first version: Added `write-report.ps1`, first-version `summary.md` generation, refreshed `summary.json`, and separate metric definitions in `METRICS.md`.
 - [ ] WP5: Add small smoke fixtures or smoke commands that exercise report generation without a live OpenAI or MaSE run.
+- [x] (2026-06-27 16:45Z) WP6: Researched BDI zone reports, mapped zone metrics to React CCRS semantics, and implemented zone-based React report sections/artifacts.
 - [x] (2026-05-31 14:10Z) Prepared the next implementation packages by separating React reportability events from report parsing and documenting the remaining adapter-specific metric gaps.
 - [x] (2026-06-07 15:20Z) Added [experiments/README.md](README.md) with the manual workflow, run package shape, CSV artifacts, and React advisory-follow metric definitions.
 - [x] (2026-06-07 15:20Z) Validated new PowerShell scripts with parser syntax checks, validated React adapter changes with `S:\anaconda\agent\python.exe -m compileall react_agent`, and smoke-tested import/parse into `C:\tmp` using the current `react_ccrs_mazeV1_03_20260606_194101` logs and MASE export.
@@ -75,6 +75,7 @@ The first target is a manual and auditable workflow rather than a fully automate
 - [x] (2026-06-07 17:10Z) Aligned the top-level React summary layout with the BDI report shape: core metrics, move optimality, cycle duration summary, advisory-follow evidence, and generated artifacts.
 - [x] (2026-06-07 20:50Z) Split React timing into `Move Duration Summary/Chart` and `Cycle Duration Summary/Chart`; added `move-durations.csv` and structured `react.loop.cycle` logging for future baseline and CCRS loop-cycle timing.
 - [x] (2026-06-27 15:17Z) Fixed cycle-duration aggregation so `react.loop.cycle` timing rows keep same-cycle CCRS metadata from prompt-context and selection events, enabling `CCRS opp N avg ms` buckets in generated reports.
+- [x] (2026-06-27 17:05Z) Fixed contingency invocation duration attribution so `CCRS cont invocation N avg ms` uses the first React loop-cycle duration after the contingency activation event, rather than the normal-duration activation cycle itself.
 
 ## Surprises & Discoveries
 
@@ -87,14 +88,14 @@ The first target is a manual and auditable workflow rather than a fully automate
 - Observation: The React CCRS implementation plan already defines smoke checks that can seed report-parser validation.
   Evidence: [PLAN_CCRS_README.md](../PLAN_CCRS_README.md) includes local validation commands for graph construction, Java-backed opportunistic scans, Java-backed contingency evaluation, invalid RDF handling, and prompt-path behavior.
 
-- Observation: Existing BDI opportunistic reporting depends on a JaCaMo adapter event that React does not currently produce.
-  Evidence: [prioritize.java](../ccrs-bdi/ccrs-jacamo/src/main/java/ccrs/jacamo/jason/opportunistic/prioritize.java) emits `ccrs.opportunistic.prioritize` with fields such as `selected_uri`, `selected_original_index`, `selected_has_ccrs`, `selected_reordered`, `selected_type`, and `selected_utility`. [parse-experiment-logs.ps1](../ccrs-bdi/experiments/scripts/parse-experiment-logs.ps1) maps that event into `decisions.csv`. The current React adapter emits `react.ccrs.opportunistic.detected` for scan results and human-readable prompt-context logs for injection, but it does not yet emit an equivalent post-LLM decision event that says which tool target was selected after the prompt was built.
+- Observation: BDI opportunistic reporting depends on a JaCaMo adapter event, while React uses advisory prompt evidence plus post-LLM selection events.
+  Evidence: [prioritize.java](../ccrs-bdi/ccrs-jacamo/src/main/java/ccrs/jacamo/jason/opportunistic/prioritize.java) emits `ccrs.opportunistic.prioritize` with fields such as `selected_uri`, `selected_original_index`, `selected_has_ccrs`, `selected_reordered`, `selected_type`, and `selected_utility`. [parse-experiment-logs.ps1](../ccrs-bdi/experiments/scripts/parse-experiment-logs.ps1) maps that event into `decisions.csv`. React reports instead use `react.ccrs.prompt_context.visible`, `react.ccrs.opportunistic.detected`, and `react.ccrs.opportunistic.selection`; strict BDI option-reordering fields remain non-applicable.
 
 - Observation: The current BDI parser only recognizes structured key-value records with `[CCRS-EVENT]` and `[METRIC]` prefixes, while React uses `[REACT-CCRS-EVENT]`.
   Evidence: [parse-experiment-logs.ps1](../ccrs-bdi/experiments/scripts/parse-experiment-logs.ps1) searches fixed prefixes in `ConvertFrom-KeyValueLine`. React logs are emitted by [audit.py](../react_agent/ccrs/audit.py) with `[REACT-CCRS-EVENT]`.
 
-- Observation: React currently logs prompt context as human-readable JSON but not as a compact machine-readable lifecycle event.
-  Evidence: [prompt_context.py](../react_agent/ccrs/prompt_context.py) logs `CCRS prompt context: ...` and prints `[CCRS PROMPT CONTEXT]`, but it does not call `log_ccrs_event(...)` with prompt-visible counts or prompt-context identifiers.
+- Observation: React prompt context now has a compact machine-readable lifecycle event in addition to human-readable logging.
+  Evidence: [prompt_context.py](../react_agent/ccrs/prompt_context.py) emits `react.ccrs.prompt_context.visible` with prompt-visible counts, top targets, scores, and `prompt_context_id`; [llm_node_ccrs_v2.py](../react_agent/nodes/llm_node_ccrs_v2.py) emits `react.ccrs.opportunistic.selection` after selected LLM tool calls.
 
 - Observation: Core opportunistic scanning and adapter truth-logging are separate concerns.
   Evidence: Java [VocabularyMatcher.java](../ccrs-bdi/ccrs-core/src/main/java/ccrs/core/opportunistic/VocabularyMatcher.java) is the reusable `ccrs-core` implementation that performs opportunistic matching, and React calls it through [vocabulary_matcher.py](../react_agent/ccrs/opportunistic/vocabulary_matcher.py). The core matcher currently does not emit detailed Java logs for each match or ranking decision. BDI experiment logs still contain detailed opportunistic decision evidence because the JaCaMo adapter emits it from [prioritize.java](../ccrs-bdi/ccrs-jacamo/src/main/java/ccrs/jacamo/jason/opportunistic/prioritize.java). React uses a different adapter path, so its Java companion log does not contain equivalent adapter decision evidence. It may still be worth adding generally valid `INFO`-level core logs for matcher behavior, but experiment reports should treat the React adapter's prompt-injection and selection events as the ultimate source for React-specific behavior.
@@ -104,6 +105,15 @@ The first target is a manual and auditable workflow rather than a fully automate
 
 - Observation: MASE viewer exports may contain scenario infrastructure agents and other concurrent experiment agents.
   Evidence: The initial React parser generated rows for agents such as `ccrs-agent-1.5`, `key-holder-agent-1`, and older `react_ccrs_mazeV1_01` / `react_ccrs_mazeV1_02` runs. Regenerating after label-based experiment-agent filtering reduced the latest React run report from 4,855 MASE events and 2,403 moves to 87 MASE events and 40 moves for `react_ccrs_mazeV1_03`.
+
+- Observation: The BDI experiment reports already define zone-based metrics for the CCRS maze scenario family.
+  Evidence: [ccrs-bdi/experiments/METRICS.md](../ccrs-bdi/experiments/METRICS.md) defines five zones, `zone-summary.csv`, and per-zone cycle-duration SVGs. [ccrs-bdi/experiments/scripts/write-report.ps1](../ccrs-bdi/experiments/scripts/write-report.ps1) implements `Get-ZoneDefinitions`, derives zone windows from ordered rows, writes one `zone-summary.csv` row per run-zone pair, and emits `zone-cycle-duration-<zone>.svg`. React must map those BDI metrics onto React artifacts and replace BDI overrule tables with React advisory-follow equivalents.
+
+- Observation: React zone reports cannot attach loop cycles to cells directly.
+  Evidence: React `cycle-durations.csv` rows carry React loop-cycle ids, timestamps, and log lines, but no MASE cell. The report can attach loop cycles to zones only through `move-action-correlation.csv` log-line windows that connect successful MASE movement rows back to React tool-action lines.
+
+- Observation: React contingency activation is logged before the expensive contingency work is visible in cycle timing.
+  Evidence: In `react-baseline-vs-ccrs-v2`, activation cycle 84 has `duration_ms=3562`, while the next cycle 85 has `duration_ms=14138`; the same pattern repeats for later activations. Therefore `CCRS cont invocation N avg ms` must select the first cycle row after the activation cycle.
 
 ## Decision Log
 
@@ -143,6 +153,10 @@ The first target is a manual and auditable workflow rather than a fully automate
   Rationale: The graph used to launch the agent is not needed to import archived evidence or compute report metrics. CCRS report grouping now uses run ids and `enable_contingency_escalation_tool` instead of `graphName`, avoiding a redundant manual flag.
   Date/Author: 2026-06-25 / Codex.
 
+- Decision: Map React zone metrics with MASE movement boundaries plus React log-line windows.
+  Rationale: BDI zone cycle rows already carry cells, but React loop-cycle rows do not. React reports therefore define zone completion and movement counts from filtered MASE moves, then attach React loop cycles, advisory-follow rows, opportunistic detections, and contingency activations by the React log-line window derived from the successful movement action that enters the zone boundary cell. This preserves React-specific semantics and avoids treating React loop-cycle numbers as movement steps.
+  Date/Author: 2026-06-27 / Codex.
+
 ## Context and Orientation
 
 The repository for this plan is `ccrs-react`. It contains the React/LangGraph agent, including the baseline graph and the CCRS graph. The current CCRS graph is [react_agent/graph/graph_ccrs.py](../react_agent/graph/graph_ccrs.py). Users can run it through [main.py](../main.py) or [react_agent/api.py](../react_agent/api.py). The active React CCRS adapter documentation is [react_agent/ccrs/README.md](../react_agent/ccrs/README.md), and the adapter implementation plan is [PLAN_CCRS_README.md](../PLAN_CCRS_README.md).
@@ -164,17 +178,16 @@ The term "run package" means one durable directory containing all raw and normal
 
 The next implementation sequence is:
 
-1. Finish WP1 by freezing the v1 schema and marking BDI-only fields explicitly.
-2. Implement WP1A so React logs contain machine-readable prompt-visible and post-LLM selected-tool events.
-3. Implement WP2 staging/import scripts so fixture and real run packages have the same archive shape.
-4. Implement WP3 parser against the archived run shape and the WP1A event contract.
-5. Implement WP4 report writing after the CSV contract is stable.
+1. Finish WP4 follow-up report work by adding contingency-guidance-only and combined advisory-follow aggregates if the data supports them.
+2. Research BDI zone reporting in `ccrs-bdi/experiments`, then implement React zone reporting from generated React CSVs.
+3. Finish WP1 by freezing the v1 schema and marking BDI-only fields explicitly.
+4. Implement WP5 smoke fixtures so parser and report generation can be validated without live LLM or MaSE runs.
 
 ## Work Packages
 
 ### WP1: Align React report schemas with BDI reports
 
-Status: Now
+Status: Next
 
 Purpose: Define the React CSV and report schema before writing scripts, so generated reports can be compared with existing BDI reports without ad hoc field names.
 
@@ -225,7 +238,7 @@ Outcome and notes: Not started.
 
 ### WP1A: Add React adapter reportability events
 
-Status: Now
+Status: Done
 
 Purpose: Make React CCRS report evidence explicit in the run log before implementing the parser. After this package, the parser can read prompt-visible CCRS counts and selected tool targets without scraping multi-line JSON prompt dumps or inferring adapter behavior from Java logs.
 
@@ -262,7 +275,7 @@ Revision note: Updated 2026-06-07 to keep selection logging small. Rank-follow c
 
 ### WP2: Add manual staging and import scripts
 
-Status: Now
+Status: Done
 
 Purpose: Give the user a repeatable PowerShell workflow for turning a just-finished React run plus exported MASE events into a durable run package.
 
@@ -307,7 +320,7 @@ Outcome and notes: Implemented 2026-06-07. `prepare-current-run.ps1` cleans only
 
 ### WP3: Parse React logs and MASE exports
 
-Status: Now
+Status: Done / maintenance
 
 Purpose: Convert archived run packages into normalized CSV files that the report writer can use.
 
@@ -365,7 +378,7 @@ Todos:
 - [x] Write `summary.md` and `summary.json`.
 - [x] Include the generated CSV artifact list.
 - [x] Generate path-analysis cell sequence files from MASE movement rows.
-- [ ] Add a cycle-duration chart if React cycle rows are available.
+- [x] Add move-duration, HTTP-calls-by-move, and cycle-duration charts when source rows are available.
 - [x] Add a first-version advisory-follow availability section in place of BDI overruled-decision sections.
 - [x] Add grouped advisory-follow summary tables for opportunistic CCRS counts and selected target ranks.
 - [ ] Add grouped advisory-follow summary tables for contingency-guidance-only and combined guidance once fresh selection-event logs are available.
@@ -387,11 +400,11 @@ Expected outputs should include:
 
 Validation and acceptance: The report command should be idempotent. Running it twice for the same batch should refresh generated CSVs and Markdown without modifying archived raw logs. Opening `summary.md` should show both runs, final cell or outcome, movement counts, CCRS event counts for the CCRS run, and links or filenames for generated CSV artifacts.
 
-Outcome and notes: First version implemented 2026-06-07 and revised the same day to match the BDI top-level section shape more closely. `write-report.ps1` refreshes parsed CSV artifacts by calling `parse-experiment-logs.ps1`, then writes `summary.md`, `summary.json`, and `advisory-follow.csv`. The summary includes core run metrics, move optimality, a dynamic cycle-duration summary, opportunistic advisory-follow rank buckets, generated artifacts, and scope notes. Metric definitions moved into `METRICS.md` so the report can stay concise while definitions evolve. Validation: syntax check passed; regenerating `react-ccrs-mazeV1-01-latest` produced 257 filtered MASE events, 704 decisions, 1,503 contingency rows, 24 ordered contingency invocation duration columns, and opportunistic duration columns through count 4. Remaining WP4 work: charts, richer BDI-aligned sections, and contingency/combined advisory-follow aggregates.
+Outcome and notes: First version implemented 2026-06-07 and revised the same day to match the BDI top-level section shape more closely. `write-report.ps1` refreshes parsed CSV artifacts by calling `parse-experiment-logs.ps1`, then writes `summary.md`, `summary.json`, `advisory-follow.csv`, `move-duration-comparison.svg`, `http-calls-by-move.svg`, and `cycle-duration-comparison.svg`. The summary includes core run metrics, move optimality, separate move and cycle duration summaries, opportunistic advisory-follow rank buckets, contingency details, generated artifacts, and scope notes. Metric definitions moved into `METRICS.md` so the report can stay concise while definitions evolve. Validation: syntax check passed; regenerating `react-ccrs-mazeV1-01-latest` produced 257 filtered MASE events, 704 decisions, 1,503 contingency rows, 24 ordered contingency invocation duration columns, and opportunistic duration columns through count 4. Validation on `react-baseline-vs-ccrs-v2` after the 2026-06-27 parser fix produced `CCRS opp 0` through `CCRS opp 4` cycle-duration buckets. A later 2026-06-27 fix corrected contingency invocation averages to use the first loop cycle after each activation; `react-baseline-vs-ccrs-v2` now reports whole-run contingency invocation averages `14138`, `21258`, `15998`, `15219`, `12293`, `18278`, and `37661` ms. Remaining WP4 work: richer BDI-aligned sections and contingency/combined advisory-follow aggregates.
 
 ### WP5: Add smoke fixtures and validation commands
 
-Status: Next
+Status: Now
 
 Purpose: Let report-generation work be validated without spending LLM tokens or running the full maze scenario.
 
@@ -416,53 +429,35 @@ Validation and acceptance: The smoke report should generate a non-empty `summary
 
 Outcome and notes: Not started.
 
-### WP6: Automate more of the live experiment loop
+### WP6: Research and implement zone-based React reports
 
-Status: Later
+Status: Done
 
-Purpose: Reduce manual steps only after the manual workflow is reliable and auditable.
+Purpose: Add zone-level React report sections and artifacts that mirror the useful BDI zone reports while preserving React-specific CCRS semantics. The first step is research: inspect the BDI implementation and metric definitions, then map each zone metric onto React-generated CSVs before writing code.
 
-Local context: The user currently wants to run the agent and export MASE logs manually. Any further automation should preserve that control unless explicitly requested.
+Local context: BDI zone reporting is documented in [ccrs-bdi/experiments/METRICS.md](../ccrs-bdi/experiments/METRICS.md) and implemented in [ccrs-bdi/experiments/scripts/write-report.ps1](../ccrs-bdi/experiments/scripts/write-report.ps1). The BDI zones are signifier, stigmergy, mixed, construction site, and social, with completion cells `cells/13/5`, `cells/28/14`, `cells/36/37`, `cells/39/43`, and `cells/999`. React currently has the needed base artifacts in report output: `mase-agent-moved.csv`, `move-durations.csv`, `cycle-durations.csv`, `decisions.csv`, `opportunistic.csv`, `advisory-follow.csv`, and `contingency.csv`.
 
-Discussion: Later automation could select the latest React log by run name, copy Java companion logs automatically, validate that MASE exports include the configured agent, or start/stop scenario services. These are useful but should not block the first reporting workflow.
-
-Todos:
-
-- [ ] Decide whether latest-log selection is safe enough to add.
-- [ ] Consider a `new-run.ps1` helper that stages logs after a run name is provided.
-- [ ] Consider optional MaSE Docker orchestration only after user approval.
-
-Concrete steps: Not defined yet.
-
-Validation and acceptance: Later automation is accepted only if the manual script path remains available and clear.
-
-Outcome and notes: Not started.
-
-### WP7: Cross-repository comparison reports
-
-Status: Later
-
-Purpose: Compare React and BDI experiment results in one combined report after both pipelines produce compatible artifacts.
-
-Local context: React reports will live under `ccrs-react/experiments/reports/`; BDI reports already live under [ccrs-bdi/experiments/reports/](../ccrs-bdi/experiments/reports/).
-
-Discussion: This is not required for the first React report generator. It becomes valuable once React and BDI have matching batch scenarios and run metadata.
+Discussion: The BDI implementation uses cycle rows for zone timing, movement/endpoint detection, opportunistic bucket averages, decision breakdowns, and overruled-decision tables. React reports should not copy BDI overrule fields directly because React CCRS is advisory prompt injection, not deterministic JaCaMo option reordering. Zone metrics need a deliberate mapping: BDI overruled-decision tables should become zone-scoped advisory-follow/rank-follow tables; BDI opportunistic-count cycle buckets should use React `opportunistic_prompt_visible_count`; contingency invocation averages should reuse React contingency-cycle mapping; zone completion should be checked against filtered MaSE movements.
 
 Todos:
 
-- [ ] Decide whether cross-repository comparison belongs in `ccrs-react`, `ccrs-bdi`, or a separate top-level experiment tool.
-- [ ] Define a common minimal schema shared by both pipelines.
-- [ ] Generate a combined summary for BDI baseline, BDI CCRS, React baseline, and React CCRS runs.
+- [x] Research BDI zone behavior from [ccrs-bdi/experiments/METRICS.md](../ccrs-bdi/experiments/METRICS.md), [ccrs-bdi/experiments/PLAN_EXPERIMENT_METRICS.md](../ccrs-bdi/experiments/PLAN_EXPERIMENT_METRICS.md), and [ccrs-bdi/experiments/scripts/write-report.ps1](../ccrs-bdi/experiments/scripts/write-report.ps1).
+- [x] Write the React metric mapping before implementation: BDI zone core metrics, move optimality, cycle-duration summary, cycle chart, decision breakdown, and opportunistic overrule metrics mapped to React report artifacts and advisory-follow semantics.
+- [x] Add fixed React zone definitions for the CCRS maze scenario family, including scenario-specific optimal move counts for `CcrsMazeV1` and `CcrsMazeV2`.
+- [x] Generate `zone-summary.csv` with one row per run-zone pair.
+- [x] Generate `zone-cycle-duration-<zone>.svg` charts from zone-scoped React cycle rows.
+- [x] Add a `## Zone Metrics` section before `## Generated Artifacts` in `summary.md`.
+- [x] Update [METRICS.md](METRICS.md) with React-specific zone metric definitions and BDI mapping notes.
 
-Concrete steps: Not defined yet.
+Concrete steps: Start by porting the BDI zone definitions and windowing algorithm into React report terminology. Derive zone windows from ordered filtered movement rows, then attach cycle, decision, opportunistic, advisory-follow, and contingency rows by run and cycle/line range. Keep the implementation dependent on generated CSVs rather than rereading raw logs after parse time.
 
-Validation and acceptance: A combined report should consume existing generated report directories without reparsing raw logs.
+Validation and acceptance: Running `powershell -ExecutionPolicy Bypass -File experiments\scripts\write-report.ps1 -BatchId react-baseline-vs-ccrs-v2` should produce `zone-summary.csv`, zone cycle charts for zones with timing rows, and a `## Zone Metrics` section with exactly five subsections in BDI order. `react-baseline-vs-ccrs-v2` should show completion through the final reached zone for each run and should use React advisory-follow metrics instead of BDI overrule metrics.
 
-Outcome and notes: Not started.
+Outcome and notes: Implemented 2026-06-27 in [write-report.ps1](scripts/write-report.ps1). The report now writes `zone-summary.csv`, emits five `zone-cycle-duration-<zone>.svg` charts when cycle rows exist, and inserts a `## Zone Metrics` section before generated artifacts. BDI overrule tables were not copied; React zone sections use advisory-follow rank evidence from `decisions.csv` joined to `opportunistic.csv`. Validation on `react-baseline-vs-ccrs-v2` produced 10 zone summary rows and 5 zone cycle charts. The baseline run did not reach `cells/13/5`, so it appears as incomplete in the signifier zone with all 230 successful moves assigned to that first zone and zero rows for later zones.
 
 ## Validation and Acceptance
 
-The plan is complete when `ccrs-react` can generate a report for a manually collected baseline-vs-CCRS React batch. A successful run should look like this from `S:\dev\ma\ccrs-react`:
+The core report pipeline is usable when `ccrs-react` can generate a report for a manually collected baseline-vs-CCRS React batch, including the WP6 zone-based section and artifacts. A successful core run should look like this from `S:\dev\ma\ccrs-react`:
 
     powershell -ExecutionPolicy Bypass -File experiments\scripts\prepare-current-run.ps1
     S:\anaconda\agent\python.exe main.py --graph-name graph --agent-name react_baseline_1 --log-level INFO
@@ -504,6 +499,14 @@ BDI report artifacts to mirror where possible:
 - `advisory-follow.csv`: aggregate opportunistic CCRS rank-follow metrics grouped by run and `opportunistic_count`.
 - `contingency.csv`: one row per contingency CCRS evaluation, strategy result, or no-help result.
 - `actions.csv`: parsed agent tool/action attempts when recoverable from logs.
+- `move-action-correlation.csv`: one row per successful move window with related HTTP calls and status counts.
+- `move-durations.csv`: one row per successful move, with move-to-move duration where a previous move exists.
+- `java-library-evidence.csv`: Java CCRS library evidence parsed from companion logs.
+- `move-duration-comparison.svg`: move-duration chart.
+- `http-calls-by-move.svg`: stacked HTTP success/failure chart per move window.
+- `cycle-duration-comparison.svg`: React loop-cycle duration chart.
+- `zone-summary.csv`: WP6 artifact with one row per run-zone pair.
+- `zone-cycle-duration-<zone>.svg`: WP6 artifact with one cycle-duration chart per reported zone.
 - `path-analysis-inputs/*.cells.txt`: copy-paste cell paths for MASE viewer path analysis.
 - `summary.json`: parser metadata.
 - `summary.md`: human-readable report.
@@ -547,7 +550,7 @@ Revision note 2026-05-31 / Codex: Added the adapter-specific logging mismatch di
 
 Revision note 2026-06-07 / Codex: Implemented the first NOW slice: React reportability events, manual staging/import scripts, initial parser CSV artifacts, and experiment metrics README. Added smoke validation notes and left advisory aggregate/report-writing work for WP3/WP4 follow-up.
 
-Revision note 2026-06-07 / Codex: Added the first `write-report.ps1` implementation and separated metric definitions into `METRICS.md`. The report intentionally starts with clear source-backed metrics and leaves grouped advisory-follow aggregates, charts, and richer BDI-aligned sections for iterative expansion.
+Revision note 2026-06-07 / Codex: Added the first `write-report.ps1` implementation and separated metric definitions into `METRICS.md`. The report intentionally starts with clear source-backed metrics and leaves grouped advisory-follow aggregates and richer BDI-aligned sections for iterative expansion.
 
 Revision note 2026-06-07 / Codex: Aligned React staging with the BDI workflow by making `experiments/runs/latest` the default disposable staging directory for `prepare-current-run.ps1` and `import-manual-run.ps1`.
 
@@ -564,4 +567,12 @@ Revision note 2026-06-07 / Codex: Split timing reports into move duration and Re
 Revision note 2026-06-25 / Codex: Simplified manual run import commands by making `-ReactLog` optional. The importer now chooses the newest React log prefixed by `-AgentName` and copies the same-stem Java companion log automatically when present.
 
 Revision note 2026-06-25 / Codex: Removed `-GraphName` from manual imports and dropped `graph_name` from generated React experiment CSVs and summary tables.
+
+Revision note 2026-06-27 / Codex: Refreshed this plan after the `react-baseline-vs-ccrs-v2` report regeneration. Updated stale work-package statuses, recorded that charts and `CCRS opp N avg ms` cycle buckets are implemented, and replaced outdated notes about missing machine-readable prompt-context events.
+
+Revision note 2026-06-27 / Codex: Removed the deferred workflow-automation and cross-repository comparison work packages at user request. Added WP6 for zone-based React reports, with BDI research and React CCRS metric mapping as required first steps.
+
+Revision note 2026-06-27 / Codex: Completed WP6. React reports now generate `zone-summary.csv`, five zone cycle-duration SVGs, and a `## Zone Metrics` summary section. Recorded the React-specific zone mapping decision: MASE movement boundaries define zone completion and movement counts; React log-line windows attach loop-cycle and advisory CCRS evidence to those zones.
+
+Revision note 2026-06-27 / Codex: Corrected `CCRS cont invocation N avg ms` attribution across whole-run and zone summaries. The report now measures the first loop-cycle duration after a contingency activation, matching where React records the expensive contingency work in `cycle-durations.csv`.
 

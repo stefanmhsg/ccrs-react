@@ -138,9 +138,9 @@ duration separate from move duration.
   prompt-visible opportunistic CCRS entries, excluding cycles where contingency
   CCRS was activated. Columns are generated from `0` through the maximum
   observed prompt-visible opportunistic count.
-- `CCRS cont invocation N avg ms`: average duration for the Nth ordered
-  contingency activation cycle across CCRS runs. Columns are generated from `1`
-  through the maximum observed invocation count.
+- `CCRS cont invocation N avg ms`: average duration for the first React loop
+  cycle after the Nth ordered contingency activation across CCRS runs. Columns
+  are generated from `1` through the maximum observed invocation count.
 
 Sources: `cycle-durations.csv` columns `duration_ms` and
 `opportunistic_prompt_visible_count`, plus `contingency.csv` rows where
@@ -149,6 +149,10 @@ Sources: `cycle-durations.csv` columns `duration_ms` and
 `state["cycle"]` channel. Historical CCRS logs may still provide older
 structured CCRS cycle rows; historical baseline logs without `react.loop.cycle`
 do not have valid cycle timing and should not be backfilled from tool calls.
+Contingency activation events are logged inside the cycle that selected
+`escalate_to_contingency_ccrs`, while the expensive contingency work appears in
+the next completed loop-cycle duration. The report therefore attributes
+contingency invocation timing to the first cycle row after the activation cycle.
 
 ## React CCRS Evidence Artifacts
 
@@ -284,6 +288,61 @@ Sources: `actions.csv` and `mase-agent-moved.csv`.
 `action_count`, `http_success_count`, and `http_failure_count` so reports can
 plot both movement latency and HTTP call volume per move.
 
+## Zone Metrics
+
+Zone metrics mirror the BDI report's maze-region breakdown while preserving the
+React report's separation between successful movement windows and React loop
+cycles.
+
+The current zone boundaries for the CCRS maze scenario family are:
+
+| Zone | Starts after | Completed when agent enters |
+| --- | --- | --- |
+| signifier | run start | `cells/13/5` |
+| stigmergy | `cells/13/5` | `cells/28/14` |
+| mixed | `cells/28/14` | `cells/36/37` |
+| construction site | `cells/36/37` | `cells/39/43` |
+| social | `cells/39/43` | `cells/999` |
+
+Zone completion is checked from filtered MASE movement evidence. A boundary cell
+completes the previous zone and starts the next zone; movement counts and move
+durations for the later zone begin after that boundary move.
+
+React loop cycles do not carry MASE cells directly. The report therefore maps
+React-side cycle, selection, opportunistic, and contingency rows into zones by
+React log-line windows derived from `move-action-correlation.csv`: a zone starts
+after the React action line that entered the start boundary cell and ends at the
+React action line that enters the completion cell. This includes the LLM cycle
+that selected the completion move and excludes the LLM cycle that selected the
+start-boundary move.
+
+The generated machine-readable artifact is `zone-summary.csv`, one row per
+run-zone pair. Its main columns are:
+
+| Column | Definition |
+| --- | --- |
+| `completed` | `yes` when the run entered the zone completion cell. |
+| `total_move_duration_ms` | Sum of move-to-move durations for included movement rows. |
+| `total_moves` / `actual_moves` | Count of included successful MASE movement rows. |
+| `average_move_duration_ms` | Mean move-to-move duration for included movement rows. |
+| `react_cycle_count` | Count of React loop-cycle rows attached to the zone log-line window. |
+| `average_cycle_duration_ms` | Mean `duration_ms` for attached React loop-cycle rows. |
+| `optimal_moves` | Scenario-specific zone optimal move count. `CcrsMazeV1`: signifier 19, stigmergy 24, mixed 57, construction site 19, social 19. `CcrsMazeV2`: signifier 17, stigmergy 24, mixed 37, construction site 19, social 19. |
+| `move_delta_from_optimal` | `actual_moves - optimal_moves`, only when the zone completed. |
+| `selection_count` | Count of `react.ccrs.opportunistic.selection` rows in the zone log-line window. |
+| `followed_top_opportunistic_count` | Count of zone selection rows where the selected URI matched the highest-ranked prompt-visible opportunistic target. |
+| `followed_any_top_guidance_count` | Count of zone selection rows where the selected URI matched the top prompt-visible opportunistic or contingency-guidance target. |
+| `selected_none_count` | Count of non-zero opportunistic selection rows whose selected URI matched none of the detected opportunistic targets for that cycle. |
+| `rank_unavailable_count` | Count of non-zero opportunistic selection rows where no detected target rows were available for rank inference. |
+| `contingency_activation_count` | Count of `react.ccrs.contingency.escalation.activated` rows in the zone log-line window. |
+| `opportunistic_prompt_visible_max` | Maximum prompt-visible opportunistic count observed in attached cycle rows. |
+
+The generated SVG artifacts are `zone-cycle-duration-signifier.svg`,
+`zone-cycle-duration-stigmergy.svg`, `zone-cycle-duration-mixed.svg`,
+`zone-cycle-duration-construction-site.svg`, and
+`zone-cycle-duration-social.svg` when the report has cycle rows for those zones.
+Each chart plots React loop-cycle duration by local zone cycle step.
+
 ## Not Yet Reported
 
 The following metrics are planned but intentionally excluded from the first
@@ -292,5 +351,3 @@ summary version:
 - advisory-follow aggregates grouped by `contingency_guidance_count`;
 - advisory-follow aggregates grouped by the pair
   `(opportunistic_count, contingency_guidance_count)`;
-- zone-level movement summaries;
-- cycle duration charts;

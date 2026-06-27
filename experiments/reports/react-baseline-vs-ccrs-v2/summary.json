@@ -1,6 +1,6 @@
 ﻿{
     "batchId":  "react-baseline-vs-ccrs-v2",
-    "generatedAt":  "2026-06-27T17:17:18.2457960+02:00",
+    "generatedAt":  "2026-06-27T18:02:44.8562486+02:00",
     "runRoot":  "S:\\dev\\ma\\ccrs-react\\experiments\\runs\\react-baseline-vs-ccrs-v2",
     "outputDir":  "S:\\dev\\ma\\ccrs-react\\experiments\\reports\\react-baseline-vs-ccrs-v2",
     "runCount":  2,
@@ -12,6 +12,8 @@
     "actionRowCount":  1602,
     "moveActionCorrelationRowCount":  423,
     "moveDurationRowCount":  423,
+    "zoneSummaryRowCount":  10,
+    "zoneChartCount":  5,
     "javaEvidenceCount":  990,
     "summaryMarkdown":  "summary.md",
     "metricsDocumentation":  "..\\..\\METRICS.md",
@@ -30,9 +32,11 @@
                       "move-action-correlation.csv",
                       "move-durations.csv",
                       "java-library-evidence.csv",
+                      "zone-summary.csv",
                       "move-duration-comparison.svg",
                       "http-calls-by-move.svg",
                       "cycle-duration-comparison.svg",
+                      "zone-cycle-duration-\u003czone\u003e.svg",
                       "path-analysis-inputs/",
                       "summary.json",
                       "summary.md"
