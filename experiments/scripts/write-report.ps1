@@ -246,6 +246,7 @@ function Get-CcrsOppAverage {
 
     $ccrsRunIds = @($Runs | Where-Object { Test-CcrsRun $_ } | ForEach-Object { $_.run_id })
     $rows = @($Cycles | Where-Object {
+        $null -ne $_ -and
         $ccrsRunIds -contains $_.run_id -and
         (Convert-ToIntOrZero $_.opportunistic_prompt_visible_count) -eq $OpportunisticCount
     })
@@ -357,6 +358,7 @@ function Get-ZoneCycleBucketAverage {
     )
 
     $rows = @($Cycles | Where-Object {
+        $null -ne $_ -and
         (Convert-ToIntOrZero $_.opportunistic_prompt_visible_count) -eq $OpportunisticCount
     })
 
@@ -1965,7 +1967,7 @@ if ($zoneSummaryRows.Count -gt 0) {
         $lines.Add("#### Advisory-Follow Evidence")
         $lines.Add("")
         if ($zoneAdvisoryRows.Count -eq 0) {
-            $lines.Add("No `react.ccrs.opportunistic.selection` rows were found inside this zone window.")
+            $lines.Add('No `react.ccrs.opportunistic.selection` rows were found inside this zone window.')
         } else {
             $zoneAdvisoryHeaders = @("Run", "Opp CCRS present", "Selections")
             for ($rank = 1; $rank -le $maxAdvisoryRank; $rank++) {

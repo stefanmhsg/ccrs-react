@@ -65,7 +65,7 @@ The first target is a manual and auditable workflow rather than a fully automate
 - [x] WP4 core: Generate `summary.md`, `summary.json`, CSVs, charts, path-analysis inputs, and metrics documentation with the same report layout used by BDI where possible.
 - [ ] WP4 follow-up: Add contingency-guidance-only and combined advisory-follow aggregates once the metric contract is finalized.
 - [x] (2026-06-07 15:36Z) WP4 first version: Added `write-report.ps1`, first-version `summary.md` generation, refreshed `summary.json`, and separate metric definitions in `METRICS.md`.
-- [ ] WP5: Add small smoke fixtures or smoke commands that exercise report generation without a live OpenAI or MaSE run.
+- [x] (2026-08-02) WP5: Added black-box `unittest` coverage that runs the PowerShell staging, import, parse, and report entry points against temporary baseline/CCRS fixtures without a live OpenAI or MASE run.
 - [x] (2026-06-27 16:45Z) WP6: Researched BDI zone reports, mapped zone metrics to React CCRS semantics, and implemented zone-based React report sections/artifacts.
 - [x] (2026-05-31 14:10Z) Prepared the next implementation packages by separating React reportability events from report parsing and documenting the remaining adapter-specific metric gaps.
 - [x] (2026-06-07 15:20Z) Added [experiments/README.md](README.md) with the manual workflow, run package shape, CSV artifacts, and React advisory-follow metric definitions.
@@ -79,6 +79,9 @@ The first target is a manual and auditable workflow rather than a fully automate
 - [x] (2026-06-27 17:25Z) Corrected the scenario metadata mapping: `CcrsMazeV1` is the unlocked traversal scenario with 116 optimal moves, and `CcrsMazeV2` is the 3-locked-cell contingency scenario with 138 optimal moves.
 
 ## Surprises & Discoveries
+
+- Observation: Sparse zone data previously caused report generation to fail instead of emitting empty metrics.
+  Evidence: The WP5 fixture has no cycles in later zones; PowerShell passed an empty cycle result as `$null`, and `Get-ZoneCycleBucketAverage` attempted `ContainsKey($null)`. The report now filters null cycle rows, and the regression suite verifies successful repeated generation from the sparse fixture.
 
 - Observation: The BDI report pipeline already has the desired archive and report shape.
   Evidence: [ccrs-bdi/experiments/scripts/import-manual-run.ps1](../ccrs-bdi/experiments/scripts/import-manual-run.ps1) archives staging files into `experiments/runs/<batch-id>/<run-id>/`, and [ccrs-bdi/experiments/scripts/write-report.ps1](../ccrs-bdi/experiments/scripts/write-report.ps1) writes `summary.md`, `summary.json`, CSV files, and path-analysis inputs under `experiments/reports/<batch-id>/`.
