@@ -13,7 +13,7 @@ from urllib.error import URLError
 from urllib.request import urlopen
 
 from react_agent.ccrs.capabilities import CCRS_A2A_MODULE, CCRS_CORE_MODULE
-from react_agent.ccrs.contingency import ContingencyCcrs, InMemoryCcrsContext, Situation, SituationType
+from react_agent.ccrs.contingency import ContingencyCcrs, InMemoryCcrsContext, Situation
 from react_agent.ccrs.contingency.interaction import Interaction, InteractionOutcome
 from react_agent.ccrs.rdf_adapter import RdfTripleValue
 
@@ -70,7 +70,6 @@ class LiveA2aContingencyTest(unittest.TestCase):
             discover_strategy_providers=True,
         )
         situation = Situation(
-            type=SituationType.UNCERTAINTY,
             trigger="live_keyholder_a2a_smoke",
             current_resource=LOCK_URI,
             target_resource=LOCK_URI,

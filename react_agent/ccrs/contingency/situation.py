@@ -7,41 +7,19 @@ which recovery suggestions apply.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
 from typing import Any, Mapping
-
-
-class SituationType(str, Enum):
-    """Python names for Java `Situation.Type` values."""
-
-    FAILURE = "FAILURE"
-    STUCK = "STUCK"
-    UNCERTAINTY = "UNCERTAINTY"
-    PROACTIVE = "PROACTIVE"
 
 
 @dataclass(frozen=True)
 class Situation:
     """Input data used to build Java `ccrs.core.contingency.dto.Situation`."""
 
-    type: SituationType | str
     trigger: str | None = None
     current_resource: str | None = None
     target_resource: str | None = None
     failed_action: str | None = None
     error_info: Mapping[str, Any] = field(default_factory=dict)
     metadata: Mapping[str, Any] = field(default_factory=dict)
-
-    @property
-    def type_name(self) -> str:
-        if isinstance(self.type, SituationType):
-            return self.type.value
-        if isinstance(self.type, Enum):
-            return str(self.type.value).upper()
-        raw = str(self.type)
-        if raw.startswith("SituationType."):
-            raw = raw.rsplit(".", 1)[-1]
-        return raw.upper()
 
     @classmethod
     def from_mapping(cls, values: Mapping[str, Any]) -> "Situation":
@@ -52,19 +30,7 @@ class Situation:
             if isinstance(args, Mapping):
                 return cls.from_mapping(args)
 
-        type_value = (
-            values.get("type")
-            or values.get("situation_type")
-            or values.get("situationType")
-            or values.get("type_name")
-            or values.get("typeName")
-        )
-        if type_value is None:
-            keys = ", ".join(sorted(str(key) for key in values.keys()))
-            raise ValueError(f"Contingency situation is missing a type field. Keys: {keys}")
-
         return cls(
-            type=type_value,
             trigger=values.get("trigger"),
             current_resource=values.get("current_resource") or values.get("currentResource"),
             target_resource=values.get("target_resource") or values.get("targetResource"),
@@ -87,14 +53,30 @@ class Situation:
         if isinstance(value, Mapping):
             return cls.from_mapping(value)
 
-        type_value = _attribute(value, "type_name", "typeName", "type", "getType")
-        if type_value is None:
+        field_names = (
+            "trigger",
+            "current_resource",
+            "currentResource",
+            "target_resource",
+            "targetResource",
+            "failed_action",
+            "failedAction",
+            "error_info",
+            "errorInfo",
+            "metadata",
+            "getTrigger",
+            "getCurrentResource",
+            "getTargetResource",
+            "getFailedAction",
+            "getErrorInfo",
+            "getMetadata",
+        )
+        if not any(hasattr(value, name) for name in field_names):
             raise TypeError(
                 "Contingency situation must be a Situation, mapping, or same-shaped object"
             )
 
         return cls(
-            type=type_value,
             trigger=_attribute(value, "trigger", "getTrigger"),
             current_resource=_attribute(
                 value,

@@ -79,11 +79,13 @@ class ContingencyCcrs:
             "react.ccrs.contingency.evaluate",
             {
                 **self._strategy_policy_fields(),
-                "situation_type": normalized.type_name,
                 "trigger": normalized.trigger,
                 "current_resource": normalized.current_resource,
                 "target_resource": normalized.target_resource,
                 "failed_action": normalized.failed_action,
+                "http_status": _first_present(normalized.error_info, "httpStatus", "http_status"),
+                "error_type": _first_present(normalized.error_info, "errorType", "error_type"),
+                "error_message": _first_present(normalized.error_info, "message", "errorMessage", "error_message"),
             },
         )
 
@@ -154,7 +156,6 @@ class ContingencyCcrs:
                 "Interaction": self.java_runtime.class_(jpype, "ccrs.core.contingency.dto.Interaction"),
                 "InteractionOutcome": self.java_runtime.class_(jpype, "ccrs.core.contingency.dto.Interaction$Outcome"),
                 "Situation": self.java_runtime.class_(jpype, "ccrs.core.contingency.dto.Situation"),
-                "SituationType": self.java_runtime.class_(jpype, "ccrs.core.contingency.dto.Situation$Type"),
                 "ContingencyCcrs": self.java_runtime.class_(jpype, "ccrs.core.contingency.ContingencyCcrs"),
                 "ContingencyConfiguration": self.java_runtime.class_(
                     jpype,
@@ -351,20 +352,47 @@ class ContingencyCcrs:
 
     def _stop_options(self, options: Mapping[str, Any]) -> Any:
         builder = self._classes["StopStrategyOptions"].builder()
-        _call_if_present(builder, options, "requireExhaustion", "require_exhaustion", "requireExhaustion")
-        _call_if_present(builder, options, "exhaustionThreshold", "exhaustion_threshold", "exhaustionThreshold")
-        _call_if_present(builder, options, "stopLookbackLimit", "stop_lookback_limit", "stopLookbackLimit")
+        _call_if_present(
+            builder,
+            options,
+            "noSuggestionInvocationThreshold",
+            "no_suggestion_invocation_threshold",
+            "noSuggestionInvocationThreshold",
+        )
+        _call_if_present(
+            builder,
+            options,
+            "lowConfidenceInvocationThreshold",
+            "low_confidence_invocation_threshold",
+            "lowConfidenceInvocationThreshold",
+        )
+        _call_if_present(
+            builder,
+            options,
+            "lowConfidenceThreshold",
+            "low_confidence_threshold",
+            "lowConfidenceThreshold",
+        )
+        _call_if_present(
+            builder,
+            options,
+            "selectionResetCountBeforeStop",
+            "selection_reset_count_before_stop",
+            "selectionResetCountBeforeStop",
+        )
+        _call_if_present(
+            builder,
+            options,
+            "traceHistoryLookbackLimit",
+            "trace_history_lookback_limit",
+            "traceHistoryLookbackLimit",
+        )
         return builder.build()
 
     def _to_java_situation(self, situation: Situation) -> Any:
         """Convert Python `Situation` input into Java `Situation`."""
 
-        try:
-            java_type = self._classes["SituationType"].valueOf(situation.type_name)
-        except Exception as exc:
-            raise ValueError(f"Unsupported contingency situation type: {situation.type_name}") from exc
-
-        builder = self._classes["Situation"].builder(java_type)
+        builder = self._classes["Situation"].builder()
         if situation.trigger is not None:
             builder.trigger(str(situation.trigger))
         if situation.current_resource is not None:
@@ -444,7 +472,8 @@ class ContingencyCcrs:
             "opportunistic_guidance": opportunistic_guidance,
             "top_suggestion": suggestions[0] if suggestions else None,
             "stop": any(
-                suggestion.get("action_type") == "stop"
+                suggestion.get("strategy_id") == "stop"
+                and suggestion.get("action_type") == "stop"
                 for suggestion in suggestions
             ),
         }
@@ -503,7 +532,6 @@ class ContingencyCcrs:
 
     def _situation_to_dict(self, situation: Any) -> dict[str, Any]:
         return {
-            "type": str(situation.getType()),
             "trigger": _none_or_str(situation.getTrigger()),
             "current_resource": _none_or_str(situation.getCurrentResource()),
             "target_resource": _none_or_str(situation.getTargetResource()),

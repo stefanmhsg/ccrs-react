@@ -114,7 +114,7 @@ The integration contract is:
   [contingency/decision.py](contingency/decision.py), or provide an equivalent
   custom controller, to decide when to set `contingency_situation`.
 - Keep one [contingency/in_memory_ccrs_trace_history.py](contingency/in_memory_ccrs_trace_history.py)
-  instance alive for the graph execution so retry limits, stop exhaustion, and
+  instance alive for the graph execution so retry limits, Stop degradation episodes, and
   trace-based selection can see previous contingency invocations.
 - Let [contingency/ccrs_context.py](contingency/ccrs_context.py) derive RDF
   query data and Java `Interaction` records from normal message history.
@@ -304,6 +304,43 @@ Graph-control policy decides when a React graph should supply
 `contingency_situation`. [ccrs_node.py](ccrs_node.py) owns the node-side
 execution once that situation exists.
 
+### Advisory StopStrategy confirmation
+
+The reusable confirmation gate in
+[stop_confirmation.py](contingency/stop_confirmation.py) handles StopStrategy
+suggestions without making termination a Java-core concern or exposing a stop
+capability during normal agent decisions. An uncompleted contingency result
+authorizes confirmation only when a suggestion has both `strategy_id="stop"`
+and `action_type="stop"`.
+
+```text
+ccrs_node
+|-- no pending StopStrategy suggestion --> normal agent LLM
+`-- pending StopStrategy suggestion ------> stop_confirmation
+                                             |-- continue_run --> normal agent LLM
+                                             `-- accept_stop --> embedding graph END
+```
+
+The confirmation node binds only `accept_stop` and `continue_run`, disables
+parallel tool calls, and requires the agent to copy the originating `trace_id`.
+The control node rejects stale trace ids, missing or multiple calls, and unknown
+control names. A valid decision consumes the contingency result. The adapter
+returns the semantic routes `accepted`, `declined`, or `invalid`; only the
+embedding graph maps `accepted` to its terminal node.
+
+Agent-specific stop checks can be supplied without changing the reusable CCRS
+state or StopStrategy. Pass a plain `stop_decision_context` mapping to
+[graph_ccrs.py](../graph/graph_ccrs.py). The adapter serializes that mapping into
+the confirmation prompt without interpreting its criteria. Agents using the
+component directly can also inject a model factory, message provider, or prompt
+template through `make_stop_confirmation_node(...)`.
+
+The concrete maze application follows the existing configuration approach:
+[settings.py](../utils/settings.py) owns CLI/environment defaults,
+[main.py](../../main.py) applies command-line overrides, and
+[test_agent.ipynb](../../test_agent.ipynb) declares the complete effective
+StopStrategy and decision-context mappings inline.
+
 ## State Channels
 
 [state.py](state.py) defines the CCRS-aware LangGraph state shape. The current
@@ -317,8 +354,28 @@ adapter intentionally keeps the state surface small:
 | `contingency_situation` | Transient input that asks the CCRS node to run contingency evaluation. | Not prompt-injected directly; consumed by `ccrs_node` and then cleared. |
 
 The trace-history object used by contingency CCRS must survive across CCRS
-cycles in the same graph execution. This allows retry limits, stop exhaustion,
-and trace-based strategy selection to observe previous contingency invocations.
+cycles in the same graph execution. This allows retry limits, Stop degradation
+thresholds, learned-selection bypasses, and trace-based strategy
+selection to observe previous contingency invocations.
+
+Python `Situation` is type-free. Supply only concrete evidence:
+
+```python
+from react_agent.ccrs.contingency import Situation
+
+situation = Situation(
+    trigger="rate_limited",
+    current_resource="https://example.org/orders",
+    target_resource="https://example.org/orders/42",
+    failed_action="POST",
+    error_info={"httpStatus": 429, "message": "Too many requests"},
+)
+```
+
+Java strategies derive applicability from those fields and the run-local
+context. A Stop result remains advisory. It opens the adapter's one-shot
+confirmation gate, and the graph terminates only after the agent explicitly
+calls `accept_stop` for the matching trace.
 
 ## Prompt Surface
 
@@ -380,7 +437,10 @@ Contingency CCRS modules:
   contains the conservative default policy for explicit LLM escalation and
   repeated tool invocation failures.
 - [contingency/decision.py](contingency/decision.py) provides CCRS graph routing
-  helpers that keep baseline decision routing free of CCRS imports.
+  ownership results without importing a concrete agent's continuation policy.
+- [contingency/stop_confirmation.py](contingency/stop_confirmation.py) provides
+  the reusable StopStrategy authorization check, focused confirmation node,
+  control-call acknowledgement, trace validation, and semantic routes.
 - [contingency/contingency_ccrs.py](contingency/contingency_ccrs.py) wraps Java
   `ContingencyCcrs`, handles optional Java provider discovery, records traces,
   and converts Java results into Python dictionaries.
@@ -479,7 +539,11 @@ contingency_ccrs = ContingencyCcrs.from_maven_local(
             "max_interaction_state_triples": 50,
         },
         "stop": {
-            "exhaustion_threshold": 1,
+            "no_suggestion_invocation_threshold": 2,
+            "low_confidence_invocation_threshold": 3,
+            "low_confidence_threshold": 0.5,
+            "selection_reset_count_before_stop": 1,
+            "trace_history_lookback_limit": 30,
         },
     },
 )
@@ -494,9 +558,31 @@ await launch_agent(
     contingency_configuration={
         "retry": {"max_attempts": 5},
         "prediction_llm": {"max_history_actions": 20},
+        "stop": {
+            "no_suggestion_invocation_threshold": 2,
+            "low_confidence_invocation_threshold": 3,
+            "low_confidence_threshold": 0.5,
+            "selection_reset_count_before_stop": 1,
+            "trace_history_lookback_limit": 30,
+        },
+    },
+    stop_decision_context={
+        "decision_criteria": {
+            "accept_stop_when": ["Agent-specific acceptance criterion"],
+            "continue_run_when": ["Agent-specific continuation criterion"],
+        },
     },
 )
 ```
+
+The concrete CLI exposes the same StopStrategy values through
+`--stop-no-suggestion-invocation-threshold`,
+`--stop-low-confidence-invocation-threshold`,
+`--stop-low-confidence-threshold`,
+`--stop-selection-reset-count-before-stop`, and
+`--stop-trace-history-lookback-limit`. Decision criteria are repeatable through
+`--stop-decision-accept-when` and `--stop-decision-continue-when`. Defaults live
+with the other agent settings in [settings.py](../utils/settings.py).
 
 For advanced cases, pass a prebuilt Java `ContingencyConfiguration` object or a
 prebuilt `ContingencyCcrs` wrapper through the existing `contingency_ccrs`
@@ -572,6 +658,10 @@ Important React contingency event names:
 - `react.ccrs.contingency.runtime.ready`
 - `react.ccrs.contingency.evaluate`
 - `react.ccrs.contingency.returned`
+- `react.ccrs.stop.presented`
+- `react.ccrs.stop.accepted`
+- `react.ccrs.stop.declined`
+- `react.ccrs.stop.invalid`
 
 Important contingency-produced opportunistic guidance event names:
 

@@ -4,6 +4,13 @@ This ExecPlan is a living document. The sections `Progress`, `Surprises & Discov
 
 No repository-local `PLANS.md` or `.agent/PLANS.md` guide is currently checked in. This document follows the local `PLAN_<SCOPE>.md` convention and is intended to be self-contained enough for a future Codex session to resume CCRS adapter work without prior chat history.
 
+> Supersession note (2026-08-02): the contingency `SituationType` boundary,
+> legacy Stop exhaustion options, and deterministic graph termination described
+> in historical entries below were replaced by
+> `../ccrs-bdi/ccrs-core/PLAN_CONTINGENCY_SITUATION_MODEL.md`. Current APIs are
+> type-free, Stop uses degradation thresholds plus a one-invocation learned-gate
+> bypass, and a stop suggestion remains advisory to the agent.
+
 ## Purpose / Big Picture
 
 The goal is to make the Python ReAct/LangGraph agent consume the reusable Java Course Check and Revision Strategy libraries through a small adapter layer. After this work, a user should be able to run the `graph_ccrs` graph, observe Java-backed opportunistic CCRS annotations in the LangGraph state, and verify the React adapter path through stable `[REACT-CCRS-EVENT]` audit log lines. The first deliverable was opportunistic CCRS: RDF observations from tool messages are interpreted by Java `ccrs-core` and injected as advisory context into the next LLM decision. The current contingency work starts with the adapter boundary for failures, stuck states, retry, backtracking, and stop behavior; Package D owns the node-side Java contingency evaluation implementation, while Package C remains responsible for deciding when to trigger that evaluation.
@@ -37,7 +44,7 @@ The goal is to make the Python ReAct/LangGraph agent consume the reusable Java C
 - [x] (2026-05-29) Implemented Package D prompt plumbing: `opportunistic_ccrs_node` became the graph-facing `ccrs_node`, opportunistic annotations use a dedicated append-only state channel, `contingency_ccrs` entries are injected once and then marked completed, and `opportunistic_guidance_by_contingency_ccrs` is injected only when its `target` appears as a subject or object in the latest parseable RDF tool response.
 - [x] (2026-05-29) Moved the graph-facing CCRS node to `react_agent/ccrs/ccrs_node.py`, kept Java-name-aligned opportunistic evaluation in `opportunistic/vocabulary_matcher.py`, and added prompt selection in `opportunistic/opportunistic_result.py`.
 - [x] (2026-05-29) Added node-side contingency evaluation to `ccrs_node`: when `contingency_situation` is supplied, it calls Java `ContingencyCcrs.evaluate(...)`, appends the result to `contingency_ccrs`, and replaces `opportunistic_guidance_by_contingency_ccrs` from the fresh result.
-- [x] (2026-05-30) Implemented the first Package C graph-routing boundary: `decide_contingency_ccrs_escalation(...)`, the opt-in `escalate_to_contingency_ccrs` tool, CCRS graph `decision` routing, default repeated-tool-failure escalation, explicit LLM escalation precedence, persistent trace-history injection, and deterministic stop routing after `ccrs_node`.
+- [x] (2026-05-30) Implemented the first Package C graph-routing boundary: `decide_contingency_ccrs_escalation(...)`, the opt-in `escalate_to_contingency_ccrs` tool, CCRS graph `decision` routing, default repeated-tool-failure escalation, explicit LLM escalation precedence, persistent trace-history injection, and the original automatic stop route after `ccrs_node` (replaced by explicit confirmation on 2026-08-02).
 - [x] (2026-05-30) Renamed the CCRS graph module to `react_agent/graph/graph_ccrs.py`, moved CCRS routing helpers into `react_agent/ccrs/contingency/decision.py`, and split the default escalation policy into `react_agent/ccrs/contingency/default_escalation_controller.py`.
 - [x] (2026-05-30) Verified Package C graph routing, explicit escalation, default repeated-tool-failure escalation, Java-backed opportunistic scans, and Java-backed contingency evaluation with local smoke commands.
 - [x] (2026-05-30) Implemented Package G first pass: CCRS default prompt text now lives in `react_agent/ccrs/prompt.py`, JSON prompt rendering lives in `react_agent/ccrs/prompt_context.py`, and `react_prompt.py` exposes `make_react_prompt_ccrs(...)` so agent designers can override the CCRS wording.
@@ -53,12 +60,18 @@ The goal is to make the Python ReAct/LangGraph agent consume the reusable Java C
 - [x] (2026-06-12) Hardened default HTTP-error contingency situations so Package C supplies generic message-derived `current_resource` and Java-compatible `httpStatus` without changing Java CCRS strategy ownership.
 - [x] (2026-06-26) Added a `unittest` live A2A contingency smoke that skips unless the local key-holder agent card endpoint is running, then invokes Java contingency CCRS through the consultation strategy and verifies the projected blue-key `post` suggestion.
 - [x] (2026-08-02) Added non-live JPype contingency integration tests for JVM/class loading, strategy registration, Python-to-Java configuration mapping, `Situation` and `CcrsContext` proxy conversion, retry/backtrack/stop evaluation, and Java-to-Python result conversion.
+- [x] (2026-08-02) Replaced deterministic React termination on a StopStrategy suggestion with a reusable adapter confirmation gate. The stop capability is visible only while an uncompleted StopStrategy trace is under review; explicit `accept_stop` terminates the embedding graph, while `continue_run` returns to the normal agent.
+- [x] (2026-08-02) Validated the confirmation gate, invocation configuration, graph compilation, and real JPype StopStrategy projection with 24 discovered Python tests: 23 passed and one unavailable live A2A smoke skipped.
+- [x] (2026-08-02) Aligned stop invocation configuration with the existing approach: `settings.py` owns defaults, `main.py` applies CLI overrides, and the notebook displays complete StopStrategy and `stop_decision_context` mappings inline. Removed the temporary parallel `agent_config.py` mechanism.
 - [x] Continue contingency CCRS adapter design discussion; current working notes are recorded in the `Contingency CCRS Design Discussion` section.
 - [x] Implement first-pass contingency CCRS escalation for explicit LLM escalation and repeated tool invocation failures. Richer semantic escalation remains a controller customization concern.
 - [x] Ensure the same `InMemoryCcrsTraceHistory` instance survives across contingency CCRS cycles when graph routing is implemented.
 - [ ] Decide whether and when the adapter should become a separate reusable package such as `ccrs-react-python` or `ccrs-langgraph`.
 
 ## Surprises & Discoveries
+
+- Observation: The earlier Stop route was not an agent confirmation mechanism; it was direct graph termination.
+  Evidence: `react_agent/ccrs/contingency/decision.py` previously returned `end` as soon as an uncompleted contingency entry carried `stop=True`. The reusable gate now validates the exact StopStrategy identity, action, and trace before returning an `accepted` semantic route.
 
 - Observation: The previous plan text said JPype verification was still pending, but the current adapter has already completed a Java-backed scan.
   Evidence: Running `S:\anaconda\agent\python.exe -c "from react_agent.ccrs.opportunistic.vocabulary_matcher import VocabularyMatcher; ... evaluate_turtle(...)"` returned a Python dictionary with `type='signifier'`, `pattern_id='https://kaefer3000.github.io/2021-02-dagstuhl/vocab#green'`, and `utility=0.7`.
@@ -118,6 +131,14 @@ The goal is to make the Python ReAct/LangGraph agent consume the reusable Java C
   Evidence: A simulated notebook reload created an old `SituationType.UNCERTAINTY` value that no longer satisfied `isinstance(..., Situation)` in the reloaded Java wrapper. Structural normalization in [situation.py](react_agent/ccrs/contingency/situation.py) now converts old situation instances to `UNCERTAINTY` before Java evaluation.
 
 ## Decision Log
+
+- Decision: Use the existing `Settings` plus explicit invocation mappings for React stop configuration; do not maintain a separate `agent_config.py` configuration layer.
+  Rationale: CLI/environment defaults already belong in `react_agent/utils/settings.py`, while notebook experiments should show every effective strategy value and decision criterion in the invocation cell. A plain `stop_decision_context` mapping is also easier to inspect than a callback hidden behind an imported provider.
+  Date/Author: 2026-08-02 / Codex and user direction
+
+- Decision: Keep StopStrategy evaluation in Java core, but implement explicit stop consent as a reusable React CCRS adapter component.
+  Rationale: Java CCRS should only advise. `react_agent/ccrs/contingency/stop_confirmation.py` can conditionally expose `accept_stop` and `continue_run` from existing pending CCRS state, while each embedding graph remains responsible for mapping accepted consent to its own terminal node. This also avoids a new persistent authorization flag.
+  Date/Author: 2026-08-02 / Codex and user direction
 
 - Decision: Use JPype with an in-process JVM for normal Python-to-Java CCRS integration.
   Rationale: Opportunistic CCRS and future contingency CCRS need retained Java objects, runtime vocabulary discovery, and low per-cycle overhead. A sidecar HTTP process or one-shot CLI would add avoidable runtime boundaries and startup cost.
@@ -330,7 +351,14 @@ The tool contract in [escalation.py](react_agent/ccrs/contingency/escalation.py)
 
 The intended graph shape is `llm -> decision -> tools -> ccrs_node -> llm` in normal operation and `llm -> decision -> ccrs_node -> llm` when escalation is active. This makes contingency CCRS authoritative once invoked, while opportunistic CCRS remains advisory-only. Another possible policy is to execute the LLM-emitted tool first and then escalate based on its result; that should be an explicit custom controller choice rather than the default.
 
-Stop behavior should be deterministic. If contingency CCRS returns a stop suggestion, the React graph should terminate automatically instead of forcing another tool call. This likely requires changing the current CCRS LLM path, because [llm_node_ccrs_v2.py](react_agent/nodes/llm_node_ccrs_v2.py) currently binds tools with `tool_choice="any"`.
+Stop behavior uses explicit agent consent. A StopStrategy suggestion does not
+terminate the graph. Instead,
+[stop_confirmation.py](react_agent/ccrs/contingency/stop_confirmation.py)
+recognizes an uncompleted StopStrategy suggestion, temporarily exposes only
+`accept_stop` and `continue_run`, and validates the selected control against the
+originating trace id. The adapter returns semantic confirmation routes; the
+embedding graph alone maps `accepted` to its terminal node. No stop tool is
+present in the normal agent tool list and no additional state flag is required.
 
 Package C implementation todos:
 
@@ -343,7 +371,7 @@ Package C implementation todos:
 - [x] Ensure graph construction or run config can provide a custom `ContingencyCcrsEscalationController`.
 - [x] Ensure the same `InMemoryCcrsTraceHistory` object survives across contingency CCRS cycles in a graph execution.
 - [x] Add audit events that record whether escalation was considered, skipped, or activated, including reason, cycle, and generated `Situation` fields.
-- [x] Define stop routing so a contingency stop suggestion terminates the graph deterministically.
+- [x] Define reusable stop confirmation so a StopStrategy suggestion exposes a trace-bound choice, explicit acceptance terminates the embedding graph, and declining returns to the normal agent.
 - [x] Add a default-controller OR condition for consecutive HTTP API responses with status code `>= 400`, using only normal `ToolMessage` content and metadata. Default threshold: five consecutive HTTP API errors.
 - [x] Keep repeated tool invocation failures and HTTP API error responses distinguishable in the generated `Situation.trigger`, `Situation.error_info`, and audit reason.
 - [x] Make the HTTP status extractor generic enough for JSON error wrappers, response metadata, and RDF error bodies without baking MaSE-only parsing into graph routing.
@@ -539,7 +567,7 @@ The root `react_agent/ccrs/__init__.py` should not maintain compatibility export
     from react_agent.ccrs.opportunistic.opportunistic_result import get_opportunistic_ccrs_for_latest_tool_calls
     from react_agent.ccrs.contingency.contingency_ccrs_result import get_pending_contingency_ccrs
     from react_agent.ccrs.contingency.opportunistic_guidance import get_opportunistic_guidance_by_contingency_ccrs
-    from react_agent.ccrs.contingency import ContingencyCcrs, Situation, InMemoryCcrsContext, InMemoryCcrsTraceHistory, SituationType, get_default_contingency_ccrs
+    from react_agent.ccrs.contingency import ContingencyCcrs, Situation, InMemoryCcrsContext, InMemoryCcrsTraceHistory, get_default_contingency_ccrs
 
 `CcrsJavaRuntime` in `react_agent/ccrs/java_runtime.py` should provide:
 
@@ -567,7 +595,13 @@ mapping that mirrors the Java builder with snake_case keys, for example:
     {
         "retry": {"max_attempts": 5, "initial_delay_ms": 500},
         "prediction_llm": {"max_history_actions": 20},
-        "stop": {"exhaustion_threshold": 1},
+        "stop": {
+            "no_suggestion_invocation_threshold": 2,
+            "low_confidence_invocation_threshold": 3,
+            "low_confidence_threshold": 0.5,
+            "selection_reset_count_before_stop": 1,
+            "trace_history_lookback_limit": 30,
+        },
     }
 
 The current Package A context boundary in [ccrs_context.py](react_agent/ccrs/contingency/ccrs_context.py) is `InMemoryCcrsContext`. It provides a minimal Java `CcrsContext` proxy with RDF query, current resource, agent id, and CCRS trace-history methods. Its trace store is `InMemoryCcrsTraceHistory` in [in_memory_ccrs_trace_history.py](react_agent/ccrs/contingency/in_memory_ccrs_trace_history.py), matching the Java helper name and Java trace-history method names. Package B derives that context from normal LangGraph messages through [interaction.py](react_agent/ccrs/contingency/interaction.py), which owns Java `Interaction` values and outcome-classifier hooks. Package C must preserve one trace-history instance across contingency cycles for an agent run.
@@ -645,3 +679,7 @@ Optional Java capabilities are resolved through local Maven module names. [capab
 2026-06-06: Hardened decision-side HTTP status extraction after a notebook run crashed while parsing the successful non-RDF `http_post` response `Graph updated: ...` as Turtle. [http_status.py](react_agent/ccrs/contingency/http_status.py) now treats RDF parse errors as no HTTP status for escalation counting, preserving RDF/Turtle error detection without making non-RDF success messages fatal.
 
 2026-06-07: Added the React contingency strategy configuration bridge. [contingency/contingency_ccrs.py](react_agent/ccrs/contingency/contingency_ccrs.py) now accepts a Java `ContingencyConfiguration` object or a Python mapping with snake_case strategy option keys, converts mappings to Java configuration through JPype, and passes that configuration into the Java factory path. [graph_ccrs.py](react_agent/graph/graph_ccrs.py) forwards `contingency_configuration`, and [README.md](react_agent/ccrs/README.md) documents direct wrapper and `launch_agent(...)` usage.
+
+2026-08-02: Replaced historical automatic StopStrategy termination with the reusable confirmation component in [stop_confirmation.py](react_agent/ccrs/contingency/stop_confirmation.py). The revision records explicit agent consent, trace-bound validation, conditional tool visibility, semantic adapter routes, and concrete graph ownership of `END`.
+
+2026-08-02: Aligned the concrete CCRS invocations with the repository's established configuration approach after user feedback. [settings.py](react_agent/utils/settings.py) now owns defaults, [main.py](main.py) exposes strategy and decision-context overrides, [test_agent.ipynb](test_agent.ipynb) shows the complete effective mappings inline, and the temporary `react_agent/agent_config.py` layer was removed.

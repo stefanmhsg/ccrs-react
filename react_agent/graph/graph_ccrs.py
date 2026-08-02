@@ -13,10 +13,16 @@ from react_agent.state.state_ccrs import CcrsAgentState
 from react_agent.ccrs.contingency.decision import (
     make_ccrs_decision_node,
     route_after_ccrs_decision,
+)
+from react_agent.ccrs.contingency.stop_confirmation import (
+    make_stop_confirmation_node,
     route_after_ccrs_node,
+    route_after_stop_confirmation,
+    stop_confirmation_control_node,
 )
 from react_agent.nodes.llm_node_ccrs_v2 import make_llm_node
 from react_agent.nodes.current_cell_node import current_cell_node
+from react_agent.nodes.decision_node import should_continue
 from react_agent.nodes.tool_node import tool_node
 from react_agent.tools import tools
 
@@ -33,6 +39,7 @@ def build_graph(
     enable_contingency_a2a_consultation: bool = False,
     discover_contingency_strategy_providers: bool = False,
     contingency_configuration=None,
+    stop_decision_context=None,
 ):
     workflow = StateGraph(CcrsAgentState)
     active_trace_history = ccrs_trace_history or InMemoryCcrsTraceHistory()
@@ -70,13 +77,20 @@ def build_graph(
             ccrs_trace_history=active_trace_history,
         ),
     )
+    workflow.add_node(
+        "stop_confirmation",
+        make_stop_confirmation_node(
+            decision_context=stop_decision_context,
+        ),
+    )
+    workflow.add_node("stop_control", stop_confirmation_control_node)
 
     workflow.set_entry_point("llm")
     workflow.add_edge("llm", "decision")
 
     workflow.add_conditional_edges(
         "decision",
-        route_after_ccrs_decision,
+        _route_after_ccrs_decision,
         {
             "continue": "tools",
             "ccrs": "ccrs",
@@ -91,11 +105,29 @@ def build_graph(
         route_after_ccrs_node,
         {
             "continue": "llm",
-            "end": END,
+            "stop_confirmation": "stop_confirmation",
+        },
+    )
+    workflow.add_edge("stop_confirmation", "stop_control")
+    workflow.add_conditional_edges(
+        "stop_control",
+        route_after_stop_confirmation,
+        {
+            "accepted": END,
+            "declined": "llm",
+            "invalid": "stop_confirmation",
         },
     )
 
     return workflow.compile()
+
+
+def _route_after_ccrs_decision(state: dict) -> str:
+    """Compose reusable CCRS ownership with this agent's continuation policy."""
+
+    if route_after_ccrs_decision(state) == "ccrs":
+        return "ccrs"
+    return should_continue(state)
 
 
 def _contingency_ccrs_from_options(

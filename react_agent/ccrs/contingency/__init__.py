@@ -6,10 +6,7 @@ from react_agent.ccrs.contingency.contingency_ccrs import (
 from react_agent.ccrs.contingency.in_memory_ccrs_trace_history import (
     InMemoryCcrsTraceHistory,
 )
-from react_agent.ccrs.contingency.situation import (
-    Situation,
-    SituationType,
-)
+from react_agent.ccrs.contingency.situation import Situation
 
 
 __all__ = [
@@ -17,6 +14,5 @@ __all__ = [
     "InMemoryCcrsContext",
     "InMemoryCcrsTraceHistory",
     "Situation",
-    "SituationType",
     "get_default_contingency_ccrs",
 ]

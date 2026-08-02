@@ -663,11 +663,13 @@ foreach ($runDir in Get-ChildItem -Path $runRootPath -Directory | Sort-Object Na
                         $pendingContingencyContext = [pscustomobject][ordered]@{
                             cycle = Get-MapValue $fields "cycle"
                             cycle_timestamp = Get-MapValue $fields "cycle_timestamp"
-                            situation_type = Get-MapValue $fields "situation_type"
                             trigger = Get-MapValue $fields "trigger"
                             current_resource = Get-MapValue $fields "current_resource"
                             target_resource = Get-MapValue $fields "target_resource"
                             failed_action = Get-MapValue $fields "failed_action"
+                            http_status = Get-MapValue $fields "http_status"
+                            error_type = Get-MapValue $fields "error_type"
+                            error_message = Get-MapValue $fields "error_message"
                         }
                     }
                     if ($eventName -eq "react.ccrs.contingency.evaluate") {
@@ -679,11 +681,13 @@ foreach ($runDir in Get-ChildItem -Path $runRootPath -Directory | Sort-Object Na
                             returned_timestamp_ms = $null
                             cycle = if (Get-MapValue $fields "cycle") { Get-MapValue $fields "cycle" } elseif ($pendingContingencyContext) { $pendingContingencyContext.cycle } else { "" }
                             cycle_timestamp = if (Get-MapValue $fields "cycle_timestamp") { Get-MapValue $fields "cycle_timestamp" } elseif ($pendingContingencyContext) { $pendingContingencyContext.cycle_timestamp } else { "" }
-                            situation_type = if (Get-MapValue $fields "situation_type") { Get-MapValue $fields "situation_type" } elseif ($pendingContingencyContext) { $pendingContingencyContext.situation_type } else { "" }
                             trigger = if (Get-MapValue $fields "trigger") { Get-MapValue $fields "trigger" } elseif ($pendingContingencyContext) { $pendingContingencyContext.trigger } else { "" }
                             current_resource = if (Get-MapValue $fields "current_resource") { Get-MapValue $fields "current_resource" } elseif ($pendingContingencyContext) { $pendingContingencyContext.current_resource } else { "" }
                             target_resource = if (Get-MapValue $fields "target_resource") { Get-MapValue $fields "target_resource" } elseif ($pendingContingencyContext) { $pendingContingencyContext.target_resource } else { "" }
                             failed_action = if (Get-MapValue $fields "failed_action") { Get-MapValue $fields "failed_action" } elseif ($pendingContingencyContext) { $pendingContingencyContext.failed_action } else { "" }
+                            http_status = if (Get-MapValue $fields "http_status") { Get-MapValue $fields "http_status" } elseif ($pendingContingencyContext) { $pendingContingencyContext.http_status } else { "" }
+                            error_type = if (Get-MapValue $fields "error_type") { Get-MapValue $fields "error_type" } elseif ($pendingContingencyContext) { $pendingContingencyContext.error_type } else { "" }
+                            error_message = if (Get-MapValue $fields "error_message") { Get-MapValue $fields "error_message" } elseif ($pendingContingencyContext) { $pendingContingencyContext.error_message } else { "" }
                         })
                     } elseif ($eventName -eq "react.ccrs.contingency.returned" -and $activeContingencyInvocation -eq 0) {
                         $contingencyInvocation++
@@ -694,11 +698,13 @@ foreach ($runDir in Get-ChildItem -Path $runRootPath -Directory | Sort-Object Na
                             returned_timestamp_ms = $null
                             cycle = if (Get-MapValue $fields "cycle") { Get-MapValue $fields "cycle" } elseif ($pendingContingencyContext) { $pendingContingencyContext.cycle } else { "" }
                             cycle_timestamp = if (Get-MapValue $fields "cycle_timestamp") { Get-MapValue $fields "cycle_timestamp" } elseif ($pendingContingencyContext) { $pendingContingencyContext.cycle_timestamp } else { "" }
-                            situation_type = if (Get-MapValue $fields "situation_type") { Get-MapValue $fields "situation_type" } elseif ($pendingContingencyContext) { $pendingContingencyContext.situation_type } else { "" }
                             trigger = if (Get-MapValue $fields "trigger") { Get-MapValue $fields "trigger" } elseif ($pendingContingencyContext) { $pendingContingencyContext.trigger } else { "" }
                             current_resource = if (Get-MapValue $fields "current_resource") { Get-MapValue $fields "current_resource" } elseif ($pendingContingencyContext) { $pendingContingencyContext.current_resource } else { "" }
                             target_resource = if (Get-MapValue $fields "target_resource") { Get-MapValue $fields "target_resource" } elseif ($pendingContingencyContext) { $pendingContingencyContext.target_resource } else { "" }
                             failed_action = if (Get-MapValue $fields "failed_action") { Get-MapValue $fields "failed_action" } elseif ($pendingContingencyContext) { $pendingContingencyContext.failed_action } else { "" }
+                            http_status = if (Get-MapValue $fields "http_status") { Get-MapValue $fields "http_status" } elseif ($pendingContingencyContext) { $pendingContingencyContext.http_status } else { "" }
+                            error_type = if (Get-MapValue $fields "error_type") { Get-MapValue $fields "error_type" } elseif ($pendingContingencyContext) { $pendingContingencyContext.error_type } else { "" }
+                            error_message = if (Get-MapValue $fields "error_message") { Get-MapValue $fields "error_message" } elseif ($pendingContingencyContext) { $pendingContingencyContext.error_message } else { "" }
                         })
                     }
                     [void]$contingencyRows.Add([pscustomobject][ordered]@{
@@ -717,11 +723,13 @@ foreach ($runDir in Get-ChildItem -Path $runRootPath -Directory | Sort-Object Na
                         stop = Get-MapValue $fields "stop"
                         reason = Get-MapValue $fields "reason"
                         target = Get-MapValue $fields @("target", "target_resource", "current_resource")
-                        situation_type = Get-MapValue $fields "situation_type"
                         trigger = Get-MapValue $fields "trigger"
                         current_resource = Get-MapValue $fields "current_resource"
                         target_resource = Get-MapValue $fields "target_resource"
                         failed_action = Get-MapValue $fields "failed_action"
+                        http_status = Get-MapValue $fields "http_status"
+                        error_type = Get-MapValue $fields "error_type"
+                        error_message = Get-MapValue $fields "error_message"
                         evaluations = Get-MapValue $fields "evaluations"
                         suggestions = Get-MapValue $fields "suggestions"
                         no_help = Get-MapValue $fields "no_help"
@@ -881,11 +889,13 @@ foreach ($runDir in Get-ChildItem -Path $runRootPath -Directory | Sort-Object Na
                         stop = if ((Get-MapValue $fields "action_type") -eq "stop") { $true } else { "" }
                         reason = Get-MapValue $fields "no_help_reason"
                         target = Get-MapValue $fields "action_target"
-                        situation_type = if ($invocationContext) { $invocationContext.situation_type } else { "" }
                         trigger = if ($invocationContext) { $invocationContext.trigger } else { "" }
                         current_resource = if ($invocationContext) { $invocationContext.current_resource } else { "" }
                         target_resource = if ($invocationContext) { $invocationContext.target_resource } else { "" }
                         failed_action = if ($invocationContext) { $invocationContext.failed_action } else { "" }
+                        http_status = if ($invocationContext) { $invocationContext.http_status } else { "" }
+                        error_type = if ($invocationContext) { $invocationContext.error_type } else { "" }
+                        error_message = if ($invocationContext) { $invocationContext.error_message } else { "" }
                         evaluations = ""
                         suggestions = if ((Get-MapValue $fields "result_type") -eq "suggestion") { 1 } else { 0 }
                         no_help = if ((Get-MapValue $fields "result_type") -eq "no_help") { 1 } else { 0 }
@@ -1126,8 +1136,9 @@ Write-CsvRows -Rows $decisionRows -Path (Join-Path $outputPath "decisions.csv") 
 Write-CsvRows -Rows $contingencyRows -Path (Join-Path $outputPath "contingency.csv") -Headers @(
     "batch_id", "run_id", "agent_name", "file", "line",
     "react_event", "invocation", "cycle", "cycle_timestamp", "strategy_id",
-    "trace_id", "top_action", "stop", "reason", "target", "situation_type",
+    "trace_id", "top_action", "stop", "reason", "target",
     "trigger", "current_resource", "target_resource", "failed_action",
+    "http_status", "error_type", "error_message",
     "evaluations", "suggestions", "no_help", "opportunistic_guidance",
     "result_type", "action_type", "action_target", "confidence",
     "evaluation_time_ms", "has_opportunistic_guidance", "no_help_reason",

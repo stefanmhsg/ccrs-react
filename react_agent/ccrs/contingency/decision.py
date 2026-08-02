@@ -2,15 +2,9 @@
 
 from __future__ import annotations
 
-import logging
-
 from langchain_core.runnables import RunnableConfig
 
 from react_agent.ccrs.contingency.escalation import decide_contingency_ccrs_escalation
-from react_agent.nodes.decision_node import should_continue
-
-
-logger = logging.getLogger(__name__)
 
 
 def make_ccrs_decision_node(contingency_escalation_controller=None):
@@ -30,21 +24,8 @@ def make_ccrs_decision_node(contingency_escalation_controller=None):
 
 
 def route_after_ccrs_decision(state: dict) -> str:
-    """Route after the CCRS decision node has had a chance to set a Situation."""
+    """Return whether CCRS or the embedding agent owns the next route."""
 
     if state.get("contingency_situation") is not None:
         return "ccrs"
-    return should_continue(state)
-
-
-def route_after_ccrs_node(state: dict) -> str:
-    """Terminate when contingency CCRS returns an uncompleted stop suggestion."""
-
-    for entry in reversed(state.get("contingency_ccrs", []) or []):
-        if entry.get("completed"):
-            continue
-        if entry.get("stop"):
-            logger.info("Contingency CCRS returned stop. Ending process.")
-            return "end"
-        break
-    return "continue"
+    return "agent"

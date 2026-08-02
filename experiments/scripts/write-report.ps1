@@ -1779,9 +1779,13 @@ if ($contingency.Count -gt 0) {
                 @{ Expression = { Convert-ToIntOrZero $_.line } })) {
                 $rationaleParts = @()
                 if ($row.rationale) { $rationaleParts += $row.rationale }
-                if ($row.situation_type) { $rationaleParts += "situation=$($row.situation_type)" }
                 if ($row.trigger) { $rationaleParts += "trigger=$($row.trigger)" }
+                if ($row.current_resource) { $rationaleParts += "current_resource=$($row.current_resource)" }
+                if ($row.target_resource) { $rationaleParts += "target_resource=$($row.target_resource)" }
                 if ($row.failed_action) { $rationaleParts += "failed_action=$($row.failed_action)" }
+                if ($row.http_status) { $rationaleParts += "http_status=$($row.http_status)" }
+                if ($row.error_type) { $rationaleParts += "error_type=$($row.error_type)" }
+                if ($row.error_message) { $rationaleParts += "error_message=$($row.error_message)" }
                 $rationale = if ($rationaleParts.Count -gt 0) { $rationaleParts -join "; " } else { $null }
                 $lines.Add("| {0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} | {8} |" -f @(
                     (Format-CodeCell $row.strategy_id),
@@ -1843,12 +1847,20 @@ if ($contingency.Count -gt 0) {
                         $null
                     }
                     $rationaleParts = @()
-                    $situationType = if ($row.situation_type) { $row.situation_type } elseif ($contextRow) { $contextRow.situation_type } else { $null }
                     $trigger = if ($row.trigger) { $row.trigger } elseif ($contextRow) { $contextRow.trigger } else { $null }
+                    $currentResource = if ($row.current_resource) { $row.current_resource } elseif ($contextRow) { $contextRow.current_resource } else { $null }
+                    $targetResource = if ($row.target_resource) { $row.target_resource } elseif ($contextRow) { $contextRow.target_resource } else { $null }
                     $failedAction = if ($row.failed_action) { $row.failed_action } elseif ($contextRow) { $contextRow.failed_action } else { $null }
-                    if ($situationType) { $rationaleParts += "situation=$situationType" }
+                    $httpStatus = if ($row.http_status) { $row.http_status } elseif ($contextRow) { $contextRow.http_status } else { $null }
+                    $errorType = if ($row.error_type) { $row.error_type } elseif ($contextRow) { $contextRow.error_type } else { $null }
+                    $errorMessage = if ($row.error_message) { $row.error_message } elseif ($contextRow) { $contextRow.error_message } else { $null }
                     if ($trigger) { $rationaleParts += "trigger=$trigger" }
+                    if ($currentResource) { $rationaleParts += "current_resource=$currentResource" }
+                    if ($targetResource) { $rationaleParts += "target_resource=$targetResource" }
                     if ($failedAction) { $rationaleParts += "failed_action=$failedAction" }
+                    if ($httpStatus) { $rationaleParts += "http_status=$httpStatus" }
+                    if ($errorType) { $rationaleParts += "error_type=$errorType" }
+                    if ($errorMessage) { $rationaleParts += "error_message=$errorMessage" }
                     if ($row.evaluations) { $rationaleParts += "evaluations=$($row.evaluations)" }
                     if ($row.suggestions) { $rationaleParts += "suggestions=$($row.suggestions)" }
                     if ($row.trace_id) { $rationaleParts += "trace=$($row.trace_id)" }

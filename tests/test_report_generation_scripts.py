@@ -208,10 +208,21 @@ class ReportGenerationScriptsTest(unittest.TestCase):
             runs = {row["run_id"]: row for row in _read_csv(output_dir / "runs.csv")}
             decisions = _read_csv(output_dir / "decisions.csv")
             agents = _read_csv(output_dir / "agents.csv")
+            contingency = _read_csv(output_dir / "contingency.csv")
             self.assertEqual("selection_event", runs["002-ccrs"]["decision_metric_quality"])
             self.assertEqual("missing_selection_event", runs["001-baseline"]["decision_metric_quality"])
             self.assertEqual("True", decisions[0]["followed_top_opportunistic"])
             self.assertEqual({"2"}, {row["move_count"] for row in agents})
+            self.assertNotIn("situation_type", contingency[0])
+            evaluate_row = next(
+                row
+                for row in contingency
+                if row["react_event"] == "react.ccrs.contingency.evaluate"
+            )
+            self.assertEqual("blocked_navigation", evaluate_row["trigger"])
+            self.assertEqual("503", evaluate_row["http_status"])
+            self.assertEqual("SERVER_FAILURE", evaluate_row["error_type"])
+            self.assertEqual("service_unavailable", evaluate_row["error_message"])
             self.assertFalse(stale_path_input.exists())
 
             path_inputs = list((output_dir / "path-analysis-inputs").glob("*.cells.txt"))
@@ -335,7 +346,7 @@ class ReportGenerationScriptsTest(unittest.TestCase):
         if ccrs:
             log_lines.extend(
                 [
-                    "2026-01-01 12:00:01,000 [INFO] fixture: [REACT-CCRS-EVENT] event=react.ccrs.contingency.evaluate cycle=1 cycle_timestamp=2026-01-01T12:00:00+00:00 situation_type=FAILURE current_resource=http://127.0.1.1:8080/cells/0 evaluations=3",
+                    "2026-01-01 12:00:01,000 [INFO] fixture: [REACT-CCRS-EVENT] event=react.ccrs.contingency.evaluate cycle=1 cycle_timestamp=2026-01-01T12:00:00+00:00 trigger=blocked_navigation current_resource=http://127.0.1.1:8080/cells/0 failed_action=http_get http_status=503 error_type=SERVER_FAILURE error_message=service_unavailable evaluations=3",
                     "2026-01-01 12:00:01,100 [INFO] fixture: [REACT-CCRS-EVENT] event=react.ccrs.contingency.returned cycle=1 cycle_timestamp=2026-01-01T12:00:00+00:00 strategy_id=backtrack top_action=navigate target=http://127.0.1.1:8080/cells/999 suggestions=1 no_help=0",
                 ]
             )

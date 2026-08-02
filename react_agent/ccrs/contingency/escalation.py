@@ -18,7 +18,7 @@ from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 from react_agent.ccrs.audit import log_ccrs_event
-from react_agent.ccrs.contingency.situation import Situation, SituationType
+from react_agent.ccrs.contingency.situation import Situation
 
 
 logger = logging.getLogger(__name__)
@@ -28,15 +28,6 @@ ESCALATE_TO_CONTINGENCY_CCRS_TOOL_NAME = "escalate_to_contingency_ccrs"
 class EscalateToContingencyCcrsInput(BaseModel):
     """Arguments for asking graph control to invoke contingency CCRS."""
 
-    type: str = Field(
-        default=SituationType.UNCERTAINTY.value,
-        description=(
-            "Situation category for the recovery request. Use FAILURE for failed actions "
-            "or repeated HTTP errors, STUCK when actions succeed but do not make progress, "
-            "UNCERTAINTY when the next useful action is unclear, and PROACTIVE when asking "
-            "for preventive guidance before spending more tool calls."
-        ),
-    )
     trigger: str = Field(
         default="llm_self_escalation",
         description=(
@@ -77,7 +68,6 @@ class EscalateToContingencyCcrsInput(BaseModel):
 
 @tool(ESCALATE_TO_CONTINGENCY_CCRS_TOOL_NAME, args_schema=EscalateToContingencyCcrsInput)
 def escalate_to_contingency_ccrs(
-    type: str = SituationType.UNCERTAINTY.value,
     trigger: str = "llm_self_escalation",
     current_resource: str | None = None,
     target_resource: str | None = None,
@@ -96,7 +86,6 @@ def escalate_to_contingency_ccrs(
     return json.dumps(
         {
             "escalate_to_contingency_ccrs": True,
-            "type": type,
             "trigger": trigger,
             "current_resource": current_resource,
             "target_resource": target_resource,
@@ -211,7 +200,6 @@ def _situation_from_escalation_call(
     args = call.get("args") if isinstance(call.get("args"), Mapping) else {}
     configuration = (config or {}).get("configurable", {})
     return Situation(
-        type=str(args.get("type") or SituationType.UNCERTAINTY.value),
         trigger=str(args.get("trigger") or "llm_self_escalation"),
         current_resource=args.get("current_resource") or configuration.get("current_resource"),
         target_resource=args.get("target_resource"),
@@ -255,10 +243,31 @@ def _log_decision(
             "cycle": state.get("cycle", {}).get("number"),
             "reason": decision.reason,
             "skip_tool_node": decision.skip_tool_node,
-            "situation_type": situation.type_name if situation is not None else None,
             "trigger": situation.trigger if situation is not None else None,
             "current_resource": situation.current_resource if situation is not None else None,
             "target_resource": situation.target_resource if situation is not None else None,
             "failed_action": situation.failed_action if situation is not None else None,
+            "http_status": (
+                _first_situation_error(situation, "httpStatus", "http_status")
+                if situation is not None
+                else None
+            ),
+            "error_type": (
+                _first_situation_error(situation, "errorType", "error_type")
+                if situation is not None
+                else None
+            ),
+            "error_message": (
+                _first_situation_error(situation, "message", "errorMessage", "error_message")
+                if situation is not None
+                else None
+            ),
         },
     )
+
+
+def _first_situation_error(situation: Situation, *keys: str) -> Any | None:
+    for key in keys:
+        if key in situation.error_info:
+            return situation.error_info[key]
+    return None

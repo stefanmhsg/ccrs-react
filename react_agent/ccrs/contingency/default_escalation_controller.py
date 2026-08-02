@@ -19,7 +19,7 @@ from react_agent.ccrs.contingency.escalation import (
     explicit_contingency_ccrs_escalation_decision,
 )
 from react_agent.ccrs.contingency.http_status import http_status_from_tool_message
-from react_agent.ccrs.contingency.situation import Situation, SituationType
+from react_agent.ccrs.contingency.situation import Situation
 
 
 @dataclass
@@ -101,7 +101,6 @@ def _consecutive_http_error_decision(
     ]
     latest_status = status_codes[0] if status_codes else None
     situation = Situation(
-        type=SituationType.FAILURE,
         trigger="consecutive_http_api_errors",
         current_resource=configuration.get("current_resource")
         or _latest_successful_tool_resource_before_error_streak(state, errors),
@@ -147,7 +146,6 @@ def _repeated_tool_failure_decision(
     args = call.get("args") if isinstance(call.get("args"), Mapping) else {}
     tool_name = str(latest_failure.name or call.get("name") or "unknown_tool")
     situation = Situation(
-        type=SituationType.FAILURE,
         trigger="repeated_tool_failure",
         current_resource=configuration.get("current_resource")
         or _latest_successful_tool_resource_before_message(state, latest_failure),
