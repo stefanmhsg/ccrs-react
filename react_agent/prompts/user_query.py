@@ -17,6 +17,19 @@ After bootstrap, operate in this loop:
    valid interaction on the current cell.
 4. Continue until the exit is reached. The agentic loop will terminate when you
    are embodied in the exit cell.
+
+Follow a depth-first search (DFS) navigation pattern:
+- Prioritize unexplored navigation options in North, East, South, West (NESW)
+  order.
+- Remember each newly discovered cell's parent and which options from each cell
+  remain unexplored.
+- Move to the first unexplored option in that order. Avoid walls, self-links,
+  and unnecessary moves directly back to the parent while other options remain.
+- When a cell has no unexplored options left, backtrack to its parent and resume
+  with that parent's next unexplored option.
+- If an exit is advertised, move to it immediately. If the current cell requires
+  an interaction before navigation can continue, perform that valid interaction
+  first and then resume DFS.
 """.strip()
 
 
