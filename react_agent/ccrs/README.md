@@ -9,13 +9,13 @@ keys, and CCRS prompt variables. Use this package only from CCRS-specific graph
 variants such as [graph_ccrs.py](../graph/graph_ccrs.py).
 
 For the broader CCRS concept, start with
-[CCRS_LIBRARY.md](../../../ccrs-bdi/CCRS_LIBRARY.md). It focuses on BDI agents
+[CCRS_LIBRARY.md](../../../ccrs/CCRS_LIBRARY.md). It focuses on BDI agents
 and the JaCaMo adapter, but it explains the generic CCRS intention and points
 to further resources. The Java behavior most directly relevant to this adapter
 is documented in the opportunistic CCRS
-[README.md](../../../ccrs-bdi/ccrs-core/src/main/java/ccrs/core/opportunistic/README.md)
+[README.md](../../../ccrs/ccrs-core/src/main/java/ccrs/core/opportunistic/README.md)
 and contingency CCRS
-[README.md](../../../ccrs-bdi/ccrs-core/src/main/java/ccrs/core/contingency/README.md).
+[README.md](../../../ccrs/ccrs-core/src/main/java/ccrs/core/contingency/README.md).
 
 ## Adapter Role
 
@@ -39,10 +39,22 @@ and Java-backed evaluation.
 
 General integration steps:
 
-1. Make the Java CCRS artifacts available locally. The Python adapter resolves
-   Maven-local artifacts and Gradle cache dependencies through
-   [java_runtime.py](java_runtime.py). The default Java module is
-   `io.github.stefanmhsg.ccrs:ccrs-core:0.1.0-SNAPSHOT`.
+1. Configure GitHub Packages read access once in `~/.gradle/gradle.properties`:
+
+   ```properties
+   gpr.user=YOUR_GITHUB_USERNAME
+   gpr.key=YOUR_GITHUB_PACKAGES_READ_TOKEN
+   ```
+
+   The default Python runtime invokes the bundled Gradle resolver before JPype
+   starts, downloads the selected CCRS modules and their complete transitive
+   runtime graph from `https://maven.pkg.github.com/stefanmhsg/ccrs`, and caches
+   an isolated copy under `~/.cache/ccrs-react/github-packages`. The default
+   Java module is `io.github.stefanmhsg.ccrs:ccrs-core:0.1.0-SNAPSHOT`.
+   Snapshot versions refresh on each new Python process. Set
+   `CCRS_ARTIFACT_SOURCE=maven_local` only for an intentional offline/local
+   development run; that legacy source uses Maven-local artifacts plus the
+   local Gradle cache.
 2. Use [state.py](state.py) or an equivalent state type that includes
    `messages`, `cycle`, `opportunistic_ccrs`, `contingency_ccrs`,
    `opportunistic_guidance_by_contingency_ccrs`, and transient
@@ -410,8 +422,9 @@ Shared adapter modules:
   and reducers.
 - [rdf_adapter.py](rdf_adapter.py) parses Turtle and prepares RDF triples for
   Java calls.
-- [java_runtime.py](java_runtime.py) resolves Maven/Gradle classpaths, starts
-  JPype, and loads Java classes.
+- [java_runtime.py](java_runtime.py) resolves the default GitHub Packages
+  runtime graph (or the explicit Maven-local fallback), starts JPype, and loads
+  Java classes.
 - [java_logging.py](java_logging.py) configures Java `java.util.logging` output
   into per-run companion log files.
 - [prompt.py](prompt.py) provides the default CCRS system prompt fragment.
@@ -521,7 +534,7 @@ configuration supplied by the CCRS Maven libraries.
 
 The Python wrapper accepts a `contingency_configuration` mapping and converts it
 to Java
-[`ContingencyConfiguration.java`](../../../ccrs-bdi/ccrs-core/src/main/java/ccrs/core/contingency/ContingencyConfiguration.java)
+[`ContingencyConfiguration.java`](../../../ccrs/ccrs-core/src/main/java/ccrs/core/contingency/ContingencyConfiguration.java)
 before constructing Java contingency CCRS. Use snake_case keys in Python; the
 wrapper maps them to the Java builder API:
 

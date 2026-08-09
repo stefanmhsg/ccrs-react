@@ -60,6 +60,30 @@ class VocabularyMatcher:
             )
         )
 
+    @classmethod
+    def from_github_packages(
+        cls,
+        *,
+        group: str = "io.github.stefanmhsg.ccrs",
+        version: str = "0.1.0-SNAPSHOT",
+        modules: Iterable[str] = (CCRS_CORE_MODULE,),
+        github_packages_cache: str | Path | None = None,
+        extra_classpath: Iterable[str | Path] = (),
+        refresh_dependencies: bool | None = None,
+    ) -> "VocabularyMatcher":
+        """Create a matcher whose Java runtime comes from GitHub Packages."""
+
+        return cls(
+            java_runtime=CcrsJavaRuntime.from_github_packages(
+                group=group,
+                version=version,
+                modules=modules,
+                github_packages_cache=github_packages_cache,
+                extra_classpath=extra_classpath,
+                refresh_dependencies=refresh_dependencies,
+            )
+        )
+
     def evaluate_turtle(
         self,
         content: str,
@@ -173,7 +197,7 @@ def get_default_vocabulary_matcher() -> VocabularyMatcher:
 
     global _default_vocabulary_matcher
     if _default_vocabulary_matcher is None:
-        _default_vocabulary_matcher = VocabularyMatcher.from_maven_local()
+        _default_vocabulary_matcher = VocabularyMatcher()
     return _default_vocabulary_matcher
 
 

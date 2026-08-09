@@ -17,6 +17,13 @@ The goal is to make the Python ReAct/LangGraph agent consume the reusable Java C
 
 ## Progress
 
+- [x] (2026-08-09) Replaced the default cross-repository Maven-local runtime
+  assumption with direct GitHub Packages resolution. `ccrs-react` now contains
+  a minimal Gradle resolver project which resolves the selected CCRS module
+  graph before JPype starts, uses the consumer's Gradle credentials, and writes
+  an isolated per-user runtime cache. Maven-local remains an explicit offline
+  fallback through `CCRS_ARTIFACT_SOURCE=maven_local` and the existing
+  `from_maven_local(...)` factories.
 - [x] (2026-05-14) Added a `react_agent/ccrs/` package with runtime, RDF conversion, opportunistic node, CCRS state, and package README.
 - [x] (2026-05-14) Replaced the older hard-coded Python `maze:green` extraction path with Java `ccrs.core.opportunistic.VocabularyMatcher.scanAll(...)` through JPype.
 - [x] (2026-05-14) Replaced the prototype graph module with `react_agent/graph/graph_opportunistic_ccrs.py`, initially shaped as `llm -> tools -> opportunistic_ccrs -> llm`.
@@ -70,6 +77,13 @@ The goal is to make the Python ReAct/LangGraph agent consume the reusable Java C
 
 ## Surprises & Discoveries
 
+- Observation: A Gradle `-P` property containing a dotted Maven group must be
+  passed through unchanged to the wrapper; command wrappers that reinterpret
+  arguments can turn the group suffix into a task name.
+  Evidence: The bundled resolver succeeds when its Java wrapper receives
+  `-PccrsGroup=io.github.stefanmhsg.ccrs` directly. The Python implementation
+  uses `subprocess.run([...])`, so it does not involve a shell or expose this
+  quoting hazard to adapter users.
 - Observation: The earlier Stop route was not an agent confirmation mechanism; it was direct graph termination.
   Evidence: `react_agent/ccrs/contingency/decision.py` previously returned `end` as soon as an uncompleted contingency entry carried `stop=True`. The reusable gate now validates the exact StopStrategy identity, action, and trace before returning an `accepted` semantic route.
 
@@ -132,6 +146,14 @@ The goal is to make the Python ReAct/LangGraph agent consume the reusable Java C
 
 ## Decision Log
 
+- Decision: Make GitHub Packages the default CCRS artifact source in
+  `ccrs-react`; keep Maven-local only as an explicit offline/local-development
+  source.
+  Rationale: `ccrs-react` is now an independent consumer of the published
+  `ccrs` repository. Its resolver obtains the complete Gradle runtime graph,
+  avoids a second manually curated transitive-dependency list, and prevents an
+  accidental fallback to stale local snapshots. Users who intentionally need
+  local artifacts can opt in with `CCRS_ARTIFACT_SOURCE=maven_local`.
 - Decision: Use the existing `Settings` plus explicit invocation mappings for React stop configuration; do not maintain a separate `agent_config.py` configuration layer.
   Rationale: CLI/environment defaults already belong in `react_agent/utils/settings.py`, while notebook experiments should show every effective strategy value and decision criterion in the invocation cell. A plain `stop_decision_context` mapping is also easier to inspect than a callback hidden behind an imported provider.
   Date/Author: 2026-08-02 / Codex and user direction
@@ -506,6 +528,11 @@ Expected output is empty.
 ## Validation and Acceptance
 
 The opportunistic CCRS adapter is acceptable when all of the following are true. The package compiles with `S:\anaconda\agent\python.exe -m compileall react_agent`. Both graph builders return `CompiledStateGraph`. A Java-backed Turtle scan returns at least one opportunistic CCRS dictionary for the default green signifier pattern. The scan path emits `[REACT-CCRS-EVENT]` lines for adapter classpath/runtime/evaluation/detection when logging is enabled. A Java-backed scan launched after `setup_logging(...)` creates a `logs/<run>.java.log` companion file with `[JAVA-CCRS]` Java library records. Non-RDF tool output emits `react.ccrs.opportunistic.skipped reason=invalid_turtle` instead of an error stack trace. The `opportunistic_ccrs` state channel remains append-only, and the prompt path filters by latest tool call IDs rather than clearing state. `opportunistic_guidance_by_contingency_ccrs` is injected only after exact RDF subject/object target matching. No deprecated runtime aliases named `scan_turtle` or `scan_triples` remain.
+
+For the independent package path, a consumer with GitHub Packages credentials
+must be able to resolve `ccrs-core` through the bundled resolver, start JPype
+from its isolated cache, and load Java CCRS classes. The focused resolver unit
+tests and the normal repository test suite must both pass.
 
 The contingency Package A boundary is acceptable when a short local Python command can create `ContingencyCcrs`, `Situation`, and `InMemoryCcrsContext`, call Java `ContingencyCcrs.evaluateWithTrace(...)`, receive a Python trace dictionary with selected suggestions and per-strategy evaluations, and show that the Python context recorded one Java trace. Full graph routing, prompt injection, and escalation policy integration are not part of Package A acceptance.
 

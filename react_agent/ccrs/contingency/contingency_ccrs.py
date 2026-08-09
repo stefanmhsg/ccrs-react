@@ -17,7 +17,11 @@ from react_agent.ccrs.audit import log_ccrs_event
 from react_agent.ccrs.capabilities import CCRS_CORE_MODULE
 from react_agent.ccrs.contingency.ccrs_context import InMemoryCcrsContext
 from react_agent.ccrs.contingency.situation import Situation
-from react_agent.ccrs.java_runtime import CcrsJavaRuntime, CcrsJavaRuntimeError
+from react_agent.ccrs.java_runtime import (
+    CcrsJavaRuntime,
+    CcrsJavaRuntimeError,
+    get_default_java_runtime,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -28,7 +32,7 @@ LOG_PREFIX = "[React CCRS][Contingency]"
 class ContingencyCcrs:
     """Runs Java contingency CCRS strategy evaluation."""
 
-    java_runtime: CcrsJavaRuntime = field(default_factory=CcrsJavaRuntime.from_maven_local)
+    java_runtime: CcrsJavaRuntime = field(default_factory=get_default_java_runtime)
     discover_strategy_providers: bool = False
     contingency_configuration: Any = None
 
@@ -57,6 +61,34 @@ class ContingencyCcrs:
                 maven_repo=maven_repo,
                 gradle_cache=gradle_cache,
                 extra_classpath=extra_classpath,
+            ),
+            discover_strategy_providers=discover_strategy_providers,
+            contingency_configuration=contingency_configuration,
+        )
+
+    @classmethod
+    def from_github_packages(
+        cls,
+        *,
+        group: str = "io.github.stefanmhsg.ccrs",
+        version: str = "0.1.0-SNAPSHOT",
+        modules: Iterable[str] = (CCRS_CORE_MODULE,),
+        github_packages_cache: str | Path | None = None,
+        extra_classpath: Iterable[str | Path] = (),
+        refresh_dependencies: bool | None = None,
+        discover_strategy_providers: bool = False,
+        contingency_configuration: Any = None,
+    ) -> "ContingencyCcrs":
+        """Create an evaluator whose Java runtime comes from GitHub Packages."""
+
+        return cls(
+            java_runtime=CcrsJavaRuntime.from_github_packages(
+                group=group,
+                version=version,
+                modules=modules,
+                github_packages_cache=github_packages_cache,
+                extra_classpath=extra_classpath,
+                refresh_dependencies=refresh_dependencies,
             ),
             discover_strategy_providers=discover_strategy_providers,
             contingency_configuration=contingency_configuration,
@@ -565,7 +597,7 @@ def get_default_contingency_ccrs() -> ContingencyCcrs:
 
     global _default_contingency_ccrs
     if _default_contingency_ccrs is None:
-        _default_contingency_ccrs = ContingencyCcrs.from_maven_local()
+        _default_contingency_ccrs = ContingencyCcrs()
     return _default_contingency_ccrs
 
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import os
 import shutil
+import subprocess
 import tempfile
 import threading
 from dataclasses import dataclass, field
@@ -41,6 +42,21 @@ def _default_gradle_cache() -> Path:
     return Path.home() / ".gradle" / "caches" / "modules-2" / "files-2.1"
 
 
+def _default_github_packages_cache() -> Path:
+    """Return the per-user cache populated by the bundled Gradle resolver."""
+
+    return Path(
+        os.environ.get(
+            "CCRS_GITHUB_PACKAGES_CACHE",
+            Path.home() / ".cache" / "ccrs-react" / "github-packages",
+        )
+    )
+
+
+def _default_resolver_dir() -> Path:
+    return Path(__file__).resolve().parents[2] / "ccrs_runtime_resolver"
+
+
 @dataclass
 class CcrsJavaRuntime:
     """Resolves and starts the Java environment used by CCRS wrappers."""
@@ -51,6 +67,10 @@ class CcrsJavaRuntime:
     maven_repo: Path = field(default_factory=_default_maven_repo)
     gradle_cache: Path = field(default_factory=_default_gradle_cache)
     extra_classpath: tuple[Path, ...] = ()
+    artifact_source: str = "maven_local"
+    github_packages_cache: Path = field(default_factory=_default_github_packages_cache)
+    resolver_dir: Path = field(default_factory=_default_resolver_dir)
+    refresh_dependencies: bool = False
 
     _classes: dict[str, Any] = field(default_factory=dict, init=False, repr=False)
 
@@ -167,6 +187,49 @@ class CcrsJavaRuntime:
             extra_classpath=tuple(Path(path) for path in extra_classpath),
         )
 
+    @classmethod
+    def from_github_packages(
+        cls,
+        *,
+        group: str = "io.github.stefanmhsg.ccrs",
+        version: str = "0.1.0-SNAPSHOT",
+        modules: Iterable[str] = (CCRS_CORE_MODULE,),
+        github_packages_cache: str | Path | None = None,
+        resolver_dir: str | Path | None = None,
+        extra_classpath: Iterable[str | Path] = (),
+        refresh_dependencies: bool | None = None,
+    ) -> "CcrsJavaRuntime":
+        """Resolve CCRS and its runtime graph directly from GitHub Packages.
+
+        Gradle reads credentials from the user's normal Gradle configuration
+        (``gpr.user`` and ``gpr.key``) or from ``GITHUB_ACTOR`` and
+        ``GITHUB_TOKEN``. Credentials are deliberately not accepted as Python
+        arguments and never written to the resolver project.
+        """
+
+        return cls(
+            group=group,
+            version=version,
+            modules=tuple(modules),
+            extra_classpath=tuple(Path(path) for path in extra_classpath),
+            artifact_source="github_packages",
+            github_packages_cache=(
+                Path(github_packages_cache).resolve()
+                if github_packages_cache is not None
+                else _default_github_packages_cache().resolve()
+            ),
+            resolver_dir=(
+                Path(resolver_dir).resolve()
+                if resolver_dir is not None
+                else _default_resolver_dir().resolve()
+            ),
+            refresh_dependencies=(
+                version.endswith("-SNAPSHOT")
+                if refresh_dependencies is None
+                else refresh_dependencies
+            ),
+        )
+
     def ensure_jvm(
         self,
         *,
@@ -216,8 +279,16 @@ class CcrsJavaRuntime:
             logger.info("%s Added CCRS_JAVA_CLASSPATH entries for JPype classpath.", LOG_PREFIX)
 
         paths.extend(self.extra_classpath)
-        paths.extend(self._resolve_module_jars())
-        paths.extend(self._resolve_dependency_jars(audit_event_namespace))
+        if self.artifact_source == "github_packages":
+            paths.extend(self._resolve_github_packages_jars())
+        elif self.artifact_source == "maven_local":
+            paths.extend(self._resolve_module_jars())
+            paths.extend(self._resolve_dependency_jars(audit_event_namespace))
+        else:
+            raise CcrsJavaRuntimeError(
+                f"Unsupported CCRS artifact source: {self.artifact_source!r}. "
+                "Use 'github_packages' or 'maven_local'."
+            )
 
         seen: set[str] = set()
         unique: list[Path] = []
@@ -237,6 +308,7 @@ class CcrsJavaRuntime:
             {
                 "entries": len(unique),
                 "modules": ",".join(self.modules),
+                "artifact_source": self.artifact_source,
                 "maven_repo": self.maven_repo,
                 "gradle_cache": self.gradle_cache,
             },
@@ -272,6 +344,83 @@ class CcrsJavaRuntime:
             _stable_classpath_copy(self._find_maven_artifact_jar(module))
             for module in self.modules
         ]
+
+    def _resolve_github_packages_jars(self) -> list[Path]:
+        """Populate and read this runtime's isolated GitHub Packages cache."""
+
+        self._run_github_packages_resolver()
+        if not self.github_packages_cache.exists():
+            raise CcrsJavaRuntimeError(
+                "The CCRS GitHub Packages resolver completed without creating "
+                f"its runtime directory: {self.github_packages_cache}"
+            )
+
+        jars = sorted(
+            path
+            for path in self.github_packages_cache.rglob("*.jar")
+            if not _is_non_runtime_jar(path)
+        )
+        if not jars:
+            raise CcrsJavaRuntimeError(
+                "The CCRS GitHub Packages resolver produced no runtime jars. "
+                f"Check the selected modules and credentials; directory={self.github_packages_cache}"
+            )
+        logger.info(
+            "%s Resolved CCRS runtime from GitHub Packages; modules=%s jars=%s cache=%s",
+            LOG_PREFIX,
+            ",".join(self.modules),
+            len(jars),
+            self.github_packages_cache,
+        )
+        return [_stable_classpath_copy(path) for path in jars]
+
+    def _run_github_packages_resolver(self) -> None:
+        wrapper_jar = self.resolver_dir / "gradle" / "wrapper" / "gradle-wrapper.jar"
+        if not wrapper_jar.is_file():
+            raise CcrsJavaRuntimeError(
+                "Missing bundled Gradle wrapper for GitHub Packages resolution: "
+                f"{wrapper_jar}"
+            )
+
+        java_executable = _find_java_executable()
+        command = [
+            str(java_executable),
+            "-jar",
+            str(wrapper_jar),
+            "--no-daemon",
+            "--console=plain",
+            f"-PccrsGroup={self.group}",
+            f"-PccrsVersion={self.version}",
+            f"-PccrsModules={','.join(self.modules)}",
+            f"-PccrsRuntimeDirectory={self.github_packages_cache}",
+            "syncCcrsRuntime",
+        ]
+        if self.refresh_dependencies:
+            command.append("--refresh-dependencies")
+
+        try:
+            result = subprocess.run(
+                command,
+                cwd=self.resolver_dir,
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise CcrsJavaRuntimeError(
+                "Timed out while resolving CCRS from GitHub Packages after 180 seconds."
+            ) from exc
+        except OSError as exc:
+            raise CcrsJavaRuntimeError("Unable to start the CCRS Gradle resolver.") from exc
+
+        if result.returncode != 0:
+            raise CcrsJavaRuntimeError(
+                "Failed to resolve CCRS from GitHub Packages "
+                f"(Gradle exit code {result.returncode}). Configure gpr.user and gpr.key "
+                "in ~/.gradle/gradle.properties (or GITHUB_ACTOR and GITHUB_TOKEN), "
+                "then run again."
+            )
 
     def _find_maven_artifact_jar(self, artifact_id: str) -> Path:
         artifact_dir = self.maven_repo.joinpath(*self.group.split("."), artifact_id, self.version)
@@ -363,7 +512,19 @@ def get_default_java_runtime() -> CcrsJavaRuntime:
 
     global _default_java_runtime
     if _default_java_runtime is None:
-        _default_java_runtime = CcrsJavaRuntime.from_maven_local()
+        source = os.environ.get("CCRS_ARTIFACT_SOURCE", "github_packages").lower()
+        if source == "github_packages":
+            _default_java_runtime = CcrsJavaRuntime.from_github_packages(
+                version=os.environ.get("CCRS_VERSION", "0.1.0-SNAPSHOT")
+            )
+        elif source == "maven_local":
+            _default_java_runtime = CcrsJavaRuntime.from_maven_local(
+                version=os.environ.get("CCRS_VERSION", "0.1.0-SNAPSHOT")
+            )
+        else:
+            raise CcrsJavaRuntimeError(
+                "CCRS_ARTIFACT_SOURCE must be 'github_packages' or 'maven_local'."
+            )
     return _default_java_runtime
 
 
@@ -383,6 +544,22 @@ def require_jpype() -> Any:
 def _is_non_runtime_jar(path: Path) -> bool:
     name = path.name
     return name.endswith("-sources.jar") or name.endswith("-javadoc.jar")
+
+
+def _find_java_executable() -> Path:
+    """Find the Java executable used to invoke the bundled Gradle wrapper."""
+
+    java_home = os.environ.get("JAVA_HOME")
+    if java_home:
+        executable = Path(java_home) / "bin" / ("java.exe" if os.name == "nt" else "java")
+        if executable.is_file():
+            return executable
+    executable = shutil.which("java")
+    if executable:
+        return Path(executable)
+    raise CcrsJavaRuntimeError(
+        "Java is required to resolve CCRS from GitHub Packages. Set JAVA_HOME or add java to PATH."
+    )
 
 
 def _stable_classpath_copy(path: Path) -> Path:

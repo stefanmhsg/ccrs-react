@@ -1,0 +1,50 @@
+plugins {
+    id 'base'
+}
+
+def ccrsGroup = providers.gradleProperty('ccrsGroup').getOrElse('io.github.stefanmhsg.ccrs')
+def ccrsVersion = providers.gradleProperty('ccrsVersion').getOrElse('0.1.0-SNAPSHOT')
+def ccrsModules = providers.gradleProperty('ccrsModules')
+        .getOrElse('ccrs-core')
+        .split(',')
+        .collect { it.trim() }
+        .findAll { !it.isEmpty() }
+def runtimeDirectory = file(providers.gradleProperty('ccrsRuntimeDirectory')
+        .getOrElse(layout.buildDirectory.dir('resolved-runtime').get().asFile.absolutePath))
+
+repositories {
+    maven {
+        name = 'GitHubPackages'
+        url = uri('https://maven.pkg.github.com/stefanmhsg/ccrs')
+        credentials {
+            username = providers.gradleProperty('gpr.user').orElse(providers.environmentVariable('GITHUB_ACTOR')).orNull
+            password = providers.gradleProperty('gpr.key').orElse(providers.environmentVariable('GITHUB_TOKEN')).orNull
+        }
+    }
+    mavenCentral()
+}
+
+configurations {
+    ccrsRuntime {
+        canBeConsumed = false
+        canBeResolved = true
+        attributes {
+            attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
+        }
+    }
+}
+
+dependencies {
+    ccrsModules.each { module ->
+        ccrsRuntime("${ccrsGroup}:${module}:${ccrsVersion}")
+    }
+}
+
+tasks.register('syncCcrsRuntime', Sync) {
+    description = 'Resolves CCRS modules and their runtime dependencies from GitHub Packages.'
+    group = 'CCRS'
+    from(configurations.ccrsRuntime)
+    into(runtimeDirectory)
+    includeEmptyDirs = false
+    duplicatesStrategy = DuplicatesStrategy.FAIL
+}
