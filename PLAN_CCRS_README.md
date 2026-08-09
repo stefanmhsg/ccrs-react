@@ -17,6 +17,10 @@ The goal is to make the Python ReAct/LangGraph agent consume the reusable Java C
 
 ## Progress
 
+- [x] (2026-08-09 18:55Z) Validated this application against the downloaded
+  `ccrs-langgraph-v0.1.0` wheel: all seven application and report-generation
+  tests passed from an isolated environment. Pushed consumer commits through
+  `33c096e` to `stefanmhsg/ccrs-react`.
 - [x] (2026-08-09) Completed Package I as a direct cutover. The adapter now
   ships from `stefanmhsg/ccrs/ccrs-langgraph` as `ccrs-langgraph` 0.1.0. The
   ReAct application imports the installed package as a consumer; no adapter
@@ -646,10 +650,11 @@ API with `react_agent` absent, found the four intended resolver resources,
 resolved `ccrs-core:0.1.0-SNAPSHOT` from GitHub Packages, and loaded
 `ccrs.core.opportunistic.VocabularyMatcher` through JPype. The temporary
 environment was removed after validation. The package was then physically
-moved into `stefanmhsg/ccrs`; the release workflow now runs only after a
-matching `ccrs-langgraph-v0.1.0` tag is pushed there. This repository consumes
-the corresponding wheel URL in `requirements.txt` and contains no package
-duplicate. After relocation, all 23 package-owned tests passed from
+moved into `stefanmhsg/ccrs`; release run
+[31330186805](https://github.com/stefanmhsg/ccrs/actions/runs/31330186805)
+published `ccrs-langgraph-v0.1.0`. This repository consumes the corresponding
+wheel URL in `requirements.txt` and contains no package duplicate. After
+relocation, all 23 package-owned tests passed from
 `ccrs/ccrs-langgraph` and all seven remaining application tests passed here.
 A clean wheel environment imported all 28 adapter modules with `react_agent`
 absent and loaded Java CCRS from GitHub Packages through JPype.
@@ -926,10 +931,11 @@ rule, clean-wheel consumer validation, Java dependency resolution through
 GitHub Packages, and Python artifact publication through GitHub Releases because
 GitHub Packages does not offer a PyPI-compatible registry.
 
-2026-08-09: Completed Package I. The adapter moved to
-[src/ccrs_langgraph](src/ccrs_langgraph), the ReAct application and notebook now
-consume `ccrs_langgraph`, the wheel contains only the intended Gradle resolver
-resources, and [.github/workflows/release-ccrs-langgraph.yml](.github/workflows/release-ccrs-langgraph.yml)
-builds, externally verifies, Java-smoke-tests, and attaches artifacts for
-matching version tags. The plan records the clean-wheel/JPype evidence and the
-currently unspecified repository license.
+2026-08-09: Completed Package I and its repository-ownership cutover. The
+adapter now lives only in
+[stefanmhsg/ccrs/ccrs-langgraph](https://github.com/stefanmhsg/ccrs/tree/master/ccrs-langgraph),
+the ReAct application and notebook consume the installed `ccrs_langgraph`
+package, and the canonical release workflow published the wheel and source
+archive under `ccrs-langgraph-v0.1.0`. An isolated environment downloaded that
+wheel and passed all seven `ccrs-react` tests before consumer commit `33c096e`
+was pushed. The repository license remains explicitly unspecified.
