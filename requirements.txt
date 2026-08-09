@@ -1,3 +1,5 @@
+ccrs-langgraph @ https://github.com/stefanmhsg/ccrs/releases/download/ccrs-langgraph-v0.1.0/ccrs_langgraph-0.1.0-py3-none-any.whl
+
 aiohappyeyeballs==2.6.1
 aiohttp==3.12.15
 aiosignal==1.4.0

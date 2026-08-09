@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from react_agent.ccrs.rdf_adapter import CcrsRdfParseError, parse_turtle_triples
+from ccrs_langgraph.rdf_adapter import CcrsRdfParseError, parse_turtle_triples
 
 DYNMAZE_NAMESPACE = "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#"
 MAZE_VOCAB_NAMESPACE = "https://kaefer3000.github.io/2021-02-dagstuhl/vocab#"

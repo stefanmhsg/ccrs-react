@@ -1,6 +1,6 @@
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
-from react_agent.ccrs.prompt import DEFAULT_CCRS_SYSTEM_PROMPT
+from ccrs_langgraph.prompt import DEFAULT_CCRS_SYSTEM_PROMPT
 
 
 BASE_REACT_SYSTEM_PROMPT = """

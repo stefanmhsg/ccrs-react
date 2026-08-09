@@ -1,6 +1,6 @@
 from typing import Any, NotRequired
 
-from react_agent.ccrs.state import CcrsAgentState as CcrsLibraryState
+from ccrs_langgraph.state import CcrsAgentState as CcrsLibraryState
 
 
 class CcrsAgentState(CcrsLibraryState):

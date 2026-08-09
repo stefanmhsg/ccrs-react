@@ -7,7 +7,7 @@ No repository-local `PLANS.md` or `.agent/PLANS.md` guide is currently checked i
 > Supersession note (2026-08-02): the contingency `SituationType` boundary,
 > legacy Stop exhaustion options, and deterministic graph termination described
 > in historical entries below were replaced by
-> `../ccrs-bdi/ccrs-core/PLAN_CONTINGENCY_SITUATION_MODEL.md`. Current APIs are
+> `../ccrs/ccrs-core/PLAN_CONTINGENCY_SITUATION_MODEL.md`. Current APIs are
 > type-free, Stop uses degradation thresholds plus a one-invocation learned-gate
 > bypass, and a stop suggestion remains advisory to the agent.
 
@@ -17,6 +17,12 @@ The goal is to make the Python ReAct/LangGraph agent consume the reusable Java C
 
 ## Progress
 
+- [x] (2026-08-09) Completed Package I as a direct cutover. The adapter now
+  ships from `stefanmhsg/ccrs/ccrs-langgraph` as `ccrs-langgraph` 0.1.0. The
+  ReAct application imports the installed package as a consumer; no adapter
+  source or packaging duplicate remains in this repository. The package-owned
+  release workflow publishes wheel/source assets through the `ccrs` GitHub
+  Releases while resolving Java CCRS from GitHub Packages.
 - [x] (2026-08-09) Replaced the default cross-repository Maven-local runtime
   assumption with direct GitHub Packages resolution. `ccrs-react` now contains
   a minimal Gradle resolver project which resolves the selected CCRS module
@@ -73,10 +79,42 @@ The goal is to make the Python ReAct/LangGraph agent consume the reusable Java C
 - [x] Continue contingency CCRS adapter design discussion; current working notes are recorded in the `Contingency CCRS Design Discussion` section.
 - [x] Implement first-pass contingency CCRS escalation for explicit LLM escalation and repeated tool invocation failures. Richer semantic escalation remains a controller customization concern.
 - [x] Ensure the same `InMemoryCcrsTraceHistory` instance survives across contingency CCRS cycles when graph routing is implemented.
-- [ ] Decide whether and when the adapter should become a separate reusable package such as `ccrs-react-python` or `ccrs-langgraph`.
+- [x] Package I: physically separated `react_agent/ccrs` into the installable
+  `ccrs-langgraph` distribution with the `ccrs_langgraph` import namespace,
+  migrate this repository's ReAct application into a consumer, and publish
+  wheel/source artifacts through GitHub Releases. Java CCRS dependencies
+  continue to come from GitHub Packages.
 
 ## Surprises & Discoveries
 
+- Observation: A recursive source-distribution include can accidentally pick
+  up ignored Gradle project state when matching `*.properties` below the
+  bundled resolver.
+  Evidence: The first local wheel contained three
+  `_runtime_resolver/.gradle/**` property files. `MANIFEST.in` now prunes the
+  resolver's `.gradle` and `build` directories; the clean rebuild contains
+  exactly the two Gradle scripts, wrapper properties, and wrapper JAR.
+- Observation: The repository has no declared reuse license.
+  Evidence: No `LICENSE` file or existing license metadata was present.
+  `pyproject.toml` therefore uses the truthful SPDX custom expression
+  `LicenseRef-Not-Specified` instead of inventing an open-source grant. A
+  specific license can be selected before public promotion without changing
+  package names or code.
+- Observation: GitHub Packages does not provide a native Python/PyPI package
+  registry.
+  Evidence: GitHub's supported-registry documentation lists npm, RubyGems,
+  Maven/Gradle, NuGet, and container formats, but no Python wheel or source
+  distribution format. A wheel could be hidden inside Maven or OCI storage,
+  but `pip` could not consume it as a normal package. GitHub Releases is the
+  GitHub-native distribution target for the Python artifacts; GitHub Packages
+  remains the correct target for the Java CCRS Maven artifacts.
+- Observation: The current adapter is coupled to the LangChain/LangGraph data
+  model rather than to a framework-neutral ReAct protocol.
+  Evidence: modules under `react_agent/ccrs` accept `AIMessage`, `ToolMessage`,
+  `BaseMessage`, and `RunnableConfig`; `react_agent/ccrs/state.py` directly uses
+  LangGraph's `add_messages` reducer. Extracting the directory unchanged under
+  a broad `ccrs-react` name would imply portability that the public API does
+  not currently provide.
 - Observation: A Gradle `-P` property containing a dotted Maven group must be
   passed through unchanged to the wrapper; command wrappers that reinterpret
   arguments can turn the group suffix into a task name.
@@ -118,16 +156,16 @@ The goal is to make the Python ReAct/LangGraph agent consume the reusable Java C
   Evidence: [get.py](react_agent/tools/get.py) and [post.py](react_agent/tools/post.py) used `requests.raise_for_status()`, so HTTP 4xx/5xx response bodies were replaced with Python error dictionaries. They now send `Accept: text/turtle, text/plain;q=0.1` by default and return the raw HTTP body for any HTTP response. Actual tool invocation errors, such as unknown tools or request exceptions, are still represented as normal `ToolMessage` errors by [tool_node.py](react_agent/nodes/tool_node.py).
 
 - Observation: Java `CcrsContext.query(...)` is not the only context path used by contingency strategies.
-  Evidence: [CcrsContext.java](../ccrs-bdi/ccrs-core/src/main/java/ccrs/core/rdf/CcrsContext.java) defines `query(...)` as RDF pattern matching and its default `getMemoryTriples(...)` and `getNeighborhood(...)` methods delegate to it. [ConsultationStrategy.java](../ccrs-bdi/ccrs-core/src/main/java/ccrs/core/contingency/strategies/social/ConsultationStrategy.java) calls `query(...)` directly for A2A agent-card metadata and also uses `getNeighborhood(...)`. [PredictionLlmStrategy.java](../ccrs-bdi/ccrs-core/src/main/java/ccrs/core/contingency/strategies/internal/prediction/PredictionLlmStrategy.java) uses `getNeighborhood(...)`, so it reaches `query(...)` indirectly. [BacktrackStrategy.java](../ccrs-bdi/ccrs-core/src/main/java/ccrs/core/contingency/strategies/internal/BacktrackStrategy.java) instead relies mainly on `getRecentInteractions(...)` and each interaction's perceived RDF state. [RetryStrategy.java](../ccrs-bdi/ccrs-core/src/main/java/ccrs/core/contingency/strategies/internal/RetryStrategy.java) and [StopStrategy.java](../ccrs-bdi/ccrs-core/src/main/java/ccrs/core/contingency/strategies/internal/StopStrategy.java) depend on CCRS trace history rather than RDF query.
+  Evidence: [CcrsContext.java](../ccrs/ccrs-core/src/main/java/ccrs/core/rdf/CcrsContext.java) defines `query(...)` as RDF pattern matching and its default `getMemoryTriples(...)` and `getNeighborhood(...)` methods delegate to it. [ConsultationStrategy.java](../ccrs/ccrs-core/src/main/java/ccrs/core/contingency/strategies/social/ConsultationStrategy.java) calls `query(...)` directly for A2A agent-card metadata and also uses `getNeighborhood(...)`. [PredictionLlmStrategy.java](../ccrs/ccrs-core/src/main/java/ccrs/core/contingency/strategies/internal/prediction/PredictionLlmStrategy.java) uses `getNeighborhood(...)`, so it reaches `query(...)` indirectly. [BacktrackStrategy.java](../ccrs/ccrs-core/src/main/java/ccrs/core/contingency/strategies/internal/BacktrackStrategy.java) instead relies mainly on `getRecentInteractions(...)` and each interaction's perceived RDF state. [RetryStrategy.java](../ccrs/ccrs-core/src/main/java/ccrs/core/contingency/strategies/internal/RetryStrategy.java) and [StopStrategy.java](../ccrs/ccrs-core/src/main/java/ccrs/core/contingency/strategies/internal/StopStrategy.java) depend on CCRS trace history rather than RDF query.
 
 - Observation: Java contingency capabilities are strategy registrations, not `CcrsContext` fields.
-  Evidence: [LlmClient.java](../ccrs-bdi/ccrs-core/src/main/java/ccrs/core/contingency/LlmClient.java) is the provider-neutral completion interface used by [PredictionLlmStrategy.java](../ccrs-bdi/ccrs-core/src/main/java/ccrs/core/contingency/strategies/internal/prediction/PredictionLlmStrategy.java). Optional Java modules such as [Langchain4jPredictionStrategyProvider.java](../ccrs-bdi/ccrs-langchain4j/src/main/java/ccrs/capabilities/llm/langchain4j/Langchain4jPredictionStrategyProvider.java) register strategies through Java `ServiceLoader`.
+  Evidence: [LlmClient.java](../ccrs/ccrs-core/src/main/java/ccrs/core/contingency/LlmClient.java) is the provider-neutral completion interface used by [PredictionLlmStrategy.java](../ccrs/ccrs-core/src/main/java/ccrs/core/contingency/strategies/internal/prediction/PredictionLlmStrategy.java). Optional Java modules such as [Langchain4jPredictionStrategyProvider.java](../ccrs/ccrs-langchain4j/src/main/java/ccrs/capabilities/llm/langchain4j/Langchain4jPredictionStrategyProvider.java) register strategies through Java `ServiceLoader`.
 
 - Observation: The Java LangChain4j capability can be reused directly from React when its module and SDK jars are on the JPype classpath.
-  Evidence: [ccrs-langchain4j README.md](../ccrs-bdi/ccrs-langchain4j/README.md) defines the module as an optional `ServiceLoader` capability. A local smoke with `modules=("ccrs-core", "ccrs-langchain4j")`, provider discovery enabled, and a configured `OPENAI_API_KEY` registered strategies `retry`, `backtrack`, `stop`, and `prediction_llm` through [Langchain4jPredictionStrategyProvider.java](../ccrs-bdi/ccrs-langchain4j/src/main/java/ccrs/capabilities/llm/langchain4j/Langchain4jPredictionStrategyProvider.java).
+  Evidence: [ccrs-langchain4j README.md](../ccrs/ccrs-langchain4j/README.md) defines the module as an optional `ServiceLoader` capability. A local smoke with `modules=("ccrs-core", "ccrs-langchain4j")`, provider discovery enabled, and a configured `OPENAI_API_KEY` registered strategies `retry`, `backtrack`, `stop`, and `prediction_llm` through [Langchain4jPredictionStrategyProvider.java](../ccrs/ccrs-langchain4j/src/main/java/ccrs/capabilities/llm/langchain4j/Langchain4jPredictionStrategyProvider.java).
 
 - Observation: The Java A2A capability can be reused directly from React when its module and SDK jars are on the JPype classpath.
-  Evidence: [ccrs-a2a README.md](../ccrs-bdi/ccrs-a2a/README.md) defines the module as an optional `ServiceLoader` capability. A local smoke with `modules=("ccrs-core", "ccrs-a2a")` and provider discovery enabled registered strategies `retry`, `backtrack`, `stop`, and `consultation` through [A2aConsultationStrategyProvider.java](../ccrs-bdi/ccrs-a2a/src/main/java/ccrs/capabilities/a2a/A2aConsultationStrategyProvider.java).
+  Evidence: [ccrs-a2a README.md](../ccrs/ccrs-a2a/README.md) defines the module as an optional `ServiceLoader` capability. A local smoke with `modules=("ccrs-core", "ccrs-a2a")` and provider discovery enabled registered strategies `retry`, `backtrack`, `stop`, and `consultation` through [A2aConsultationStrategyProvider.java](../ccrs/ccrs-a2a/src/main/java/ccrs/capabilities/a2a/A2aConsultationStrategyProvider.java).
 
 - Observation: Optional Java capability wrappers need their transitive runtime jars on the JPype classpath, not only the CCRS module jars and direct SDK jars.
   Evidence: A 2026-06-06 notebook run with `enable_contingency_llm_prediction=True` and `enable_contingency_a2a_consultation=True` reached `ContingencyCcrs.evaluateWithTrace(...)` after an explicit `escalate_to_contingency_ccrs` call, then failed with `NoClassDefFoundError: com/fasterxml/jackson/core/JsonProcessingException`. Gradle runtime dependency reports for `:ccrs-langchain4j` and `:ccrs-a2a` showed Jackson and other optional-module transitives that were missing from [java_runtime.py](react_agent/ccrs/java_runtime.py). After adding those coordinates, a fresh Python smoke registered `retry`, `backtrack`, `consultation`, `prediction_llm`, and `stop` and returned a normal contingency result instead of a class-loading exception.
@@ -145,6 +183,46 @@ The goal is to make the Python ReAct/LangGraph agent consume the reusable Java C
   Evidence: A simulated notebook reload created an old `SituationType.UNCERTAINTY` value that no longer satisfied `isinstance(..., Situation)` in the reloaded Java wrapper. Structural normalization in [situation.py](react_agent/ccrs/contingency/situation.py) now converts old situation instances to `UNCERTAINTY` before Java evaluation.
 
 ## Decision Log
+
+- Decision: Name the Python distribution `ccrs-langgraph` and its import
+  namespace `ccrs_langgraph`.
+  Rationale: ReAct is an agent pattern rather than a concrete integration API.
+  The current adapter's public inputs, state reducers, node functions, and tool
+  handling use LangChain Core and LangGraph types. The framework-specific name
+  states that dependency honestly and leaves room for later adapters without
+  forcing a premature generic abstraction.
+  Date/Author: 2026-08-09 / Codex and user direction
+
+- Decision: Publish Java CCRS modules through GitHub Packages and publish the
+  Python `ccrs-langgraph` wheel and source distribution through GitHub Releases.
+  Rationale: GitHub Packages has no PyPI-compatible registry. GitHub Releases
+  preserves GitHub-hosted distribution while producing artifacts that standard
+  Python tooling can install directly. Do not wrap Python artifacts as Maven or
+  OCI packages merely to make them appear under GitHub Packages.
+  Date/Author: 2026-08-09 / Codex and user direction
+
+- Decision: Perform the package migration as a direct cutover without retaining
+  a compatibility package under `react_agent.ccrs`.
+  Rationale: One public namespace prevents the application and external users
+  from exercising different code paths. The repository application must become
+  an ordinary consumer of `ccrs_langgraph` in the same change.
+  Date/Author: 2026-08-09 / Codex and user direction
+
+- Decision: Move the complete `ccrs-langgraph` distribution into the canonical
+  `stefanmhsg/ccrs` repository and keep `ccrs-react` only as a consumer.
+  Rationale: The adapter is reusable CCRS integration code, while this
+  repository owns one concrete React application. Physical single ownership
+  avoids divergent package copies and keeps all reusable CCRS releases under
+  one research-artifact repository.
+  Date/Author: 2026-08-09 / Codex and user direction
+
+- Decision: Declare the initial package license as
+  `LicenseRef-Not-Specified` until the repository owner selects a reuse license.
+  Rationale: The repository has no `LICENSE` file or prior license declaration.
+  Package metadata must not invent permission to copy or modify the research
+  artifact. Selecting a concrete license later is a metadata/documentation
+  change and does not affect the package or import name.
+  Date/Author: 2026-08-09 / Codex
 
 - Decision: Make GitHub Packages the default CCRS artifact source in
   `ccrs-react`; keep Maven-local only as an explicit offline/local-development
@@ -258,13 +336,13 @@ The opportunistic CCRS adapter is no longer just a design direction. It has a ru
 
 This repository is `ccrs-react`, a Python ReAct/LangGraph agent that can run either a baseline graph or a CCRS graph. ReAct means the agent alternates between LLM decisions and tool calls. LangGraph is the state-machine library that wires nodes such as `llm`, `tools`, and `ccrs`.
 
-The React-specific CCRS documentation lives in [react_agent/ccrs/README.md](react_agent/ccrs/README.md). For broader CCRS concepts, start with [CCRS_LIBRARY.md](../ccrs-bdi/CCRS_LIBRARY.md); although that file focuses on BDI agents and the JaCaMo adapter, it explains the generic CCRS intention and points to further resources. The most directly relevant Java concept documents are the opportunistic CCRS [README.md](../ccrs-bdi/ccrs-core/src/main/java/ccrs/core/opportunistic/README.md) and contingency CCRS [README.md](../ccrs-bdi/ccrs-core/src/main/java/ccrs/core/contingency/README.md).
+The adapter documentation lives in the canonical [ccrs-langgraph README](https://github.com/stefanmhsg/ccrs/blob/master/ccrs-langgraph/README.md). For broader CCRS concepts, start with [CCRS_LIBRARY.md](../ccrs/CCRS_LIBRARY.md). The most directly relevant Java concept documents are the opportunistic CCRS [README.md](../ccrs/ccrs-core/src/main/java/ccrs/core/opportunistic/README.md) and contingency CCRS [README.md](../ccrs/ccrs-core/src/main/java/ccrs/core/contingency/README.md).
 
 CCRS means Course Check and Revision Strategies. In this project there are two intended CCRS modes. Opportunistic CCRS reads RDF observations and produces advisory annotations such as a useful signifier or marker. Contingency CCRS will later evaluate failures, stuck states, uncertainty, retry, backtracking, and social consultation. This plan covers opportunistic CCRS stabilization first.
 
-The reusable Java CCRS code lives in the sibling repository `../ccrs-bdi`. The Java module that matters for this first milestone is `../ccrs-bdi/ccrs-core`. It publishes Maven-local artifacts with coordinates `io.github.stefanmhsg.ccrs:ccrs-core:0.1.0-SNAPSHOT`. The Python runtime expects those artifacts in local Maven and resolves Java dependencies from local Maven or the Gradle cache.
+The reusable Java CCRS code lives in the sibling repository `../ccrs`. The core module is `../ccrs/ccrs-core` and is published to GitHub Packages with coordinate `io.github.stefanmhsg.ccrs:ccrs-core:0.1.0-SNAPSHOT`. The Python runtime resolves it and its transitive runtime dependencies through the bundled Gradle resolver. Maven-local is an explicit offline development fallback.
 
-The baseline graph is `react_agent/graph/graph.py`. It uses `react_agent/state/state.py`, `react_agent/nodes/llm_node.py`, and the plain `react_prompt` in `react_agent/prompts/react_prompt.py`. The CCRS graph is `react_agent/graph/graph_ccrs.py`. It uses `react_agent/ccrs/state.py`, `react_agent/ccrs/ccrs_node.py`, `react_agent/nodes/llm_node_ccrs_v2.py`, `react_agent/nodes/tool_node.py`, and the CCRS adapter package in `react_agent/ccrs/`.
+The baseline graph is `react_agent/graph/graph.py`. It uses `react_agent/state/state.py`, `react_agent/nodes/llm_node.py`, and the plain `react_prompt` in `react_agent/prompts/react_prompt.py`. The CCRS graph is `react_agent/graph/graph_ccrs.py`. It uses the installed `ccrs_langgraph.state` and `ccrs_langgraph.ccrs_node` modules together with `react_agent/nodes/llm_node_ccrs_v2.py` and `react_agent/nodes/tool_node.py`.
 
 The earlier opportunistic-only CCRS graph shape was:
 
@@ -278,7 +356,7 @@ If the decision step constructs `contingency_situation`, the graph skips normal 
 
     llm -> decision -> ccrs -> llm
 
-The `llm` node makes an LLM decision and increments state field `cycle` after the LLM call returns. The `tools` node executes the requested tools. The `ccrs` node inspects the latest `ToolMessage`, parses Turtle RDF with `rdflib`, converts triples to Java `RdfTriple` objects through JPype, calls Java `VocabularyMatcher.scanAll(...)`, and returns Python CCRS annotation dictionaries. LangGraph appends those dictionaries into the `opportunistic_ccrs` state channel because `react_agent/ccrs/state.py` annotates `opportunistic_ccrs` with `operator.add`. The LLM prompt injects pending `contingency_ccrs` entries once, marks those entries completed after the LLM call returns, and target-matches `opportunistic_guidance_by_contingency_ccrs` against the latest parseable RDF tool response.
+The `llm` node makes an LLM decision and increments state field `cycle` after the LLM call returns. The `tools` node executes the requested tools. The `ccrs` node inspects the latest `ToolMessage`, parses Turtle RDF with `rdflib`, converts triples to Java `RdfTriple` objects through JPype, calls Java `VocabularyMatcher.scanAll(...)`, and returns Python CCRS annotation dictionaries. LangGraph appends those dictionaries into the `opportunistic_ccrs` state channel because `ccrs_langgraph.state` annotates `opportunistic_ccrs` with `operator.add`. The LLM prompt injects pending `contingency_ccrs` entries once, marks those entries completed after the LLM call returns, and target-matches `opportunistic_guidance_by_contingency_ccrs` against the latest parseable RDF tool response.
 
 The `cycle` state field is a dictionary:
 
@@ -286,7 +364,7 @@ The `cycle` state field is a dictionary:
 
 It is not a timing object. Experiment scripts can derive elapsed time by comparing state snapshots or logs.
 
-The adapter should use concrete module imports rather than root-package compatibility exports. Application code imports the graph node from `react_agent.ccrs.ccrs_node`, Java runtime mechanics from `react_agent.ccrs.java_runtime`, CCRS graph state from `react_agent.ccrs.state`, Java `VocabularyMatcher` and its tool-observation helper from `react_agent.ccrs.opportunistic.vocabulary_matcher`, prompt selection for Java opportunistic results from `react_agent.ccrs.opportunistic.opportunistic_result`, graph routing helpers from `react_agent.ccrs.contingency.decision`, escalation policy objects from `react_agent.ccrs.contingency.escalation` and `react_agent.ccrs.contingency.default_escalation_controller`, and contingency Package A objects from `react_agent.ccrs.contingency`.
+The application should use concrete `ccrs_langgraph.*` module imports rather than compatibility exports or a local adapter copy. Graph wiring imports the graph node, Java runtime mechanics, CCRS state, opportunistic wrappers, prompt selection, routing helpers, escalation policies, and contingency bridge directly from the installed distribution.
 
 ## Milestones
 
@@ -296,7 +374,13 @@ Milestone 2 is complete. Its purpose was to keep the adapter boundary smoke-veri
 
 Milestone 3 is complete. Its purpose was to document and settle the adapter boundary. Root documentation links point to the React CCRS adapter README, this plan is discoverable, and repository guidance prevents accidental scope expansion during CCRS work.
 
-Milestone 4 is complete for the current React adapter scope. Package A wraps the Java contingency API, Package B derives context from existing LangGraph `messages`, Package C routes escalation into `ccrs_node`, Package D surfaces contingency outputs to state and prompt context, Package E reuses optional Java capabilities, Package F keeps the path auditable, and Package G provides the first prompt-template refinement. Future work is tracked separately as possible prompt-placeholder splitting, Package H capability metadata cleanup, and possible packaging as a reusable `ccrs-react-python` or `ccrs-langgraph` adapter.
+Milestone 4 is complete for the current React adapter scope. Package A wraps
+the Java contingency API, Package B derives context from existing LangGraph
+`messages`, Package C routes escalation into `ccrs_node`, Package D surfaces
+contingency outputs to state and prompt context, Package E reuses optional Java
+capabilities, Package F keeps the path auditable, Package G provides the first
+prompt-template refinement, and Package H resolves published Java capabilities.
+Package I completed the physical separation and canonical ownership cutover.
 
 ## Contingency CCRS Design Discussion
 
@@ -416,9 +500,9 @@ Correlation is a known open issue. Current opportunistic CCRS activates after th
 
 Both optional Java-side capability paths are now available through Java `ServiceLoader`. The React adapter reuses the Java modules as provided instead of implementing Python equivalents.
 
-For `PredictionLlmStrategy`, React reuses the Java LangChain4j capability module as provided. [java_runtime.py](react_agent/ccrs/java_runtime.py) resolves the `ccrs-langchain4j` runtime jars when the module is requested. [contingency_ccrs.py](react_agent/ccrs/contingency/contingency_ccrs.py) can create Java `ContingencyCcrs` through `ContingencyCcrsFactory.withDefaultsAndDiscoveredProviders()` when `discover_strategy_providers=True`. With `modules=("ccrs-core", "ccrs-langchain4j")`, Java `ServiceLoader` discovers [Langchain4jPredictionStrategyProvider.java](../ccrs-bdi/ccrs-langchain4j/src/main/java/ccrs/capabilities/llm/langchain4j/Langchain4jPredictionStrategyProvider.java), creates `Langchain4jLlmClient.fromEnvironment()`, and registers `PredictionLlmStrategy` when `OPENAI_API_KEY` or `LLM_API_KEY` is configured. React does not implement a Python `LlmClient`.
+For `PredictionLlmStrategy`, React reuses the Java LangChain4j capability module as provided. [java_runtime.py](src/ccrs_langgraph/java_runtime.py) resolves the `ccrs-langchain4j` runtime jars when the module is requested. [contingency_ccrs.py](src/ccrs_langgraph/contingency/contingency_ccrs.py) can create Java `ContingencyCcrs` through `ContingencyCcrsFactory.withDefaultsAndDiscoveredProviders()` when `discover_strategy_providers=True`. With `modules=("ccrs-core", "ccrs-langchain4j")`, Java `ServiceLoader` discovers [Langchain4jPredictionStrategyProvider.java](../ccrs/ccrs-langchain4j/src/main/java/ccrs/capabilities/llm/langchain4j/Langchain4jPredictionStrategyProvider.java), creates `Langchain4jLlmClient.fromEnvironment()`, and registers `PredictionLlmStrategy` when `OPENAI_API_KEY` or `LLM_API_KEY` is configured. React does not implement a Python `LlmClient`.
 
-For A2A consultation, React reuses the Java capability module as provided. [java_runtime.py](react_agent/ccrs/java_runtime.py) resolves the `ccrs-a2a` runtime jars when the module is requested. [contingency_ccrs.py](react_agent/ccrs/contingency/contingency_ccrs.py) can create Java `ContingencyCcrs` through `ContingencyCcrsFactory.withDefaultsAndDiscoveredProviders()` when `discover_strategy_providers=True`. With `modules=("ccrs-core", "ccrs-a2a")`, Java `ServiceLoader` discovers [A2aConsultationStrategyProvider.java](../ccrs-bdi/ccrs-a2a/src/main/java/ccrs/capabilities/a2a/A2aConsultationStrategyProvider.java) and registers `ConsultationStrategy` with the Java A2A channel. React does not implement an A2A channel in Python.
+For A2A consultation, React reuses the Java capability module as provided. [java_runtime.py](src/ccrs_langgraph/java_runtime.py) resolves the `ccrs-a2a` runtime jars when the module is requested. [contingency_ccrs.py](src/ccrs_langgraph/contingency/contingency_ccrs.py) can create Java `ContingencyCcrs` through `ContingencyCcrsFactory.withDefaultsAndDiscoveredProviders()` when `discover_strategy_providers=True`. With `modules=("ccrs-core", "ccrs-a2a")`, Java `ServiceLoader` discovers [A2aConsultationStrategyProvider.java](../ccrs/ccrs-a2a/src/main/java/ccrs/capabilities/a2a/A2aConsultationStrategyProvider.java) and registers `ConsultationStrategy` with the Java A2A channel. React does not implement an A2A channel in Python.
 
 ### Package F: Audit And Experiment Inspection (Complete)
 
@@ -434,38 +518,153 @@ The CCRS-owned default prompt fragment lives in [prompt.py](react_agent/ccrs/pro
 
 A later refinement can split prompt placeholders by CCRS type, for example separate placeholders for tool-observation opportunistic annotations, one-shot contingency suggestions, and contingency-produced opportunistic guidance. That would allow each channel to carry tailored prompt wording while keeping the current state and injection helpers intact.
 
-### Package H: Capability Metadata And Distribution Boundary (Complete For Local Maven Scope)
+### Package H: Capability Metadata And Java Artifact Resolution (Complete)
 
-This package owns the cleanup around optional Java capability names and the React adapter's distribution boundary. The local Maven scope is complete: [capabilities.py](react_agent/ccrs/capabilities.py) owns semantic contingency capability identifiers, Java module constants, explicit module normalization, and capability-to-module mapping. [graph_ccrs.py](react_agent/graph/graph_ccrs.py) now requests semantic capabilities rather than hardcoding optional Maven module names.
+This package owns optional Java capability names and Java artifact resolution.
+[capabilities.py](react_agent/ccrs/capabilities.py) owns semantic contingency
+capability identifiers, Java module constants, explicit module normalization,
+and capability-to-module mapping. [graph_ccrs.py](react_agent/graph/graph_ccrs.py)
+requests semantic capabilities rather than hardcoding optional Maven module
+names. [java_runtime.py](react_agent/ccrs/java_runtime.py) now resolves the
+selected Java modules and their transitive runtime graph from GitHub Packages;
+Maven-local is an explicit offline development fallback.
 
-Completed near-term scope inside the local Maven boundary:
+Completed scope:
 
 - [x] Add an adapter-owned capability metadata module under `react_agent/ccrs/` that defines semantic capability identifiers and maps them to required Java modules.
 - [x] Replace hard-coded optional module names in [graph_ccrs.py](react_agent/graph/graph_ccrs.py) with semantic capability requests.
 - [x] Keep `--enable-contingency-llm-prediction` and `--enable-contingency-a2a-consultation` as semantic CLI flags.
 - [x] Keep `--contingency-ccrs-modules` as an explicit override and escape hatch for experiments, local Java modules, or capabilities not yet represented by adapter metadata.
-- [x] Keep local Maven as the only artifact-source boundary for this package. Do not add `ccrs_version`, `maven_repo`, `gradle_cache`, or `extra_classpath` CLI/API options in the near-term Package H implementation.
+- [x] Resolve published Java CCRS modules from GitHub Packages by default and
+  retain Maven-local as an explicit offline/local-development source.
 - [x] Add smoke checks for the pure mapping behavior, plus graph-builder checks that the semantic options still construct a `CompiledStateGraph`.
 
-Future targets, explicitly out of scope for the near-term package:
+Physical Python packaging is not part of Package H. It is the complete scope of
+Package I below.
 
-- Add CLI/API options for `ccrs_version`, `maven_repo`, `gradle_cache`, and `extra_classpath` when the adapter moves beyond local sibling-repository experiments.
-- Generalize or rename `from_maven_local(...)` so Maven-local is not presented as the only supported artifact source once other artifact sources exist.
-- Decide how version compatibility is declared between the Python adapter package and Java CCRS Maven artifacts.
+### Package I: Physical `ccrs-langgraph` Separation And Canonical Ownership (Done)
 
-The React CCRS adapter itself should not be published as a Maven artifact in the normal sense, because it is Python code. A viable distribution path is to publish the Python adapter as a Python package, for example `ccrs-react-python` or `ccrs-langgraph`, through PyPI, an internal Python index, or GitHub Packages. The Java CCRS libraries remain Maven artifacts. The Python package should document compatible Java group/artifact/version coordinates and use the runtime resolver to build a JVM classpath from local Maven or, later, configured artifact repositories. If the Java/Maven ecosystem needs a pointer to the Python adapter, publish a small Java-side BOM, metadata artifact, or documentation page from the Java CCRS repository rather than trying to package the Python adapter itself as Maven code.
+Purpose: Turn the adapter formerly located under `react_agent/ccrs` into a
+normal installable Python distribution. After this package is complete, a clean
+Python environment can install a released `ccrs-langgraph` wheel, import
+`ccrs_langgraph`, resolve the compatible Java CCRS artifacts from GitHub
+Packages, and construct the opportunistic and contingency LangGraph components
+without importing this repository's application package.
+
+Local context: The reusable adapter now lives only at
+`stefanmhsg/ccrs/ccrs-langgraph/src/ccrs_langgraph`. Both the former
+`react_agent.ccrs` namespace and the intermediate local `src/ccrs_langgraph`
+tree have been removed from this repository. The package uses LangChain Core
+message, prompt, runnable, and tool types, and LangGraph state reducers. Its
+bundled Gradle resolver is package data owned by the canonical package. The
+application-specific graph assembly remains under `react_agent/graph`, and the
+maze application remains under the rest of `react_agent`.
+
+Discussion: The distribution name is `ccrs-langgraph` and the import namespace
+is `ccrs_langgraph`. This package intentionally supports LangGraph. Supporting
+another ReAct framework later should use a separate adapter package with that
+framework's native message and state types. Do not create a speculative common
+framework abstraction in this package. If multiple adapters later duplicate
+the Python-to-Java runtime boundary, extract a small shared package based on
+observed duplication at that time.
+
+GitHub has no PyPI-compatible GitHub Packages registry. Therefore this work
+package has two distinct GitHub distribution boundaries: Java modules are
+downloaded from the `stefanmhsg/ccrs` Maven registry in GitHub Packages, while
+Python wheels and source distributions are attached to versioned GitHub
+Releases in the `ccrs` repository. A future move to PyPI or a future
+GitHub Python registry must not require changing the distribution or import
+name.
+
+Todos:
+
+- [x] Add `ccrs-langgraph/pyproject.toml` in the canonical `ccrs` repository
+  using a `src` layout and declare the `ccrs-langgraph` distribution,
+  `ccrs_langgraph` package discovery, supported
+  Python version, license, repository metadata, and runtime dependencies.
+- [x] Move `react_agent/ccrs` to `src/ccrs_langgraph` in one cutover and update
+  all internal imports to `ccrs_langgraph.*`. Do not leave a compatibility
+  package or forwarding imports under `react_agent.ccrs`.
+- [x] Move `ccrs_runtime_resolver` beneath the distributable source tree and
+  include `build.gradle`, `settings.gradle`, wrapper properties, and the Gradle
+  wrapper JAR as package data. Resolve its installed location through
+  `importlib.resources` rather than repository-relative parent traversal.
+- [x] Define the public API through explicit exports and documentation. Keep
+  application graph construction, maze settings, prompts, CLI handling, and
+  experiment reporting outside the package.
+- [x] Update `react_agent/graph`, nodes, CLI construction, tests, and notebook
+  reload cells to import `ccrs_langgraph` as an installed consumer.
+- [x] Add package-version metadata and a documented compatibility rule for the
+  default Java coordinate
+  `io.github.stefanmhsg.ccrs:ccrs-core:<version>`. Allow callers to select a
+  Java version without editing package source.
+- [x] Add build validation that creates both a wheel and source distribution,
+  installs the wheel into a clean virtual environment, imports every public
+  module without the repository root on `sys.path`, and runs focused Java
+  resolution plus JPype smoke tests.
+- [x] Add a GitHub Actions release workflow that builds and verifies artifacts,
+  creates or updates a versioned GitHub Release, and attaches the wheel and
+  source distribution. The workflow must use `GITHUB_TOKEN`; it must not require
+  a long-lived publication secret for GitHub Releases.
+- [x] Physically move the distribution, reusable tests, bundled resolver, and
+  release workflow to `stefanmhsg/ccrs`; remove the root packaging metadata and
+  adapter tree from `ccrs-react` without leaving forwarding modules.
+- [x] Document installation from a GitHub Release asset and the separate
+  GitHub Packages credentials required by the Java resolver. State plainly
+  that a classic PAT with `read:packages` is currently required for local
+  GitHub Packages consumption.
+- [x] Remove repository-only packaging assumptions, obsolete Maven-local-first
+  instructions, and stale `ccrs-bdi` links from adapter documentation and
+  repository guidance.
+
+Concrete steps: Work across the sibling `ccrs` and `ccrs-react` repositories.
+Keep package source, metadata, reusable tests, and release automation under
+`ccrs/ccrs-langgraph`; keep only concrete application wiring and integration
+tests here. Build artifacts from the canonical package directory with
+`S:\anaconda\agent\python.exe -m build`. Create a fresh temporary virtual
+environment, install only the built wheel plus test requirements, and run a
+consumer smoke script from a directory outside the repository. Update the
+application environment with an editable install only for development; the
+acceptance test must use the wheel, not the source checkout. Add the release
+workflow only after the clean-install test proves the wheel is self-contained.
+
+Validation and acceptance: The work package is complete when all existing
+repository tests pass through `S:\anaconda\agent\python.exe -m unittest discover
+-s tests`; `python -m build` produces one wheel and one source distribution;
+the wheel contains the Gradle resolver resources; a clean environment can run
+`from ccrs_langgraph import ...` without `react_agent` being importable; and a
+fresh process resolves `ccrs-core` from GitHub Packages and loads a Java CCRS
+class through JPype. A tagged release workflow must attach both Python artifacts
+to the matching GitHub Release. No tracked file may import `react_agent.ccrs`,
+and no compatibility directory may remain at that path.
+
+Outcome and notes: Completed on 2026-08-09. `python -m build` produced
+`ccrs_langgraph-0.1.0-py3-none-any.whl` and
+`ccrs_langgraph-0.1.0.tar.gz`. Thirty repository tests passed. A temporary
+wheel-only Python environment outside the checkout imported the stable public
+API with `react_agent` absent, found the four intended resolver resources,
+resolved `ccrs-core:0.1.0-SNAPSHOT` from GitHub Packages, and loaded
+`ccrs.core.opportunistic.VocabularyMatcher` through JPype. The temporary
+environment was removed after validation. The package was then physically
+moved into `stefanmhsg/ccrs`; the release workflow now runs only after a
+matching `ccrs-langgraph-v0.1.0` tag is pushed there. This repository consumes
+the corresponding wheel URL in `requirements.txt` and contains no package
+duplicate. After relocation, all 23 package-owned tests passed from
+`ccrs/ccrs-langgraph` and all seven remaining application tests passed here.
+A clean wheel environment imported all 28 adapter modules with `react_agent`
+absent and loaded Java CCRS from GitHub Packages through JPype.
 
 ## Plan of Work
 
-First, preserve the current opportunistic CCRS implementation and avoid broad rewrites. Keep `react_agent/ccrs/java_runtime.py` as the owner of shared Maven/Gradle classpath resolution, JPype startup, and Java logging. Keep `react_agent/ccrs/rdf_adapter.py` as the only Turtle-to-Python-triple parser. Keep `react_agent/ccrs/opportunistic/vocabulary_matcher.py` as the Java `VocabularyMatcher` wrapper and opportunistic tool-observation evaluator. Keep `react_agent/ccrs/opportunistic/opportunistic_result.py` as the opportunistic prompt-selection helper, and `react_agent/ccrs/ccrs_node.py` as the graph-facing CCRS node. Keep `react_agent/ccrs/state.py` as the CCRS graph state helper rather than moving the whole application state into the adapter package.
+First, preserve the current opportunistic CCRS implementation and avoid broad rewrites. The canonical implementations of `java_runtime.py`, `rdf_adapter.py`, `opportunistic/vocabulary_matcher.py`, `opportunistic/opportunistic_result.py`, `ccrs_node.py`, and `state.py` live under `../ccrs/ccrs-langgraph/src/ccrs_langgraph`. This application imports those modules from the installed package; it does not own another source tree.
 
-For Package A, keep contingency evaluation under `react_agent/ccrs/contingency/`. Python classes and file names should match the Java CCRS Maven library names where Python naming allows it. Use `situation.py` for Java `Situation`, `ccrs_context.py` for Java `CcrsContext`, `in_memory_ccrs_trace_history.py` for Java `InMemoryCcrsTraceHistory`, and `contingency_ccrs.py` for Java `ContingencyCcrs`. Do not introduce adapter-specific alternative names unless the Java name would be ambiguous or un-Pythonic. Do not wire contingency into graph control until the escalation and routing questions in Packages B-D are settled.
+For Package A, keep contingency evaluation under `src/ccrs_langgraph/contingency/`. Python classes and file names should match the Java CCRS Maven library names where Python naming allows it. Use `situation.py` for Java `Situation`, `ccrs_context.py` for Java `CcrsContext`, `in_memory_ccrs_trace_history.py` for Java `InMemoryCcrsTraceHistory`, and `contingency_ccrs.py` for Java `ContingencyCcrs`. Do not introduce adapter-specific alternative names unless the Java name would be ambiguous or un-Pythonic. Do not wire contingency into graph control until the escalation and routing questions in Packages B-D are settled.
 
 Second, keep validation smoke-oriented. Do not add a dedicated test suite unless the user asks for it. Use short Python commands to verify the adapter boundary: one Java-backed Turtle scan with the default green signifier predicate `https://kaefer3000.github.io/2021-02-dagstuhl/vocab#green`, one invalid-Turtle check that returns no opportunistic annotations and emits `reason=invalid_turtle`, and graph-builder checks that both baseline and CCRS graphs still return `CompiledStateGraph`.
 
-Third, keep prompt-path validation lightweight. The important behavior is that `react_agent/ccrs/prompt_context.py` finds the latest tool call IDs from the most recent `AIMessage`, exposes only matching append-only opportunistic CCRS entries as advisory prompt context, exposes pending `contingency_ccrs` entries once before marking them completed, and target-matches `opportunistic_guidance_by_contingency_ccrs` against the latest parseable RDF tool response. If this logic changes, validate it with a small local smoke command or notebook cell rather than adding formal tests by default.
+Third, keep prompt-path validation lightweight. The important behavior is that `src/ccrs_langgraph/prompt_context.py` finds the latest tool call IDs from the most recent `AIMessage`, exposes only matching append-only opportunistic CCRS entries as advisory prompt context, exposes pending `contingency_ccrs` entries once before marking them completed, and target-matches `opportunistic_guidance_by_contingency_ccrs` against the latest parseable RDF tool response. If this logic changes, validate it with a small local smoke command or notebook cell rather than adding formal tests by default.
 
-Fourth, maintain the documentation boundary. `react_agent/ccrs/README.md` is the React CCRS adapter documentation file and should be referenced by the root README and this plan. `PLAN_CCRS_README.md` is the execution plan and should record progress, decisions, discoveries, validation, and future work. `AGENTS.md` should remain concise and should direct future sessions to this plan before complex CCRS work.
+Fourth, maintain the documentation boundary. `../ccrs/ccrs-langgraph/README.md` is the CCRS LangGraph adapter documentation file and should be referenced by the root README and this plan. `PLAN_CCRS_README.md` records this application's integration history and future work. `AGENTS.md` should remain concise and should direct future sessions to this plan before complex CCRS work.
 
 Fifth, keep future contingency work message-driven. The first contingency step should derive explicit and semantic contingency situations from the normal LangGraph `messages` state, map those situations into the Java contingency model, evaluate candidate revision strategies, and return contingency suggestions through the CCRS prompt path. Do not introduce duplicate RDF-memory, HTTP-history, or tool-history state channels unless a concrete adapter boundary requires it.
 
@@ -542,11 +741,11 @@ Full maze success is not required for opportunistic adapter acceptance because i
 
 ## Idempotence and Recovery
 
-The local Maven publishing step in `../ccrs-bdi` is safe to rerun when Java CCRS artifacts change:
-
-    ./gradlew publishToMavenLocal
-
-If the Gradle wrapper needs to download Gradle, it may require network approval in Codex. After publishing, rerun the Java-backed scan command from this plan.
+Published Java CCRS snapshots are resolved from GitHub Packages. Republishing
+requires the `ccrs` repository's package workflow, and a fresh Python process
+refreshes SNAPSHOT dependencies before starting JPype. For intentional offline
+development, set `CCRS_ARTIFACT_SOURCE=maven_local` and publish the Java modules
+to Maven local from the sibling `../ccrs` repository.
 
 The JPype JVM cannot be restarted inside the same Python process after shutdown, so validation commands should use separate short Python processes. If a JPype classpath mistake occurs, fix `react_agent/ccrs/java_runtime.py` and rerun the command in a new process.
 
@@ -576,7 +775,7 @@ Java CCRS library log companion:
 
 Current documentation boundary:
 
-    react_agent/ccrs/README.md is the React CCRS adapter documentation file.
+    ../ccrs/ccrs-langgraph/README.md is the CCRS LangGraph adapter documentation file.
     PLAN_CCRS_README.md is the long-running executable plan.
     AGENTS.md records repository guidance for future Codex sessions.
 
@@ -584,25 +783,31 @@ Current documentation boundary:
 
 The Python interpreter for validation is `S:\anaconda\agent\python.exe`. The default `C:\Python313\python.exe` may not have the required LangChain dependencies.
 
-The root `react_agent/ccrs/__init__.py` should not maintain compatibility exports. Use concrete imports:
+Package I removed `react_agent/ccrs` completely. The package exports its stable
+convenience API from `src/ccrs_langgraph/__init__.py`; internals continue to use
+concrete `ccrs_langgraph.*` imports. Do not reintroduce forwarding modules under
+`react_agent.ccrs`.
 
-    from react_agent.ccrs.state import CcrsAgentState
-    from react_agent.ccrs.java_runtime import CcrsJavaRuntime, CcrsJavaRuntimeError, get_default_java_runtime
-    from react_agent.ccrs.ccrs_node import ccrs_node, make_ccrs_node
-    from react_agent.ccrs.prompt_context import build_ccrs_prompt_context
-    from react_agent.ccrs.opportunistic.vocabulary_matcher import VocabularyMatcher, evaluate_latest_tool_observation, get_default_vocabulary_matcher
-    from react_agent.ccrs.opportunistic.opportunistic_result import get_opportunistic_ccrs_for_latest_tool_calls
-    from react_agent.ccrs.contingency.contingency_ccrs_result import get_pending_contingency_ccrs
-    from react_agent.ccrs.contingency.opportunistic_guidance import get_opportunistic_guidance_by_contingency_ccrs
-    from react_agent.ccrs.contingency import ContingencyCcrs, Situation, InMemoryCcrsContext, InMemoryCcrsTraceHistory, get_default_contingency_ccrs
+Current concrete imports are:
 
-`CcrsJavaRuntime` in `react_agent/ccrs/java_runtime.py` should provide:
+    from ccrs_langgraph import CcrsAgentState
+    from ccrs_langgraph import CcrsJavaRuntime, CcrsJavaRuntimeError, get_default_java_runtime
+    from ccrs_langgraph import ccrs_node, make_ccrs_node
+    from ccrs_langgraph import build_ccrs_prompt_context
+    from ccrs_langgraph import VocabularyMatcher, evaluate_latest_tool_observation, get_default_vocabulary_matcher
+    from ccrs_langgraph import get_opportunistic_ccrs_for_latest_tool_calls
+    from ccrs_langgraph.contingency.contingency_ccrs_result import get_pending_contingency_ccrs
+    from ccrs_langgraph.contingency.opportunistic_guidance import get_opportunistic_guidance_by_contingency_ccrs
+    from ccrs_langgraph import ContingencyCcrs, Situation, InMemoryCcrsContext, InMemoryCcrsTraceHistory, get_default_contingency_ccrs
 
+`CcrsJavaRuntime` in `src/ccrs_langgraph/java_runtime.py` provides:
+
+    CcrsJavaRuntime.from_github_packages(...)
     CcrsJavaRuntime.from_maven_local(...)
     CcrsJavaRuntime.ensure_jvm(...)
     CcrsJavaRuntime.resolve_classpath(...)
 
-`VocabularyMatcher` in `react_agent/ccrs/opportunistic/vocabulary_matcher.py` should provide:
+`VocabularyMatcher` in `src/ccrs_langgraph/opportunistic/vocabulary_matcher.py` provides:
 
     VocabularyMatcher.from_maven_local(...)
     VocabularyMatcher.evaluate_turtle(content, context=None)
@@ -610,7 +815,7 @@ The root `react_agent/ccrs/__init__.py` should not maintain compatibility export
 
 Deprecated compatibility aliases such as `scan_turtle` and `scan_triples` should not be reintroduced.
 
-`ContingencyCcrs` in `react_agent/ccrs/contingency/contingency_ccrs.py` should provide:
+`ContingencyCcrs` in `src/ccrs_langgraph/contingency/contingency_ccrs.py` provides:
 
     ContingencyCcrs.from_maven_local(...)
     ContingencyCcrs.evaluate(situation, context=None)
@@ -643,9 +848,12 @@ The current Package A context boundary in [ccrs_context.py](react_agent/ccrs/con
 
 The `cycle` object has `number` and UTC `timestamp`. The `opportunistic_ccrs` list contains dictionaries converted from Java `OpportunisticResult` values. Each opportunistic CCRS dictionary should include `ccrs_type`, `type`, `target`, `pattern_id`, `utility`, `metadata`, and `tool_call_id` when the source tool message has an ID. The `contingency_ccrs` list contains contingency evaluation outputs and uses `completed` to control one-shot prompt injection. The `opportunistic_guidance_by_contingency_ccrs` channel is replaced by each contingency evaluation and is surfaced by exact RDF subject/object target matching.
 
-The Java dependency is the Maven-local artifact `io.github.stefanmhsg.ccrs:ccrs-core:0.1.0-SNAPSHOT`, plus declared Jena 5.6.0 runtime dependencies resolved by `react_agent/ccrs/java_runtime.py`.
-
-Optional Java capabilities are resolved through local Maven module names. [capabilities.py](react_agent/ccrs/capabilities.py) centralizes the mapping from semantic adapter capabilities to Java modules before graph or CLI code sees those module names. Broader artifact-source controls such as `ccrs_version`, `maven_repo`, `gradle_cache`, and `extra_classpath` remain future work until the adapter is ready to move beyond local Maven experiments.
+The default Java dependency is
+`io.github.stefanmhsg.ccrs:ccrs-core:0.1.0-SNAPSHOT`. The bundled Gradle
+resolver downloads it and its transitive runtime graph from GitHub Packages.
+Optional Java capabilities are selected through module names centralized by
+[capabilities.py](react_agent/ccrs/capabilities.py). Maven-local resolution
+remains an explicit offline development path.
 
 ## Revision Notes
 
@@ -710,3 +918,18 @@ Optional Java capabilities are resolved through local Maven module names. [capab
 2026-08-02: Replaced historical automatic StopStrategy termination with the reusable confirmation component in [stop_confirmation.py](react_agent/ccrs/contingency/stop_confirmation.py). The revision records explicit agent consent, trace-bound validation, conditional tool visibility, semantic adapter routes, and concrete graph ownership of `END`.
 
 2026-08-02: Aligned the concrete CCRS invocations with the repository's established configuration approach after user feedback. [settings.py](react_agent/utils/settings.py) now owns defaults, [main.py](main.py) exposes strategy and decision-context overrides, [test_agent.ipynb](test_agent.ipynb) shows the complete effective mappings inline, and the temporary `react_agent/agent_config.py` layer was removed.
+
+2026-08-09: Added Package I for direct physical separation of the current
+`react_agent/ccrs` adapter into the `ccrs-langgraph` Python distribution and
+`ccrs_langgraph` import namespace. The revision records the direct-cutover
+rule, clean-wheel consumer validation, Java dependency resolution through
+GitHub Packages, and Python artifact publication through GitHub Releases because
+GitHub Packages does not offer a PyPI-compatible registry.
+
+2026-08-09: Completed Package I. The adapter moved to
+[src/ccrs_langgraph](src/ccrs_langgraph), the ReAct application and notebook now
+consume `ccrs_langgraph`, the wheel contains only the intended Gradle resolver
+resources, and [.github/workflows/release-ccrs-langgraph.yml](.github/workflows/release-ccrs-langgraph.yml)
+builds, externally verifies, Java-smoke-tests, and attaches artifacts for
+matching version tags. The plan records the clean-wheel/JPype evidence and the
+currently unspecified repository license.

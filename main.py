@@ -3,7 +3,7 @@ import asyncio
 import os
 from dotenv import load_dotenv
 from react_agent.api import launch_agent
-from react_agent.ccrs.capabilities import (
+from ccrs_langgraph.capabilities import (
     CCRS_A2A_MODULE,
     CCRS_CORE_MODULE,
     CCRS_LANGCHAIN4J_MODULE,

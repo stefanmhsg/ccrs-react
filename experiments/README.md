@@ -149,7 +149,7 @@ but `decisions.csv` will be empty and `runs.csv` will mark
 ## Required React Events
 
 The report parser reads structured React events emitted by
-[audit.py](../react_agent/ccrs/audit.py). The reportability events added for
+[audit.py](https://github.com/stefanmhsg/ccrs/blob/master/ccrs-langgraph/src/ccrs_langgraph/audit.py). The reportability events added for
 advisory-follow metrics are:
 
 - `react.ccrs.prompt_context.visible`: emitted before the LLM call when any
@@ -159,4 +159,4 @@ advisory-follow metrics are:
 
 The parser also reads existing opportunistic, contingency, and
 contingency-produced guidance events documented in
-[react_agent/ccrs/README.md](../react_agent/ccrs/README.md).
+[CCRS LangGraph adapter README.md](https://github.com/stefanmhsg/ccrs/blob/master/ccrs-langgraph/README.md).

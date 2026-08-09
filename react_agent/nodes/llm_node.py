@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from typing import Any
 from langchain_core.runnables import RunnableConfig
 from langchain_openai import ChatOpenAI
-from react_agent.ccrs.audit import log_ccrs_event
+from ccrs_langgraph.audit import log_ccrs_event
 from react_agent.state.state import AgentState
 from react_agent.tools import tools
 from react_agent.prompts.react_prompt import (

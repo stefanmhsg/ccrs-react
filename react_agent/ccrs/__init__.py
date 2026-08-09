@@ -1,1 +1,0 @@
-"""React CCRS adapter package."""

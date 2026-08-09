@@ -4,9 +4,9 @@ from typing import Any, Sequence
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableConfig
 from langchain_openai import ChatOpenAI
-from react_agent.ccrs.prompt_context import build_ccrs_prompt_context
-from react_agent.ccrs.audit import log_ccrs_event
-from react_agent.ccrs.reportability import selected_tool_target
+from ccrs_langgraph.prompt_context import build_ccrs_prompt_context
+from ccrs_langgraph.audit import log_ccrs_event
+from ccrs_langgraph.reportability import selected_tool_target
 from react_agent.state.state_ccrs import CcrsAgentState
 from react_agent.nodes.message_window import sliding_message_window
 from react_agent.nodes.advertised_navigation import render_advertised_navigation_options
@@ -16,7 +16,7 @@ from react_agent.prompts.react_prompt import (
     react_prompt_ccrs,
     regular_actions_prompt_for_current_cell,
 )
-from react_agent.ccrs.contingency.escalation import ESCALATE_TO_CONTINGENCY_CCRS_TOOL_NAME
+from ccrs_langgraph.contingency.escalation import ESCALATE_TO_CONTINGENCY_CCRS_TOOL_NAME
 
 
 logger = logging.getLogger(__name__)

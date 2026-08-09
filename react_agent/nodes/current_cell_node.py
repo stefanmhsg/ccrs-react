@@ -3,7 +3,7 @@ from typing import Any, Mapping
 
 from langchain_core.messages import AIMessage, ToolMessage
 
-from react_agent.ccrs.rdf_adapter import CcrsRdfParseError
+from ccrs_langgraph.rdf_adapter import CcrsRdfParseError
 from react_agent.nodes.advertised_navigation import parse_advertised_navigation_options
 from react_agent.state.state import AgentState
 

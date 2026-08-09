@@ -16,8 +16,17 @@ Can be run either via the commandline tool or the notebook.
 python -m pip install -r requirements.txt
 ```
 
-For opportunistic CCRS, see the React adapter notes in
-[react_agent/ccrs/README.md](react_agent/ccrs/README.md).
+The repository consumes the released `ccrs-langgraph` wheel through the first
+entry in [requirements.txt](requirements.txt). To work against a sibling clone
+of the adapter during development, install that clone explicitly:
+
+```powershell
+python -m pip install --no-deps -e ..\ccrs\ccrs-langgraph
+```
+
+For installation, GitHub Packages credentials, public APIs, and graph
+integration, see the
+[CCRS LangGraph adapter README.md](https://github.com/stefanmhsg/ccrs/blob/master/ccrs-langgraph/README.md).
 
 ### Notebook
 

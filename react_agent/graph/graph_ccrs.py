@@ -1,20 +1,20 @@
 from langgraph.graph import END, StateGraph
 
-from react_agent.ccrs.capabilities import (
+from ccrs_langgraph.capabilities import (
     DEFAULT_CONTINGENCY_CCRS_MODULES,
     ContingencyCapability,
     contingency_modules_for_capabilities,
 )
-from react_agent.ccrs.ccrs_node import make_ccrs_node
-from react_agent.ccrs.contingency.contingency_ccrs import ContingencyCcrs
-from react_agent.ccrs.contingency.escalation import escalate_to_contingency_ccrs
-from react_agent.ccrs.contingency.in_memory_ccrs_trace_history import InMemoryCcrsTraceHistory
+from ccrs_langgraph.ccrs_node import make_ccrs_node
+from ccrs_langgraph.contingency.contingency_ccrs import ContingencyCcrs
+from ccrs_langgraph.contingency.escalation import escalate_to_contingency_ccrs
+from ccrs_langgraph.contingency.in_memory_ccrs_trace_history import InMemoryCcrsTraceHistory
 from react_agent.state.state_ccrs import CcrsAgentState
-from react_agent.ccrs.contingency.decision import (
+from ccrs_langgraph.contingency.decision import (
     make_ccrs_decision_node,
     route_after_ccrs_decision,
 )
-from react_agent.ccrs.contingency.stop_confirmation import (
+from ccrs_langgraph.contingency.stop_confirmation import (
     make_stop_confirmation_node,
     route_after_ccrs_node,
     route_after_stop_confirmation,
