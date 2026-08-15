@@ -35,10 +35,17 @@ Follow a depth-first search (DFS) navigation pattern:
 
 CCRS_TASK_ADDENDUM = """
 
-The `escalate_to_contingency_ccrs` tool is available to you for escalation when you are about to
+"CCRS Decision Guidance" is helping you decide on the next action to take.
+
+- "Opportunistic CCRS": 
+-- Follow this recommendation for immediate next action if available. 
+-- Automatically revealed or hidden based on availability.
+
+- "Contingency CCRS": 
+-- Only for highly uncertain situations - STRONGLY consider this recommendation.
+-- The `escalate_to_contingency_ccrs` tool is available to you for escalation when you are about to
 fail, do not know how to proceed, are confused, see unexpected environment
-structure, or are making no progress, use it before spending more normal tool
-calls.
+structure, or are making no progress, use it before spending more normal tool calls.
 """.strip()
 
 
