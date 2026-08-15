@@ -56,15 +56,20 @@ def llm_node(
     llm_model = configuration.get("llm_model", "gpt-5-mini")
     llm_temperature = configuration.get("llm_temperature", 1.0)
     llm_reasoning_effort = configuration.get("llm_reasoning_effort", "minimal")
+    llm_seed = configuration.get("llm_seed")
     max_messages = configuration.get("llm_message_window_max_messages")
     max_tokens = configuration.get("llm_message_window_max_tokens")
     agent_name = configuration.get("agent_name", "React")
 
-    llm = ChatOpenAI(
-        model=llm_model,
-        temperature=llm_temperature,
-        reasoning_effort=llm_reasoning_effort,
-    )
+    llm_kwargs = {
+        "model": llm_model,
+        "temperature": llm_temperature,
+        "reasoning_effort": llm_reasoning_effort,
+    }
+    if llm_seed is not None:
+        llm_kwargs["seed"] = llm_seed
+
+    llm = ChatOpenAI(**llm_kwargs)
 
     active_tools = list(bound_tools) if bound_tools is not None else list(tools)
 

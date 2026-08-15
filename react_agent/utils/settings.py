@@ -1,5 +1,34 @@
+from dataclasses import dataclass
+
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
-from pydantic import Field
+
+
+@dataclass(frozen=True)
+class LlmModelProfile:
+    """The OpenAI parameters supported by a named model configuration."""
+
+    model: str
+    temperature: float
+    reasoning_effort: str
+    seed: int | None = None
+
+
+LLM_MODEL_PROFILES: dict[str, LlmModelProfile] = {
+    # These are the existing settings, kept as the default profile.
+    "gpt_5_mini": LlmModelProfile(
+        model="gpt-5-mini-2025-08-07",
+        temperature=1.0, # gpt 5 only accepts 1.0
+        reasoning_effort="minimal",
+    ),
+    "gpt_5_6_luna": LlmModelProfile(
+        model="gpt-5.6-luna",
+        temperature=0.0,
+        # `minimal` is not supported by Luna; `none` is its lowest effort.
+        reasoning_effort="none",
+        seed=42,
+    ),
+}
 
 
 class Settings(BaseSettings):
@@ -8,9 +37,9 @@ class Settings(BaseSettings):
     agent_name: str = Field("React")
     langchain_project: str = Field("react")
 
-    llm_model: str = Field("gpt-5-mini-2025-08-07") # gpt-5-nano-2025-08-07 or gpt-5-mini-2025-08-07
-    llm_temperature: float = Field(1.0) # gpt 5 only accepts 1.0
-    llm_reasoning_effort: str = Field("minimal") # gpt-5-nano does not support "none"; "minimal" is the lowest effort
+    # Select a profile here or with LLM_MODEL_PROFILE in .env.
+    # Available profiles: gpt_5_mini, gpt_5_6_luna.
+    llm_model_profile: str = Field("gpt_5_mini")
     llm_message_window_max_messages: int | None = Field(60) # Trim message history to the last N messages. 
     llm_message_window_max_tokens: int | None = Field(350000) # Trim message history to fit within N tokens. Models both have 400k token limits
 
@@ -50,6 +79,37 @@ class Settings(BaseSettings):
         env_file = ".env"
         env_file_encoding = "utf-8"
         extra = "ignore"
+
+    @field_validator("llm_model_profile")
+    @classmethod
+    def validate_llm_model_profile(cls, value: str) -> str:
+        if value not in LLM_MODEL_PROFILES:
+            available_profiles = ", ".join(LLM_MODEL_PROFILES)
+            raise ValueError(
+                f"Unknown LLM model profile {value!r}. "
+                f"Available profiles: {available_profiles}."
+            )
+        return value
+
+    @property
+    def llm_profile(self) -> LlmModelProfile:
+        return LLM_MODEL_PROFILES[self.llm_model_profile]
+
+    @property
+    def llm_model(self) -> str:
+        return self.llm_profile.model
+
+    @property
+    def llm_temperature(self) -> float:
+        return self.llm_profile.temperature
+
+    @property
+    def llm_reasoning_effort(self) -> str:
+        return self.llm_profile.reasoning_effort
+
+    @property
+    def llm_seed(self) -> int | None:
+        return self.llm_profile.seed
 
 
 settings = Settings()
