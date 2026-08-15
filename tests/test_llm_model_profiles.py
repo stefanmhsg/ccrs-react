@@ -7,6 +7,11 @@ from react_agent.utils.settings import Settings
 
 
 class LlmModelProfileTest(unittest.TestCase):
+    def test_default_profile_is_gpt_5_6_luna(self) -> None:
+        settings = Settings()
+
+        self.assertEqual("gpt-5.6-luna", settings.llm_model)
+
     def test_gpt_5_mini_profile_preserves_existing_defaults(self) -> None:
         settings = Settings(llm_model_profile="gpt_5_mini")
 

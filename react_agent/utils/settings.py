@@ -39,7 +39,7 @@ class Settings(BaseSettings):
 
     # Select a profile here or with LLM_MODEL_PROFILE in .env.
     # Available profiles: gpt_5_mini, gpt_5_6_luna.
-    llm_model_profile: str = Field("gpt_5_mini")
+    llm_model_profile: str = Field("gpt_5_6_luna")
     llm_message_window_max_messages: int | None = Field(60) # Trim message history to the last N messages. 
     llm_message_window_max_tokens: int | None = Field(350000) # Trim message history to fit within N tokens. Models both have 400k token limits
 
