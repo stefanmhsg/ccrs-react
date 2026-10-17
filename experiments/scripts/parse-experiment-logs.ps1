@@ -493,6 +493,7 @@ function New-MoveActionCorrelationRows {
                 move_sequence = $start.move.sequence
                 move_cell = $start.move.cell
                 move_timestamp = $start.move.timestamp
+                previous_move_timestamp = $start.move.previous_timestamp
                 move_line = $start.move.line
                 start_action_line = $actions[$start.action_index].line
                 start_action_timestamp = $actions[$start.action_index].timestamp
@@ -520,8 +521,8 @@ function New-MoveDurationRows {
         for ($i = 0; $i -lt $moves.Count; $i++) {
             $current = $moves[$i]
             $durationMs = $null
-            if ($i -gt 0) {
-                $previousTimestamp = ConvertTo-EpochMilliseconds $moves[$i - 1].move_timestamp
+            if ($null -ne $current.previous_move_timestamp) {
+                $previousTimestamp = ConvertTo-EpochMilliseconds $current.previous_move_timestamp
                 $currentTimestamp = ConvertTo-EpochMilliseconds $current.move_timestamp
                 if ($null -ne $previousTimestamp -and $null -ne $currentTimestamp) {
                     $durationMs = $currentTimestamp - $previousTimestamp
@@ -918,6 +919,7 @@ foreach ($runDir in Get-ChildItem -Path $runRootPath -Directory | Sort-Object Na
 
     $maseFile = Join-Path $runDir.FullName "mase-events.jsonl"
     $moveSequenceByAgent = @{}
+    $previousMoveByAgent = @{}
     $maseEventCount = 0
     $maseMoveCount = 0
     $maseTransactionCount = 0
@@ -960,13 +962,18 @@ foreach ($runDir in Get-ChildItem -Path $runRootPath -Directory | Sort-Object Na
                 archive_id = Get-MapValue $record "archiveId"
             })
             if ($type -eq "AGENT_MOVED") {
-                $maseMoveCount++
-                $agentKey = if ($agent) { [string]$agent } else { "unknown" }
+                $agentKey = if ($agent) { Get-ResourceLabel -Value $agent -PathPrefix "agents" } else { "unknown" }
+                $initialPlacement = -not $moveSequenceByAgent.ContainsKey($agentKey) -and "$cell" -match "/cells/0$"
                 if (-not $moveSequenceByAgent.ContainsKey($agentKey)) {
                     $moveSequenceByAgent[$agentKey] = 0
                 }
-                $moveSequenceByAgent[$agentKey]++
-                [void]$moveRows.Add([pscustomobject][ordered]@{
+                # Keep placement as an internal path/time anchor; later returns to cell 0 are moves.
+                if (-not $initialPlacement) {
+                    $maseMoveCount++
+                    $moveSequenceByAgent[$agentKey]++
+                }
+                $previousMove = $previousMoveByAgent[$agentKey]
+                $move = [pscustomobject][ordered]@{
                     batch_id = $runMeta.batchId
                     run_id = $runMeta.runId
                     sequence = $moveSequenceByAgent[$agentKey]
@@ -974,8 +981,12 @@ foreach ($runDir in Get-ChildItem -Path $runRootPath -Directory | Sort-Object Na
                     timestamp = $timestamp
                     agent = $agent
                     cell = $cell
+                    previous_cell = if ($previousMove) { $previousMove.cell } else { $null }
+                    previous_timestamp = if ($previousMove) { $previousMove.timestamp } else { $null }
                     path_analysis_cell = ConvertTo-PathAnalysisCell -Cell $cell
-                })
+                }
+                [void]$moveRows.Add($move)
+                $previousMoveByAgent[$agentKey] = $move
             }
             if ($type -eq "TRANSACTION") {
                 $event = Get-MapValue $record "event"
@@ -1007,7 +1018,7 @@ foreach ($runDir in Get-ChildItem -Path $runRootPath -Directory | Sort-Object Na
             batch_id = $runMeta.batchId
             run_id = $runMeta.runId
             agent = $agent
-            move_count = $agentMoves.Count
+            move_count = @($agentMoves | Where-Object { $_.sequence -gt 0 }).Count
             first_cell = if ($agentMoves.Count -gt 0) { $agentMoves[0].cell } else { $null }
             final_cell = if ($agentMoves.Count -gt 0) { $agentMoves[$agentMoves.Count - 1].cell } else { $null }
         })
@@ -1078,7 +1089,8 @@ foreach ($runDir in Get-ChildItem -Path $runRootPath -Directory | Sort-Object Na
     })
 }
 
-$moveActionCorrelationRows = New-MoveActionCorrelationRows -Runs $runsRows -ActionRows $actionRows -MoveRows $moveRows
+$moveActionCorrelationRows = @(New-MoveActionCorrelationRows -Runs $runsRows -ActionRows $actionRows -MoveRows $moveRows |
+    Where-Object { $_.move_sequence -gt 0 })
 $moveDurationRows = New-MoveDurationRows -MoveActionRows $moveActionCorrelationRows
 
 $pathInputDir = Join-Path $outputPath "path-analysis-inputs"
@@ -1093,6 +1105,9 @@ foreach ($group in ($moveRows | Group-Object run_id, agent)) {
     $cells = @($group.Group | Sort-Object @{ Expression = { [int]$_.sequence } } | ForEach-Object { $_.path_analysis_cell } | Where-Object { $_ })
     Set-Content -Path (Join-Path $pathInputDir $safeName) -Value ($cells -join "`n") -Encoding UTF8
 }
+
+# The raw event table and path retain placement, but evaluated movement artifacts start at step 1.
+$moveRows = @($moveRows | Where-Object { $_.sequence -gt 0 })
 
 Write-CsvRows -Rows $runsRows -Path (Join-Path $outputPath "runs.csv") -Headers @(
     "batch_id", "run_id", "agent_name", "run_mode", "scenario_id",
@@ -1112,7 +1127,7 @@ Write-CsvRows -Rows $maseRows -Path (Join-Path $outputPath "mase-events.csv") -H
 )
 Write-CsvRows -Rows $moveRows -Path (Join-Path $outputPath "mase-agent-moved.csv") -Headers @(
     "batch_id", "run_id", "sequence", "line", "timestamp", "agent", "cell",
-    "path_analysis_cell"
+    "previous_cell", "previous_timestamp", "path_analysis_cell"
 )
 Write-CsvRows -Rows $transactionRows -Path (Join-Path $outputPath "mase-transactions.csv") -Headers @(
     "batch_id", "run_id", "line", "timestamp", "agent", "graph",
@@ -1158,7 +1173,7 @@ Write-CsvRows -Rows $actionRows -Path (Join-Path $outputPath "actions.csv") -Hea
 )
 Write-CsvRows -Rows $moveActionCorrelationRows -Path (Join-Path $outputPath "move-action-correlation.csv") -Headers @(
     "batch_id", "run_id", "move_sequence", "move_cell", "move_timestamp",
-    "move_line", "start_action_line", "start_action_timestamp",
+    "previous_move_timestamp", "move_line", "start_action_line", "start_action_timestamp",
     "end_before_action_line", "action_count", "get_count", "post_count",
     "http_error_count", "status_codes", "action_lines", "action_targets",
     "match_quality"

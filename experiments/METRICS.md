@@ -10,6 +10,9 @@ run packages and generated CSV artifacts.
 Reports are generated from archived run packages under `experiments/runs/<batch-id>/`.
 They do not read notebook output or live console text.
 
+Each experiment compares one React baseline run with one React CCRS run in the
+same scenario; it does not directly compare React with BDI.
+
 - React adapter evidence comes from `[REACT-CCRS-EVENT]` records in the copied
   React log.
 - Java library evidence comes from the copied `.java.log` companion file and is
@@ -43,19 +46,26 @@ contains `exitCell`, the report compares the tracked final cell to that value.
 If no exit cell was supplied, the report uses the same scenario metadata as the
 BDI writer: `CcrsMazeV1` and `CcrsMazeV2` both use `cells/999`.
 
-Sources: `runs.csv` column `exit_cell`, batch-name scenario metadata, and
+Sources: `runs.csv` column `exit_cell`, explicit `scenario_id` (batch name as a
+fallback), and
 `agents.csv` column `final_cell`.
 
 ### Total Duration Ms
 
-The sum of move-to-move durations for the run. The first successful move has no
-prior move timestamp and does not contribute a duration.
+The sum of move-to-move durations for the run. Initial placement on `cells/0`
+is only a time anchor: the first evaluated duration measures the interval from
+that placement to the first move out of `cells/0` (for example `0 -> 1`). If the
+previous MASE movement timestamp is missing, that move has no duration value.
 
 Source: `move-durations.csv` column `duration_ms`.
 
 ### Total Moves
 
-The number of normalized `AGENT_MOVED` events for the imported experiment agent.
+The number of normalized `AGENT_MOVED` events for the imported experiment agent,
+excluding its first movement event if that event places it on `cells/0`.
+The first evaluated move is step 1; later returns to `cells/0` count normally.
+The placement remains in `mase-events.csv` and in the path-analysis input as the
+uncounted path origin, but has no row in the evaluated movement CSVs or charts.
 Multi-agent MASE exports are filtered to `run.json` `agentName` / `agentNames`
 before report CSV rows are written, so scenario infrastructure agents and other
 concurrent experiment agents do not contribute to this metric.
@@ -92,7 +102,9 @@ The scenario-specific optimal move count supplied through
 report falls back to the same scenario metadata as the BDI writer:
 `CcrsMazeV1=116` and `CcrsMazeV2=138`.
 
-Source: `runs.csv` column `optimal_moves` or batch-name scenario metadata.
+Source: `runs.csv` column `optimal_moves`, then explicit `scenario_id`, then
+batch-name scenario metadata when no scenario was supplied. Explicit scenario
+metadata also determines zone optima; `-OptimalMoves` overrides only the run total.
 
 ### Actual Moves
 
@@ -130,6 +142,9 @@ move/cycle timing view because BDI produces deterministic moves at comparable
 cycles. React cannot: one LLM turn can emit several tool calls, and several
 turns may be needed for one successful move. React reports therefore keep cycle
 duration separate from move duration.
+
+Excluding placement from movement metrics does not remove or renumber React
+loop cycles; a loop cycle is an LLM turn, not a maze step.
 
 - `Baseline cycle avg ms`: average `duration_ms` for non-CCRS runs with
   `react.loop.cycle` events.
@@ -277,9 +292,13 @@ window starts at the `http_post` action whose target matches a filtered MASE
 `AGENT_MOVED` cell, and ends before the next matched successful movement POST.
 This makes repeated GETs, failed POSTs, and recovery behavior visible per
 successful move. The first perception actions before the first successful move
-are intentionally outside these windows.
+are intentionally outside these windows. The initial placement window is also
+excluded from this artifact; raw actions remain available in `actions.csv`.
 
-Sources: `actions.csv` and `mase-agent-moved.csv`.
+Sources: `actions.csv` and movement evidence exported in `mase-agent-moved.csv`,
+plus the initial placement preserved in `mase-events.csv` and retained internally
+for matching. `previous_move_timestamp` records
+the preceding MASE movement timestamp even if that event has no matched POST.
 
 ### Move Durations
 
@@ -287,6 +306,9 @@ Sources: `actions.csv` and `mase-agent-moved.csv`.
 `move-action-correlation.csv`. It adds the move-to-move `duration_ms` and carries
 `action_count`, `http_success_count`, and `http_failure_count` so reports can
 plot both movement latency and HTTP call volume per move.
+The duration uses the preceding MASE movement timestamp, including initial
+placement for step 1. HTTP counts retain their forward-looking window from the
+current movement POST to the next matched movement POST.
 
 ## Zone Metrics
 
@@ -307,6 +329,8 @@ The current zone boundaries for the CCRS maze scenario family are:
 Zone completion is checked from filtered MASE movement evidence. A boundary cell
 completes the previous zone and starts the next zone; movement counts and move
 durations for the later zone begin after that boundary move.
+The signifier zone excludes initial placement from its movement count and
+includes the first real move and its duration from `cells/0`.
 
 React loop cycles do not carry MASE cells directly. The report therefore maps
 React-side cycle, selection, opportunistic, and contingency rows into zones by

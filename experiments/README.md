@@ -5,9 +5,14 @@ runs. It mirrors the BDI experiment package shape where the data is comparable,
 while documenting React-specific advisory prompt metrics instead of BDI
 deterministic option-reordering metrics.
 
+Each batch compares one React baseline agent with one React CCRS agent in the
+same scenario.
+
 ## Quick Start Checklist
 
 Use this table as the manual experiment loop.
+
+Start an experiment agent only after all setup agents have finished their runs or reached their final positions.
 
 ### MASE Scenario V1
 
@@ -21,11 +26,11 @@ Use this table as the manual experiment loop.
 | - | ********** | ********************** | ********************** |
 | 5 | `test_agent.ipynb` | **BASELINE V1** | `agent_name="react_baseline_mazeV1"` |
 | 6 | Browser | Export and reset after the run | `Reset Store` -> `Export logs`; save the NDJSON file into `S:\dev\ma\ccrs-react\experiments\runs\latest`; confirm reset |
-| 7 | `\ccrs-react` | Stage the logs | `powershell -ExecutionPolicy Bypass -File experiments\scripts\import-manual-run.ps1 -BatchId react-baseline-vs-ccrs-v1 -RunId 300-baseline -AgentName react_baseline_mazeV1` |
+| 7 | `\ccrs-react` | Stage the logs | `powershell -ExecutionPolicy Bypass -File experiments\scripts\import-manual-run.ps1 -BatchId react-baseline-vs-ccrs-v1 -RunId 300-baseline -AgentName react_baseline_mazeV1 -ScenarioId CcrsMazeV1` |
 | - | ********** | ********************** | ********************** |
 | 8 | `test_agent.ipynb` | **REACT V1** | Re-run step 3. to prepare environment, then run cell with `agent_name="react_ccrs_mazeV1"` |
 | 9 | Browser | Export and reset after the run | `Reset Store` -> `Export logs`; save the NDJSON file into `S:\dev\ma\ccrs-react\experiments\runs\latest`; confirm reset |
-| 10 | `\ccrs-react` | Stage the logs | `powershell -ExecutionPolicy Bypass -File experiments\scripts\import-manual-run.ps1 -BatchId react-baseline-vs-ccrs-v1 -RunId 400-baseline -AgentName react_ccrs_mazeV1` |
+| 10 | `\ccrs-react` | Stage the logs | `powershell -ExecutionPolicy Bypass -File experiments\scripts\import-manual-run.ps1 -BatchId react-baseline-vs-ccrs-v1 -RunId 400-ccrs -AgentName react_ccrs_mazeV1 -ScenarioId CcrsMazeV1` |
 | - | ********** | ********************** | ********************** |
 | 11 | `\ccrs-react` | **GENERATE REPORT** | `powershell -ExecutionPolicy Bypass -File experiments\scripts\write-report.ps1 -BatchId react-baseline-vs-ccrs-v1` |
 
@@ -41,11 +46,11 @@ Use this table as the manual experiment loop.
 | - | ********** | ********************** | ********************** |
 | 5 | `test_agent.ipynb` | **BASELINE V2** | `agent_name="react_baseline_mazeV2"` |
 | 6 | Browser | Export and reset after the run | `Reset Store` -> `Export logs`; save the NDJSON file into `S:\dev\ma\ccrs-react\experiments\runs\latest`; confirm reset |
-| 7 | `\ccrs-react` | Stage the logs | `powershell -ExecutionPolicy Bypass -File experiments\scripts\import-manual-run.ps1 -BatchId react-baseline-vs-ccrs-v2 -RunId 700-baseline -AgentName react_baseline_mazeV2` |
+| 7 | `\ccrs-react` | Stage the logs | `powershell -ExecutionPolicy Bypass -File experiments\scripts\import-manual-run.ps1 -BatchId react-baseline-vs-ccrs-v2 -RunId 700-baseline -AgentName react_baseline_mazeV2 -ScenarioId CcrsMazeV2` |
 | - | ********** | ********************** | ********************** |
 | 8 | `test_agent.ipynb` | **REACT V2** | Re-run step 3. to prepare environment, then run cell with `agent_name="react_ccrs_mazeV2"` |
 | 9 | Browser | Export and reset after the run | `Reset Store` -> `Export logs`; save the NDJSON file into `S:\dev\ma\ccrs-react\experiments\runs\latest`; confirm reset |
-| 10 | `\ccrs-react` | Stage the logs | `powershell -ExecutionPolicy Bypass -File experiments\scripts\import-manual-run.ps1 -BatchId react-baseline-vs-ccrs-v2 -RunId 800-ccrs -AgentName react_ccrs_mazeV2` |
+| 10 | `\ccrs-react` | Stage the logs | `powershell -ExecutionPolicy Bypass -File experiments\scripts\import-manual-run.ps1 -BatchId react-baseline-vs-ccrs-v2 -RunId 800-ccrs -AgentName react_ccrs_mazeV2 -ScenarioId CcrsMazeV2` |
 | - | ********** | ********************** | ********************** |
 | 11 | `\ccrs-react` | **GENERATE REPORT** | `powershell -ExecutionPolicy Bypass -File experiments\scripts\write-report.ps1 -BatchId react-baseline-vs-ccrs-v2` |
 
@@ -55,7 +60,7 @@ Use this table as the manual experiment loop.
 [scripts/import-manual-run.ps1](scripts/import-manual-run.ps1) writes each run
 under `experiments/runs/<batch-id>/<run-id>/`.
 
-- `run.json`: run metadata, graph name, agent name, imported log names, MASE
+- `run.json`: run metadata, agent name, imported log names, MASE
   capture status, and optional scenario fields.
 - `mase-events.jsonl`: normalized MASE viewer export, when present.
 - `source-exports/`: original MASE exports and staging metadata.
@@ -68,19 +73,23 @@ that is not a Java companion log, then copies the same-stem `.java.log` file if
 it exists. `-ReactLog` and `-JavaLog` remain available for explicit overrides.
 Staged MASE exports are moved out of `latest` unless `-KeepSource` is supplied.
 
+Supply `-ScenarioId CcrsMazeV1` or `-ScenarioId CcrsMazeV2` when importing;
+explicit scenario metadata takes precedence over the batch name in the report.
+
 ## CSV Artifacts
 
 [scripts/parse-experiment-logs.ps1](scripts/parse-experiment-logs.ps1) writes
 CSV files into `experiments/reports/<batch-id>/`.
 
-- `runs.csv`: one row per imported run with graph metadata, MASE counts, React
+- `runs.csv`: one row per imported run with scenario metadata, MASE counts, React
   CCRS event counts, Java evidence counts, and `decision_metric_quality`.
 - `agents.csv`: one row per imported experiment agent observed in MASE, with
   movement count and final cell.
 - `mase-events.csv`: normalized MASE event rows filtered to the imported
   experiment agent.
-- `mase-agent-moved.csv`: normalized `AGENT_MOVED` rows filtered to the imported
-  experiment agent.
+- `mase-agent-moved.csv`: evaluated `AGENT_MOVED` rows for the imported agent;
+  initial placement on `cells/0` is excluded, and step 1 is the first move out
+  of `cells/0`. Later returns to `cells/0` count normally.
 - `mase-transactions.csv`: normalized MASE transaction rows filtered to the
   imported experiment agent.
 - `move-durations.csv`: one row per successful move window from
@@ -107,7 +116,7 @@ CSV files into `experiments/reports/<batch-id>/`.
 - `java-library-evidence.csv`: Java companion log evidence, kept separate from
   React adapter decisions.
 - `path-analysis-inputs/*.cells.txt`: movement paths grouped by run and MASE
-  agent.
+  agent, including `cells/0` as the uncounted path origin when present.
 - `summary.json`: parser/report metadata and aggregate artifact counts.
 - `summary.md`: first-version Markdown report.
 

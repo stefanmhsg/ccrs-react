@@ -13,7 +13,7 @@ The first target is a manual and auditable workflow rather than a fully automate
 ## Rules
 
 - Rule: Align React experiment artifacts with the BDI experiment output shape unless there is a concrete React-specific reason to differ.
-  Reason: The goal is to compare React and BDI reports and reuse the mental model already established by [ccrs-bdi/experiments/README.md](../ccrs-bdi/experiments/README.md).
+  Reason: Reuse the report structure established by [ccrs-bdi/experiments/README.md](../../ccrs-bdi/experiments/README.md); experiments compare baseline versus CCRS within each architecture, not React directly against BDI.
   Added/Updated: 2026-05-31 / Codex.
 
 - Rule: Keep the experiment procedure manual-first and idempotent.
@@ -48,7 +48,16 @@ The first target is a manual and auditable workflow rather than a fully automate
   Reason: The BDI experiments have a README that explains report usage and metrics; React reports need the same kind of durable metrics documentation so generated numbers are interpretable and comparable.
   Added/Updated: 2026-05-31 / Codex.
 
+- Rule: Exclude initial placement on `cells/0` from evaluated moves; step 1 is the first move out of `cells/0`, while later returns count normally.
+  Reason: The user requires the same movement boundary for BDI and React. Preserve placement as the path origin and the first move's timestamp anchor; React loop cycles remain separate.
+  Added/Updated: 2026-10-17 / User, Codex.
+
+- Rule: Compare one React baseline run with one React CCRS run in the same scenario, and prefer explicit imported scenario metadata over the batch name.
+  Reason: The comparison isolates CCRS within React; scenario optima must match the configured MASE dataset.
+  Added/Updated: 2026-10-17 / User, Codex.
+
 ## Now / Next / Later
+
 
 | NOW | NEXT | LATER |
 | --- | --- | --- |
@@ -57,6 +66,8 @@ The first target is a manual and auditable workflow rather than a fully automate
 
 ## Progress
 
+- [x] (2026-10-17) WP3/WP4: Applied the BDI movement boundary to React totals, movement CSVs/charts, zone move metrics, and path/timing anchors. Explicit scenario metadata takes precedence over batch-name inference; documented setup readiness and the within-React comparison.
+- [x] (2026-10-17) WP5: Validated placement-only runs, `0 -> 1`, later returns to `0`, missing placement POSTs, unchanged loop cycles, zone counts, and scenario overrides using isolated report fixtures; all five tests passed.
 - [x] (2026-05-31 13:20Z) Created this React experiment-report ExecPlan and aligned its initial workflow with [ccrs-bdi/experiments/README.md](../ccrs-bdi/experiments/README.md).
 - [ ] WP1: Inventory BDI report CSV schemas and map each field to React log or MASE export sources.
 - [x] (2026-06-07 15:20Z) WP1A: Added React adapter reportability events for prompt-visible CCRS context and post-LLM selected-tool correlation.
@@ -79,6 +90,9 @@ The first target is a manual and auditable workflow rather than a fully automate
 - [x] (2026-06-27 17:25Z) Corrected the scenario metadata mapping: `CcrsMazeV1` is the unlocked traversal scenario with 116 optimal moves, and `CcrsMazeV2` is the 3-locked-cell contingency scenario with 138 optimal moves.
 
 ## Surprises & Discoveries
+
+- Observation: Removing placement before correlation would lose the first duration or mis-match a later return to `cells/0`.
+  Evidence: The parser previously counted every `AGENT_MOVED` event, and durations used the preceding matched action row. It now retains placement internally at sequence 0, records the preceding MASE timestamp on each movement, and exports only evaluated steps starting at 1.
 
 - Observation: Sparse zone data previously caused report generation to fail instead of emitting empty metrics.
   Evidence: The WP5 fixture has no cycles in later zones; PowerShell passed an empty cycle result as `$null`, and `Get-ZoneCycleBucketAverage` attempted `ContainsKey($null)`. The report now filters null cycle rows, and the regression suite verifies successful repeated generation from the sparse fixture.
@@ -123,6 +137,10 @@ The first target is a manual and auditable workflow rather than a fully automate
   Evidence: The user clarified that V1 is the no-locked-cells traversal scenario and V2 is the 3-locked-cell contingency scenario. Before the 2026-06-27 correction, [write-report.ps1](scripts/write-report.ps1) assigned the locked-cell description and 138 optimal moves to V1, and the unlocked traversal description and 116 optimal moves to V2.
 
 ## Decision Log
+
+- Decision: Transfer the BDI placement exclusion to React movement metrics while preserving React loop-cycle and advisory-selection evidence.
+  Rationale: A React loop cycle is an LLM turn and can contain multiple actions; it must not be removed merely because initial placement is excluded from movement counting. Raw MASE/actions retain placement evidence; the evaluated movement files omit it and the path retains its origin.
+  Date/Author: 2026-10-17 / User, Codex.
 
 - Decision: Create the React report plan as [PLAN_EXPERIMENT_REPORTS.md](../PLAN_EXPERIMENT_REPORTS.md) in `ccrs-react`.
   Rationale: Report generation is a distinct final implementation effort from the CCRS adapter itself, and a dedicated plan prevents the adapter plan from becoming a catch-all.
@@ -329,6 +347,8 @@ Outcome and notes: Implemented 2026-06-07. `prepare-current-run.ps1` cleans only
 
 Status: Done / maintenance
 
+2026-10-17 maintenance: Initial placement is retained internally at movement sequence 0 for action matching and path output, but omitted from exported movement rows and counts. Each evaluated move carries its preceding MASE cell/timestamp so step 1 retains its duration even when the placement POST is missing from the React log. A placement-only run still reports final cell `cells/0` and zero moves.
+
 Purpose: Convert archived run packages into normalized CSV files that the report writer can use.
 
 Local context: BDI parsing lives in [ccrs-bdi/experiments/scripts/parse-experiment-logs.ps1](../ccrs-bdi/experiments/scripts/parse-experiment-logs.ps1). React adapter audit events are emitted by [audit.py](https://github.com/stefanmhsg/ccrs/blob/master/ccrs-langgraph/src/ccrs_langgraph/audit.py). Event names are documented in [CCRS LangGraph adapter README.md](https://github.com/stefanmhsg/ccrs/blob/master/ccrs-langgraph/README.md). MASE viewer exports should be parsed with the same general logic used by the BDI parser: keep events for the experiment agent and produce movement, transaction, and path-analysis rows.
@@ -355,6 +375,7 @@ Todos:
 - [x] Enrich `actions.csv` with HTTP API response evidence. Current historical rows still only prove invocation, but fresh runs now log structured `[TOOL_NODE] Tool result: {...}` lines after tool execution with `tool_call_id`, `tool_name`, `target`, HTTP `status_code`, response length, and error metadata; the parser joins those fields into `actions.csv`.
 - [x] Add a `move-action-correlation.csv` artifact. Define each move-action correlation window as starting at a successful navigation `http_post` whose target matches a MASE `AGENT_MOVED` cell, and ending before the next successful movement POST. Include all GET/POST attempts in the window, with status/outcome fields when available, so reports can show failed requests and repeated perception/action attempts per successful move.
 - [ ] Write per-run CSVs into the run package when useful and batch-level CSVs into `experiments/reports/<batch-id>/`.
+- [ ] Review the actual supplied React logs and MASE exports before changing missing timing/zone evidence handling; check chronological ordering, agent matching, mixed/repeated runs, and unmatched movement POSTs against that evidence, following the deferred BDI audit topics.
 
 Concrete steps: Implement parser functions for run metadata, key-value records, MASE JSONL records, and output CSV writing. Reuse naming and field shapes from the BDI parser where possible, but keep React-specific fields such as `react_event`, `tool_call_id`, `cycle`, `cycle_timestamp`, `strategy_id`, `top_action`, and `stop`.
 
@@ -365,6 +386,8 @@ Outcome and notes: Initial parser implemented 2026-06-07. It writes batch-level 
 ### WP4: Generate BDI-aligned summary reports
 
 Status: Now
+
+2026-10-17 maintenance: Whole-run and zone movement summaries consume evaluated steps starting at 1. Reports prefer explicit `scenarioId` over batch-name inference, retain explicit `optimalMoves` overrides for run totals, and explain the placement boundary in scope notes. The V1/V2 MASE mapping was already correct.
 
 Purpose: Produce the human-readable report and machine-readable summary package for one React experiment batch.
 
@@ -421,10 +444,10 @@ Discussion: Smoke fixtures should be intentionally small and human-readable. The
 
 Todos:
 
-- [ ] Add a small fixture run package under a clearly named non-report directory, for example `experiments/fixtures/smoke-run/`.
-- [ ] Include one baseline-like run fixture and one CCRS-like run fixture if needed for comparison tables.
+- [x] Create temporary fixture run packages in [test_report_generation_scripts.py](../tests/test_report_generation_scripts.py), outside archived experiment evidence.
+- [x] Include baseline and CCRS run fixtures for comparison tables.
 - [ ] Add a smoke command in the root [README.md](../README.md) or in the new `ccrs-react/experiments/README.md`.
-- [ ] Validate `parse-experiment-logs.ps1` and `write-report.ps1` against the fixture batch.
+- [x] Validate `parse-experiment-logs.ps1` and `write-report.ps1` against the fixture batch, including the placement boundary and scenario precedence.
 
 Concrete steps: A future implementation should be able to run:
 
@@ -434,7 +457,7 @@ Concrete steps: A future implementation should be able to run:
 
 Validation and acceptance: The smoke report should generate a non-empty `summary.md` and the expected CSV files from fixture logs alone. The report should not require `OPENAI_API_KEY`, a running MaSE server, or a live notebook.
 
-Outcome and notes: Not started.
+Outcome and notes: The black-box suite in [test_report_generation_scripts.py](../tests/test_report_generation_scripts.py) creates temporary baseline/CCRS run packages and invokes the public import/parser/report scripts. The 2026-10-17 extension checks movement boundary edge cases and scenario precedence without live services.
 
 ### WP6: Research and implement zone-based React reports
 
@@ -481,6 +504,8 @@ The core report pipeline is usable when `ccrs-react` can generate a report for a
 The expected observable result is `experiments/reports/react-baseline-vs-ccrs-v1/summary.md` plus CSV and JSON artifacts. The report should identify both runs, use MASE exports for movement and transaction evidence, use React logs for CCRS lifecycle evidence, and preserve Java companion logs as Java-library evidence.
 
 Smoke acceptance does not require a live run. A fixture or copied small run package should be enough to prove that import, parse, and report scripts produce the expected output files.
+
+From `S:\dev\ma\ccrs-react`, run `rtk proxy S:\anaconda\agent\python.exe -m unittest discover -s tests -p test_report_generation_scripts.py -v`. The five tests must pass, including placement-only and return-to-zero cases. For `0 -> 1 -> 0 -> 13/5 -> 999`, expect four evaluated moves, three signifier-zone moves, and five path coordinates. Loop-cycle rows retain their original numbering and explicit V2 metadata uses 138 optimal moves despite a V1 batch name.
 
 ## Idempotence and Recovery
 
@@ -584,4 +609,6 @@ Revision note 2026-06-27 / Codex: Completed WP6. React reports now generate `zon
 Revision note 2026-06-27 / Codex: Corrected `CCRS cont invocation N avg ms` attribution across whole-run and zone summaries. The report now measures the first loop-cycle duration after a contingency activation, matching where React records the expensive contingency work in `cycle-durations.csv`.
 
 Revision note 2026-06-27 / Codex: Corrected reversed `CcrsMazeV1`/`CcrsMazeV2` scenario metadata in the report writer and metrics documentation. V1 is now the no-locked-cells traversal scenario with 116 optimal moves; V2 is now the 3-locked-cell contingency scenario with 138 optimal moves.
+
+Revision note 2026-10-17 / Codex: Applied the relevant BDI audit corrections to React: exclude initial placement from evaluated moves while retaining path/time anchors, prefer explicit scenario metadata, document setup readiness and the within-React baseline/CCRS pair, and extend fixture validation. Deferred evidence sufficiency and ordering/filtering review remains a TODO rather than an assumed defect.
 

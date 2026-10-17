@@ -9,6 +9,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from urllib.parse import urlsplit
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -200,8 +201,8 @@ class ReportGenerationScriptsTest(unittest.TestCase):
             self.assertEqual(2, summary["contingencyRowCount"])
             self.assertEqual(1, summary["opportunisticRowCount"])
             self.assertEqual(4, summary["actionRowCount"])
-            self.assertEqual(4, summary["moveActionCorrelationRowCount"])
-            self.assertEqual(4, summary["moveDurationRowCount"])
+            self.assertEqual(2, summary["moveActionCorrelationRowCount"])
+            self.assertEqual(2, summary["moveDurationRowCount"])
             self.assertEqual(10, summary["zoneSummaryRowCount"])
             self.assertEqual(1, summary["javaEvidenceCount"])
 
@@ -212,7 +213,19 @@ class ReportGenerationScriptsTest(unittest.TestCase):
             self.assertEqual("selection_event", runs["002-ccrs"]["decision_metric_quality"])
             self.assertEqual("missing_selection_event", runs["001-baseline"]["decision_metric_quality"])
             self.assertEqual("True", decisions[0]["followed_top_opportunistic"])
-            self.assertEqual({"2"}, {row["move_count"] for row in agents})
+            self.assertEqual({"1"}, {row["move_count"] for row in agents})
+            self.assertEqual({"1"}, {row["mase_move_count"] for row in runs.values()})
+            moves = _read_csv(output_dir / "mase-agent-moved.csv")
+            self.assertEqual(["1", "1"], [row["sequence"] for row in moves])
+            self.assertTrue(all(row["previous_cell"].endswith("/cells/0") for row in moves))
+            durations = _read_csv(output_dir / "move-durations.csv")
+            self.assertEqual(["2000", "2000"], [row["duration_ms"] for row in durations])
+            self.assertEqual(4, len(_read_csv(output_dir / "cycle-durations.csv")))
+            signifier_rows = [
+                row for row in _read_csv(output_dir / "zone-summary.csv")
+                if row["zone"] == "signifier"
+            ]
+            self.assertEqual(["1", "1"], [row["total_moves"] for row in signifier_rows])
             self.assertNotIn("situation_type", contingency[0])
             evaluate_row = next(
                 row
@@ -227,6 +240,12 @@ class ReportGenerationScriptsTest(unittest.TestCase):
 
             path_inputs = list((output_dir / "path-analysis-inputs").glob("*.cells.txt"))
             self.assertEqual(2, len(path_inputs))
+            for path_input in path_inputs:
+                cells = path_input.read_text(encoding="utf-8-sig").splitlines()
+                self.assertEqual(
+                    ["http://127.0.1.1:8080/cells/0", "http://127.0.1.1:8080/cells/999"],
+                    cells,
+                )
             for artifact in (
                 "summary.md",
                 "move-duration-comparison.svg",
@@ -240,10 +259,97 @@ class ReportGenerationScriptsTest(unittest.TestCase):
             )
             self.assertIn("fixture-mazev1", summary_markdown)
             self.assertIn("### Signifier Zone", summary_markdown)
+            self.assertIn("Initial placement on `cells/0` is excluded", summary_markdown)
             self.assertIn(
                 "No `react.ccrs.opportunistic.selection` rows were found inside this zone window.",
                 summary_markdown,
             )
+
+    def test_movement_boundary_preserves_returns_timing_and_empty_runs(self) -> None:
+        cases = {
+            "001-baseline": (["0", "1", "0", "13/5", "999"], False, 4),
+            "002-baseline": (["0"], False, 0),
+            "003-baseline": (["1", "0", "13/5"], False, 3),
+            "004-baseline": (["0", "1", "13/5"], True, 2),
+        }
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            root = Path(temporary_dir)
+            run_root = root / "runs"
+            output_dir = root / "report"
+            for run_id, (cells, omit_placement_action, _) in cases.items():
+                self._write_run(run_root, run_id, run_id, ccrs=False)
+                run_dir = run_root / run_id
+                events = [
+                    self._mase_event("AGENT_MOVED", run_id, f"cells/{cell}", index)
+                    for index, cell in enumerate(cells, 1)
+                ]
+                (run_dir / "mase-events.jsonl").write_text(
+                    "\n".join(json.dumps(event) for event in events), encoding="utf-8"
+                )
+                actions = [
+                    f"2026-01-01 12:00:{index:02d},200 [INFO] fixture: "
+                    "[TOOL_NODE] Invoking tool: http_post with args: "
+                    f"{{'url': 'http://127.0.1.1:8080/cells/{cell}'}}"
+                    for index, cell in enumerate(cells)
+                    if not (omit_placement_action and index == 0)
+                ]
+                (run_dir / f"{run_id}.log").write_text("\n".join(actions), encoding="utf-8")
+
+            self._run_script(
+                "write-report.ps1", "-RunRoot", str(run_root),
+                "-OutputDir", str(output_dir),
+            )
+            runs = {row["run_id"]: row for row in _read_csv(output_dir / "runs.csv")}
+            agents = {row["run_id"]: row for row in _read_csv(output_dir / "agents.csv")}
+            moves = _read_csv(output_dir / "mase-agent-moved.csv")
+            durations = _read_csv(output_dir / "move-durations.csv")
+            zones = _read_csv(output_dir / "zone-summary.csv")
+            for run_id, (cells, _, count) in cases.items():
+                with self.subTest(run_id=run_id):
+                    self.assertEqual(str(count), runs[run_id]["mase_move_count"])
+                    self.assertEqual(str(len(cells)), runs[run_id]["mase_event_count"])
+                    self.assertEqual(str(count), agents[run_id]["move_count"])
+                    self.assertTrue(agents[run_id]["final_cell"].endswith(f"/cells/{cells[-1]}"))
+                    evaluated = [row for row in moves if row["run_id"] == run_id]
+                    self.assertEqual(list(map(str, range(1, count + 1))), [row["sequence"] for row in evaluated])
+                    run_durations = [row for row in durations if row["run_id"] == run_id]
+                    expected_durations = ["1000"] * count
+                    if cells[0] != "0":
+                        expected_durations[0] = ""
+                    self.assertEqual(expected_durations, [row["duration_ms"] for row in run_durations])
+                    signifier = next(row for row in zones if row["run_id"] == run_id and row["zone"] == "signifier")
+                    expected_zone_moves = cells.index("13/5") + (cells[0] != "0") if "13/5" in cells else 0
+                    self.assertEqual(str(expected_zone_moves), signifier["total_moves"])
+                    self.assertEqual("yes" if "13/5" in cells else "no", signifier["completed"])
+                    path_input = next((output_dir / "path-analysis-inputs").glob(f"{run_id}.*.cells.txt"))
+                    self.assertEqual(
+                        [f"/cells/{cell}" for cell in cells],
+                        [urlsplit(line).path for line in path_input.read_text(encoding="utf-8-sig").splitlines()],
+                    )
+
+    def test_explicit_scenario_overrides_batch_name_and_keeps_optimal_override(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            root = Path(temporary_dir)
+            run_root = root / "fixture-mazev1"
+            output_dir = root / "report"
+            for run_id, ccrs in (("001-baseline", False), ("002-ccrs", True)):
+                self._write_run(run_root, run_id, run_id, ccrs=ccrs)
+                metadata_path = run_root / run_id / "run.json"
+                metadata = _read_json(metadata_path)
+                metadata["scenarioId"] = "CcrsMazeV2"
+                metadata["optimalMoves"] = 7 if ccrs else None
+                metadata["exitCell"] = None
+                metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+            self._run_script(
+                "write-report.ps1", "-RunRoot", str(run_root),
+                "-OutputDir", str(output_dir),
+            )
+            zones = _read_csv(output_dir / "zone-summary.csv")
+            self.assertEqual({"19"}, {row["optimal_moves"] for row in zones if row["zone"] == "signifier"})
+            self.assertEqual({"57"}, {row["optimal_moves"] for row in zones if row["zone"] == "mixed"})
+            markdown = (output_dir / "summary.md").read_text(encoding="utf-8-sig")
+            self.assertIn("| `001-baseline` | 001-baseline | 138 | 1 | -137 |", markdown)
+            self.assertIn("| `002-ccrs` | 002-ccrs | 7 | 1 | -6 |", markdown)
 
     @staticmethod
     def _mase_event(

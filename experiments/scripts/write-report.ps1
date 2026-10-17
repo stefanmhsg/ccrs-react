@@ -546,7 +546,10 @@ function New-ZoneReportData {
                 $maxPromptVisible = [math]::Max($maxPromptVisible, (Convert-ToIntOrZero $cycle.opportunistic_prompt_visible_count))
             }
 
-            $zoneOptimalMoves = Get-ZoneOptimalMoves -ScenarioMetadata $ScenarioMetadata -ZoneName $zone.name
+            $runScenarioMetadata = if ($run.scenario_id) {
+                Get-ScenarioReportMetadata -ScenarioName $run.scenario_id
+            } else { $ScenarioMetadata }
+            $zoneOptimalMoves = Get-ZoneOptimalMoves -ScenarioMetadata $runScenarioMetadata -ZoneName $zone.name
             $actualMoves = $includedMoves.Count
             $deltaMoves = if ($null -ne $zoneOptimalMoves -and $completed) {
                 $actualMoves - (Convert-ToIntOrZero $zoneOptimalMoves)
@@ -604,7 +607,11 @@ function New-ZoneReportData {
 }
 
 function Get-ScenarioReportMetadata {
-    param([string]$BatchName)
+    param([string]$BatchName, [string]$ScenarioName)
+
+    if (-not [string]::IsNullOrWhiteSpace($ScenarioName)) {
+        $BatchName = $ScenarioName
+    }
 
     if ($BatchName -match "(?i)((^|[-_])v1($|[-_])|mazev1)") {
         return [pscustomobject][ordered]@{
@@ -656,6 +663,9 @@ function Get-RunOptimalMoves {
     if ($null -ne $Run.optimal_moves -and "$($Run.optimal_moves)" -ne "") {
         return $Run.optimal_moves
     }
+    if ($Run.scenario_id) {
+        return (Get-ScenarioReportMetadata -ScenarioName $Run.scenario_id).optimal_moves
+    }
     return $ScenarioMetadata.optimal_moves
 }
 
@@ -667,6 +677,9 @@ function Get-RunExitCell {
 
     if ($null -ne $Run.exit_cell -and "$($Run.exit_cell)" -ne "") {
         return "$($Run.exit_cell)"
+    }
+    if ($Run.scenario_id) {
+        return (Get-ScenarioReportMetadata -ScenarioName $Run.scenario_id).exit_cell
     }
     return $ScenarioMetadata.exit_cell
 }
@@ -2057,6 +2070,7 @@ $lines.Add("")
 $lines.Add("- This first report version intentionally reports only metrics with clear current sources.")
 $lines.Add("- Java companion logs are reported as library evidence and are kept separate from React adapter selection metrics.")
 $lines.Add("- BDI overrule and option-reordering metrics are not applicable to React advisory prompt injection.")
+$lines.Add('- Initial placement on `cells/0` is excluded from movement counts, move charts, and zone move metrics; the first evaluated move leaves `cells/0`. Placement remains the path origin and first move timing anchor. React loop cycles are measured separately.')
 
 $summaryPath = Join-Path $outputPath "summary.md"
 $lines | Set-Content -Path $summaryPath -Encoding UTF8
