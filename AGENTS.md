@@ -21,5 +21,9 @@
 
 ## Verification
 
+- Experiment import/report implementation and its synthetic tests are maintained
+  in [ccrs-experiments](../ccrs-experiments/README.md). Invoke its tools directly;
+  keep notebook execution, prompts and application configuration here. Do not add
+  local copies, forwarding scripts or redirect documents.
 - Use `S:\anaconda\agent\python.exe` for Python validation in this repository unless the user provides a different interpreter.
 - When adding or changing modules imported by notebook sessions, update the reload/import cell in [test_agent.ipynb](test_agent.ipynb). Reload helper modules before modules that import from them by name, so notebook runs do not keep stale objects after code changes.

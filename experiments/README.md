@@ -1,7 +1,12 @@
 # React CCRS Experiment Reports
 
-This directory contains the manual-first report pipeline for React CCRS maze
-runs. It mirrors the BDI experiment package shape where the data is comparable,
+Current import/report code and synthetic tests are maintained in
+[ccrs-experiments](../../ccrs-experiments/README.md). The commands below invoke
+that implementation directly. This document retains the ReAct-specific notebook
+procedure; existing archives, prompts and configuration remain in this repository.
+
+This directory documents the manual procedure for React CCRS maze runs.
+The tooling uses the BDI experiment package shape where the data is comparable,
 while documenting React-specific advisory prompt metrics instead of BDI
 deterministic option-reordering metrics.
 
@@ -18,7 +23,7 @@ Start an experiment agent only after all setup agents have finished their runs o
 
 | Step | Where | Action | Command or UI action |
 | ---: | --- | --- | --- |
-| 1 | `\ccrs-react` | Prepare the staging folder | `powershell -ExecutionPolicy Bypass -File experiments\scripts\prepare-current-run.ps1` |
+| 1 | `\ccrs-react` | Prepare the staging folder | `powershell -ExecutionPolicy Bypass -File ../ccrs-experiments/scripts/react/prepare-current-run.ps1 -RepositoryRoot .` |
 | - | ********** | ********************** | ********************** |
 | 2 | `\mase` | Start MASE server (configure scenario in .properties) and viewer | `docker compose -f docker-compose.ccrs.yml --profile viewer up --build -d mase-viewer` |
 | 3 | `\mase` | Start CCRS scenario services for the run | `docker compose -f docker-compose.ccrs.yml up --build -d ccrs-agent keyholder-agent` |
@@ -26,19 +31,19 @@ Start an experiment agent only after all setup agents have finished their runs o
 | - | ********** | ********************** | ********************** |
 | 5 | `test_agent.ipynb` | **BASELINE V1** | `agent_name="react_baseline_mazeV1"` |
 | 6 | Browser | Export and reset after the run | `Reset Store` -> `Export logs`; save the NDJSON file into `S:\dev\ma\ccrs-react\experiments\runs\latest`; confirm reset |
-| 7 | `\ccrs-react` | Stage the logs | `powershell -ExecutionPolicy Bypass -File experiments\scripts\import-manual-run.ps1 -BatchId react-baseline-vs-ccrs-v1 -RunId 300-baseline -AgentName react_baseline_mazeV1 -ScenarioId CcrsMazeV1` |
+| 7 | `\ccrs-react` | Stage the logs | `powershell -ExecutionPolicy Bypass -File ../ccrs-experiments/scripts/react/import-manual-run.ps1 -RepositoryRoot . -BatchId react-baseline-vs-ccrs-v1 -RunId 300-baseline -AgentName react_baseline_mazeV1 -ScenarioId CcrsMazeV1` |
 | - | ********** | ********************** | ********************** |
 | 8 | `test_agent.ipynb` | **REACT V1** | Re-run step 3. to prepare environment, then run cell with `agent_name="react_ccrs_mazeV1"` |
 | 9 | Browser | Export and reset after the run | `Reset Store` -> `Export logs`; save the NDJSON file into `S:\dev\ma\ccrs-react\experiments\runs\latest`; confirm reset |
-| 10 | `\ccrs-react` | Stage the logs | `powershell -ExecutionPolicy Bypass -File experiments\scripts\import-manual-run.ps1 -BatchId react-baseline-vs-ccrs-v1 -RunId 400-ccrs -AgentName react_ccrs_mazeV1 -ScenarioId CcrsMazeV1` |
+| 10 | `\ccrs-react` | Stage the logs | `powershell -ExecutionPolicy Bypass -File ../ccrs-experiments/scripts/react/import-manual-run.ps1 -RepositoryRoot . -BatchId react-baseline-vs-ccrs-v1 -RunId 400-ccrs -AgentName react_ccrs_mazeV1 -ScenarioId CcrsMazeV1` |
 | - | ********** | ********************** | ********************** |
-| 11 | `\ccrs-react` | **GENERATE REPORT** | `powershell -ExecutionPolicy Bypass -File experiments\scripts\write-report.ps1 -BatchId react-baseline-vs-ccrs-v1` |
+| 11 | `\ccrs-react` | **GENERATE REPORT** | `powershell -ExecutionPolicy Bypass -File ../ccrs-experiments/scripts/react/write-report.ps1 -RepositoryRoot . -BatchId react-baseline-vs-ccrs-v1` |
 
 ### MASE Scenario V2
 
 | Step | Where | Action | Command or UI action |
 | ---: | --- | --- | --- |
-| 1 | `\ccrs-react` | Prepare the staging folder | `powershell -ExecutionPolicy Bypass -File experiments\scripts\prepare-current-run.ps1` |
+| 1 | `\ccrs-react` | Prepare the staging folder | `powershell -ExecutionPolicy Bypass -File ../ccrs-experiments/scripts/react/prepare-current-run.ps1 -RepositoryRoot .` |
 | - | ********** | ********************** | ********************** |
 | 2 | `\mase` | Start MASE server (configure scenario in .properties) and viewer | `docker compose -f docker-compose.ccrs.yml --profile viewer up --build -d mase-viewer` |
 | 3 | `\mase` | Start CCRS scenario services for the run | `docker compose -f docker-compose.ccrs.yml up --build -d ccrs-agent keyholder-agent` |
@@ -46,18 +51,18 @@ Start an experiment agent only after all setup agents have finished their runs o
 | - | ********** | ********************** | ********************** |
 | 5 | `test_agent.ipynb` | **BASELINE V2** | `agent_name="react_baseline_mazeV2"` |
 | 6 | Browser | Export and reset after the run | `Reset Store` -> `Export logs`; save the NDJSON file into `S:\dev\ma\ccrs-react\experiments\runs\latest`; confirm reset |
-| 7 | `\ccrs-react` | Stage the logs | `powershell -ExecutionPolicy Bypass -File experiments\scripts\import-manual-run.ps1 -BatchId react-baseline-vs-ccrs-v2 -RunId 700-baseline -AgentName react_baseline_mazeV2 -ScenarioId CcrsMazeV2` |
+| 7 | `\ccrs-react` | Stage the logs | `powershell -ExecutionPolicy Bypass -File ../ccrs-experiments/scripts/react/import-manual-run.ps1 -RepositoryRoot . -BatchId react-baseline-vs-ccrs-v2 -RunId 700-baseline -AgentName react_baseline_mazeV2 -ScenarioId CcrsMazeV2` |
 | - | ********** | ********************** | ********************** |
 | 8 | `test_agent.ipynb` | **REACT V2** | Re-run step 3. to prepare environment, then run cell with `agent_name="react_ccrs_mazeV2"` |
 | 9 | Browser | Export and reset after the run | `Reset Store` -> `Export logs`; save the NDJSON file into `S:\dev\ma\ccrs-react\experiments\runs\latest`; confirm reset |
-| 10 | `\ccrs-react` | Stage the logs | `powershell -ExecutionPolicy Bypass -File experiments\scripts\import-manual-run.ps1 -BatchId react-baseline-vs-ccrs-v2 -RunId 800-ccrs -AgentName react_ccrs_mazeV2 -ScenarioId CcrsMazeV2` |
+| 10 | `\ccrs-react` | Stage the logs | `powershell -ExecutionPolicy Bypass -File ../ccrs-experiments/scripts/react/import-manual-run.ps1 -RepositoryRoot . -BatchId react-baseline-vs-ccrs-v2 -RunId 800-ccrs -AgentName react_ccrs_mazeV2 -ScenarioId CcrsMazeV2` |
 | - | ********** | ********************** | ********************** |
-| 11 | `\ccrs-react` | **GENERATE REPORT** | `powershell -ExecutionPolicy Bypass -File experiments\scripts\write-report.ps1 -BatchId react-baseline-vs-ccrs-v2` |
+| 11 | `\ccrs-react` | **GENERATE REPORT** | `powershell -ExecutionPolicy Bypass -File ../ccrs-experiments/scripts/react/write-report.ps1 -RepositoryRoot . -BatchId react-baseline-vs-ccrs-v2` |
 
 
 ## Run Package Shape
 
-[scripts/import-manual-run.ps1](scripts/import-manual-run.ps1) writes each run
+[scripts/import-manual-run.ps1](../../ccrs-experiments/scripts/react/import-manual-run.ps1) writes each run
 under `experiments/runs/<batch-id>/<run-id>/`.
 
 - `run.json`: run metadata, agent name, imported log names, MASE
@@ -78,7 +83,7 @@ explicit scenario metadata takes precedence over the batch name in the report.
 
 ## CSV Artifacts
 
-[scripts/parse-experiment-logs.ps1](scripts/parse-experiment-logs.ps1) writes
+[scripts/parse-experiment-logs.ps1](../../ccrs-experiments/scripts/react/parse-experiment-logs.ps1) writes
 CSV files into `experiments/reports/<batch-id>/`.
 
 - `runs.csv`: one row per imported run with scenario metadata, MASE counts, React
@@ -120,7 +125,7 @@ CSV files into `experiments/reports/<batch-id>/`.
 - `summary.json`: parser/report metadata and aggregate artifact counts.
 - `summary.md`: first-version Markdown report.
 
-Metric definitions are maintained separately in [METRICS.md](METRICS.md).
+Metric definitions are maintained in [REACT_METRICS.md](../../ccrs-experiments/docs/REACT_METRICS.md).
 
 ## React Advisory Metrics
 
