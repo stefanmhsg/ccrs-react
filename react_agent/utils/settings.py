@@ -46,8 +46,8 @@ class Settings(BaseSettings):
     # Select a profile here or with LLM_MODEL_PROFILE in .env.
     # Available profiles: gpt_5_mini, gpt_5_6_luna, gpt_6_luna.
     llm_model_profile: str = Field("gpt_6_luna")
-    llm_message_window_max_messages: int | None = Field(60) # Trim message history to the last N messages. 
-    llm_message_window_max_tokens: int | None = Field(350000) # Trim message history to fit within N tokens.
+    llm_message_window_max_messages: int | None = Field(None) # None disables trimming; e.g. 60 keeps the last N non-preserved messages.
+    llm_message_window_max_tokens: int | None = Field(None) # None disables trimming; e.g. 350000 limits non-preserved history to approximately N tokens.
 
     recursion_limit: int = Field(20000)
 
