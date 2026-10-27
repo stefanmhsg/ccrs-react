@@ -1,6 +1,19 @@
 from langchain_core.messages import HumanMessage
 from langsmith import traceable
+from langsmith.run_helpers import get_current_run_tree
 from datetime import datetime, timezone
+import json
+import logging
+
+
+def _log_trace_identity(run_name: str) -> None:
+    """Record this invocation's span, which anchors its full experiment subtree."""
+    current = get_current_run_tree()
+    record = {"event": "react.langsmith.root", "run_name": run_name,
+              "status": "available" if current is not None else "unavailable",
+              "root_run_id": str(current.id) if current is not None else None,
+              "trace_id": str(current.trace_id) if current is not None else None}
+    logging.getLogger(__name__).info("[REACT-LANGSMITH] %s", json.dumps(record, sort_keys=True))
 
 
 def _initial_cycle() -> dict:
@@ -12,6 +25,7 @@ def _initial_cycle() -> dict:
 async def run_query_async(graph, q: str, run_name: str, config: dict):
     @traceable(name=run_name)
     async def _inner():
+        _log_trace_identity(run_name)
         initial= {
             "messages": [HumanMessage(content=q)],
             "cycle": _initial_cycle(),
@@ -36,6 +50,7 @@ async def run_query_async(graph, q: str, run_name: str, config: dict):
 def run_query_sync(graph, q: str, run_name: str, config: dict):
     @traceable(name=run_name)
     def _inner():
+        _log_trace_identity(run_name)
         initial = {
             "messages": [HumanMessage(content=q)],
             "cycle": _initial_cycle(),
