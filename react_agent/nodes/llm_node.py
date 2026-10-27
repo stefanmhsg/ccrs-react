@@ -42,7 +42,7 @@ def llm_node(
     llm = ChatOpenAI(**llm_kwargs)
 
     # Bind tools to the model. Force at least one tool to be called.
-    model = llm.bind_tools(tools, tool_choice="any")
+    model = llm.bind_tools(tools, tool_choice="any", parallel_tool_calls=False)
 
     chain = react_prompt | model
     messages = sliding_message_window(

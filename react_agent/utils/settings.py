@@ -15,7 +15,7 @@ class LlmModelProfile:
 
 
 LLM_MODEL_PROFILES: dict[str, LlmModelProfile] = {
-    # These are the existing settings, kept as the default profile.
+    # Keep older profiles available for explicit selection.
     "gpt_5_mini": LlmModelProfile(
         model="gpt-5-mini-2025-08-07",
         temperature=1.0, # gpt 5 only accepts 1.0
@@ -25,6 +25,12 @@ LLM_MODEL_PROFILES: dict[str, LlmModelProfile] = {
         model="gpt-5.6-luna",
         temperature=0.0,
         # `minimal` is not supported by Luna; `none` is its lowest effort.
+        reasoning_effort="none",
+        seed=42,
+    ),
+    "gpt_6_luna": LlmModelProfile(
+        model="gpt-6-luna",
+        temperature=0.0,
         reasoning_effort="none",
         seed=42,
     ),
@@ -38,10 +44,10 @@ class Settings(BaseSettings):
     langchain_project: str = Field("react")
 
     # Select a profile here or with LLM_MODEL_PROFILE in .env.
-    # Available profiles: gpt_5_mini, gpt_5_6_luna.
-    llm_model_profile: str = Field("gpt_5_6_luna")
+    # Available profiles: gpt_5_mini, gpt_5_6_luna, gpt_6_luna.
+    llm_model_profile: str = Field("gpt_6_luna")
     llm_message_window_max_messages: int | None = Field(60) # Trim message history to the last N messages. 
-    llm_message_window_max_tokens: int | None = Field(350000) # Trim message history to fit within N tokens. Models both have 400k token limits
+    llm_message_window_max_tokens: int | None = Field(350000) # Trim message history to fit within N tokens.
 
     recursion_limit: int = Field(20000)
 

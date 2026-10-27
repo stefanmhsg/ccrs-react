@@ -74,7 +74,7 @@ def llm_node(
     active_tools = list(bound_tools) if bound_tools is not None else list(tools)
 
     # Bind tools to the model. Force at least one tool to be called.
-    model = llm.bind_tools(active_tools, tool_choice="any")
+    model = llm.bind_tools(active_tools, tool_choice="any", parallel_tool_calls=False)
 
     active_prompt = configuration.get("react_prompt_ccrs") or prompt_template or react_prompt_ccrs
     chain = active_prompt | model
