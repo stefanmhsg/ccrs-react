@@ -160,7 +160,7 @@ def _contingency_ccrs_from_options(
     if modules == DEFAULT_CONTINGENCY_CCRS_MODULES and not discover:
         return None
 
-    return ContingencyCcrs.from_maven_local(
+    return ContingencyCcrs.from_github_packages(
         modules=modules,
         discover_strategy_providers=discover,
         contingency_configuration=contingency_configuration,

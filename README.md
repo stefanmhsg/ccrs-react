@@ -28,6 +28,11 @@ For installation, GitHub Packages credentials, public APIs, and graph
 integration, see the
 [CCRS LangGraph adapter README.md](https://github.com/stefanmhsg/ccrs/blob/master/ccrs-langgraph/README.md).
 
+The default CCRS runtime and optional contingency capabilities resolve Java
+packages from GitHub Packages and refresh snapshot dependencies when a new
+runtime is initialized. Restart the Python process or notebook kernel after
+upgrading the wheel or refreshing Java packages to load the updated code.
+
 ### Notebook
 
 [Notebook](./test_agent.ipynb)
