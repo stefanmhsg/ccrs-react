@@ -97,7 +97,7 @@ transitions, independent of LLM cycles and action matching. Other outputs includ
 navigation-intervals.csv, decisions.csv, guidance.csv, strategy-durations.csv,
 events.csv and zone-summary.csv. Definitions and coverage limitations are in the
 [measurement contract](../../ccrs-experiments/docs/MEASUREMENT_CONTRACT.md) and
-[ReAct metrics](../../ccrs-experiments/docs/REACT_METRICS.md).
+[MEASUREMENT_CONTRACT.md](../../ccrs-experiments/docs/MEASUREMENT_CONTRACT.md).
 
 Preserve the full LangSmith tree: decision-time advertised alternatives, exact
 prompt-visible guidance and accepted tool actions support selection measurement.

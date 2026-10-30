@@ -132,7 +132,7 @@ The first target is a manual and auditable workflow rather than a fully automate
   Evidence: The initial React parser generated rows for agents such as `ccrs-agent-1.5`, `key-holder-agent-1`, and older `react_ccrs_mazeV1_01` / `react_ccrs_mazeV1_02` runs. Regenerating after label-based experiment-agent filtering reduced the latest React run report from 4,855 MASE events and 2,403 moves to 87 MASE events and 40 moves for `react_ccrs_mazeV1_03`.
 
 - Observation: The BDI experiment reports already define zone-based metrics for the CCRS maze scenario family.
-  Evidence: [ccrs-bdi/experiments/METRICS.md](../../ccrs-experiments/docs/BDI_METRICS.md) defines five zones, `zone-summary.csv`, and per-zone cycle-duration SVGs. [ccrs-bdi/experiments/scripts/write-report.ps1](../../ccrs-experiments/scripts/bdi/write-report.ps1) implements `Get-ZoneDefinitions`, derives zone windows from ordered rows, writes one `zone-summary.csv` row per run-zone pair, and emits `zone-cycle-duration-<zone>.svg`. React must map those BDI metrics onto React artifacts and replace BDI overrule tables with React advisory-follow equivalents.
+  Evidence: [MEASUREMENT_CONTRACT.md](../../ccrs-experiments/docs/MEASUREMENT_CONTRACT.md) defines five zones, `zone-summary.csv`, and per-zone cycle-duration SVGs. [ccrs-bdi/experiments/scripts/write-report.ps1](../../ccrs-experiments/scripts/bdi/write-report.ps1) implements `Get-ZoneDefinitions`, derives zone windows from ordered rows, writes one `zone-summary.csv` row per run-zone pair, and emits `zone-cycle-duration-<zone>.svg`. React must map those BDI metrics onto React artifacts and replace BDI overrule tables with React advisory-follow equivalents.
 
 - Observation: React zone reports cannot attach loop cycles to cells directly.
   Evidence: React `cycle-durations.csv` rows carry React loop-cycle ids, timestamps, and log lines, but no MASE cell. The report can attach loop cycles to zones only through `move-action-correlation.csv` log-line windows that connect successful MASE movement rows back to React tool-action lines.
@@ -472,19 +472,19 @@ Status: Done
 
 Purpose: Add zone-level React report sections and artifacts that mirror the useful BDI zone reports while preserving React-specific CCRS semantics. The first step is research: inspect the BDI implementation and metric definitions, then map each zone metric onto React-generated CSVs before writing code.
 
-Local context: BDI zone reporting is documented in [ccrs-bdi/experiments/METRICS.md](../../ccrs-experiments/docs/BDI_METRICS.md) and implemented in [ccrs-bdi/experiments/scripts/write-report.ps1](../../ccrs-experiments/scripts/bdi/write-report.ps1). The BDI zones are signifier, stigmergy, mixed, construction site, and social, with completion cells `cells/13/5`, `cells/28/14`, `cells/36/37`, `cells/39/43`, and `cells/999`. React currently has the needed base artifacts in report output: `mase-agent-moved.csv`, `move-durations.csv`, `cycle-durations.csv`, `decisions.csv`, `opportunistic.csv`, `advisory-follow.csv`, and `contingency.csv`.
+Local context: BDI zone reporting is documented in [MEASUREMENT_CONTRACT.md](../../ccrs-experiments/docs/MEASUREMENT_CONTRACT.md) and implemented in [ccrs-bdi/experiments/scripts/write-report.ps1](../../ccrs-experiments/scripts/bdi/write-report.ps1). The BDI zones are signifier, stigmergy, mixed, construction site, and social, with completion cells `cells/13/5`, `cells/28/14`, `cells/36/37`, `cells/39/43`, and `cells/999`. React currently has the needed base artifacts in report output: `mase-agent-moved.csv`, `move-durations.csv`, `cycle-durations.csv`, `decisions.csv`, `opportunistic.csv`, `advisory-follow.csv`, and `contingency.csv`.
 
 Discussion: The BDI implementation uses cycle rows for zone timing, movement/endpoint detection, opportunistic bucket averages, decision breakdowns, and overruled-decision tables. React reports should not copy BDI overrule fields directly because React CCRS is advisory prompt injection, not deterministic JaCaMo option reordering. Zone metrics need a deliberate mapping: BDI overruled-decision tables should become zone-scoped advisory-follow/rank-follow tables; BDI opportunistic-count cycle buckets should use React `opportunistic_prompt_visible_count`; contingency invocation averages should reuse React contingency-cycle mapping; zone completion should be checked against filtered MaSE movements.
 
 Todos:
 
-- [x] Research BDI zone behavior from [ccrs-bdi/experiments/METRICS.md](../../ccrs-experiments/docs/BDI_METRICS.md), [ccrs-bdi/experiments/PLAN_EXPERIMENT_METRICS.md](../../ccrs-bdi/experiments/PLAN_EXPERIMENT_METRICS.md), and [ccrs-bdi/experiments/scripts/write-report.ps1](../../ccrs-experiments/scripts/bdi/write-report.ps1).
+- [x] Research BDI zone behavior from [MEASUREMENT_CONTRACT.md](../../ccrs-experiments/docs/MEASUREMENT_CONTRACT.md), [ccrs-bdi/experiments/PLAN_EXPERIMENT_METRICS.md](../../ccrs-bdi/experiments/PLAN_EXPERIMENT_METRICS.md), and [ccrs-bdi/experiments/scripts/write-report.ps1](../../ccrs-experiments/scripts/bdi/write-report.ps1).
 - [x] Write the React metric mapping before implementation: BDI zone core metrics, move optimality, cycle-duration summary, cycle chart, decision breakdown, and opportunistic overrule metrics mapped to React report artifacts and advisory-follow semantics.
 - [x] Add fixed React zone definitions for the CCRS maze scenario family, including scenario-specific optimal move counts for `CcrsMazeV1` and `CcrsMazeV2`.
 - [x] Generate `zone-summary.csv` with one row per run-zone pair.
 - [x] Generate `zone-cycle-duration-<zone>.svg` charts from zone-scoped React cycle rows.
 - [x] Add a `## Zone Metrics` section before `## Generated Artifacts` in `summary.md`.
-- [x] Update [METRICS.md](../../ccrs-experiments/docs/REACT_METRICS.md) with React-specific zone metric definitions and BDI mapping notes.
+- [x] Update [MEASUREMENT_CONTRACT.md](../../ccrs-experiments/docs/MEASUREMENT_CONTRACT.md) with React-specific zone metric definitions and BDI mapping notes.
 
 Concrete steps: Start by porting the BDI zone definitions and windowing algorithm into React report terminology. Derive zone windows from ordered filtered movement rows, then attach cycle, decision, opportunistic, advisory-follow, and contingency rows by run and cycle/line range. Keep the implementation dependent on generated CSVs rather than rereading raw logs after parse time.
 
@@ -622,3 +622,7 @@ Revision note 2026-10-17 / Codex: Applied the relevant BDI audit corrections to 
 
 Revision note (2026-10-27): Removed obsolete forwarding entry points and redirect
 documents; updated links and operational commands to the canonical tooling.
+
+Revision note (2026-10-30): Metric-document links now target the shared measurement
+contract after removing the redundant BDI/ReAct metric documents. Historical
+implementation descriptions above remain historical, not current report claims.
