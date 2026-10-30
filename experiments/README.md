@@ -10,8 +10,11 @@ The tooling uses the BDI experiment package shape where the data is comparable,
 while documenting React-specific advisory prompt metrics instead of BDI
 deterministic option-reordering metrics.
 
-Each batch compares one React baseline agent with one React CCRS agent in the
-same scenario.
+Use the [guided ReAct procedure](../../ccrs-experiments/docs/GUIDED_REACT.md)
+for registered runs and automatic LangSmith capture. Execute one configuration at
+a time. The study targets three baseline and three CCRS executions per scenario,
+without individual pair assignments; combined reports remain deferred.
+The manual imports below retain their storage BatchId, which is not a repetition.
 
 ## Quick Start Checklist
 
@@ -37,7 +40,7 @@ Start an experiment agent only after all setup agents have finished their runs o
 | 9 | Browser | Export and reset after the run | `Reset Store` -> `Export logs`; save the NDJSON file into `S:\dev\ma\ccrs-react\experiments\runs\latest`; confirm reset |
 | 10 | `\ccrs-react` | Stage the logs | `powershell -ExecutionPolicy Bypass -File ../ccrs-experiments/scripts/react/import-manual-run.ps1 -RepositoryRoot . -BatchId react-baseline-vs-ccrs-v1 -RunId 400-ccrs -AgentName react_ccrs_mazeV1 -ScenarioId CcrsMazeV1` |
 | - | ********** | ********************** | ********************** |
-| 11 | `\ccrs-react` | **GENERATE REPORT** | `powershell -ExecutionPolicy Bypass -File ../ccrs-experiments/scripts/react/write-report.ps1 -RepositoryRoot . -BatchId react-baseline-vs-ccrs-v1` |
+| 11 | `\ccrs-react` | **GENERATE REPORT** | `python ../ccrs-experiments/scripts/experiment.py report-package --architecture react --package experiments/runs/react-baseline-vs-ccrs-v1/300-baseline` |
 
 ### MASE Scenario V2
 
@@ -57,7 +60,7 @@ Start an experiment agent only after all setup agents have finished their runs o
 | 9 | Browser | Export and reset after the run | `Reset Store` -> `Export logs`; save the NDJSON file into `S:\dev\ma\ccrs-react\experiments\runs\latest`; confirm reset |
 | 10 | `\ccrs-react` | Stage the logs | `powershell -ExecutionPolicy Bypass -File ../ccrs-experiments/scripts/react/import-manual-run.ps1 -RepositoryRoot . -BatchId react-baseline-vs-ccrs-v2 -RunId 800-ccrs -AgentName react_ccrs_mazeV2 -ScenarioId CcrsMazeV2` |
 | - | ********** | ********************** | ********************** |
-| 11 | `\ccrs-react` | **GENERATE REPORT** | `powershell -ExecutionPolicy Bypass -File ../ccrs-experiments/scripts/react/write-report.ps1 -RepositoryRoot . -BatchId react-baseline-vs-ccrs-v2` |
+| 11 | `\ccrs-react` | **GENERATE REPORT** | `python ../ccrs-experiments/scripts/experiment.py report-package --architecture react --package experiments/runs/react-baseline-vs-ccrs-v2/700-baseline` |
 
 
 ## Run Package Shape
@@ -81,96 +84,36 @@ Staged MASE exports are moved out of `latest` unless `-KeepSource` is supplied.
 Supply `-ScenarioId CcrsMazeV1` or `-ScenarioId CcrsMazeV2` when importing;
 explicit scenario metadata takes precedence over the batch name in the report.
 
-## CSV Artifacts
+## Individual reports and evidence
 
-[scripts/parse-experiment-logs.ps1](../../ccrs-experiments/scripts/react/parse-experiment-logs.ps1) writes
-CSV files into `experiments/reports/<batch-id>/`.
+Run the report command separately for each imported package. It produces
+report/summary.md and report/metrics.json beside that package's raw evidence.
+Registered runs use `registry report --run-id <id>` from the experiments repository;
+reporting is available for pending, valid and excluded runs.
 
-- `runs.csv`: one row per imported run with scenario metadata, MASE counts, React
-  CCRS event counts, Java evidence counts, and `decision_metric_quality`.
-- `agents.csv`: one row per imported experiment agent observed in MASE, with
-  movement count and final cell.
-- `mase-events.csv`: normalized MASE event rows filtered to the imported
-  experiment agent.
-- `mase-agent-moved.csv`: evaluated `AGENT_MOVED` rows for the imported agent;
-  initial placement on `cells/0` is excluded, and step 1 is the first move out
-  of `cells/0`. Later returns to `cells/0` count normally.
-- `mase-transactions.csv`: normalized MASE transaction rows filtered to the
-  imported experiment agent.
-- `move-durations.csv`: one row per successful move window from
-  `move-action-correlation.csv`, with move-to-move duration and HTTP
-  success/failure call counts.
-- `cycle-durations.csv`: React loop-cycle rows. Fresh logs populate these from
-  `react.loop.cycle` events emitted from the React state cycle channel; older
-  CCRS logs may contain historical structured cycle rows.
-- `decisions.csv`: one row per `react.ccrs.opportunistic.selection` event.
-- `advisory-follow.csv`: aggregate opportunistic CCRS rank-follow buckets
-  derived from `decisions.csv` and `opportunistic.csv`.
-- `contingency.csv`: React contingency CCRS and contingency-produced guidance
-  events.
-- `opportunistic.csv`: React opportunistic CCRS lifecycle events.
-- `actions.csv`: parsed tool invocations from `[TOOL_NODE]` log lines. Fresh
-  runs also populate tool result fields such as `tool_call_id`, `http_status`,
-  `http_ok`, `response_length`, and error details.
-- `move-action-correlation.csv`: action windows keyed by successful movement
-  POSTs matched to filtered MASE `AGENT_MOVED` rows.
-- `move-duration-comparison.svg`: SVG chart of move-to-move duration by
-  movement step, with HTTP success/failure calls stacked on a second y-axis.
-- `cycle-duration-comparison.svg`: SVG chart of React loop-cycle duration by
-  cycle step.
-- `java-library-evidence.csv`: Java companion log evidence, kept separate from
-  React adapter decisions.
-- `path-analysis-inputs/*.cells.txt`: movement paths grouped by run and MASE
-  agent, including `cells/0` as the uncounted path origin when present.
-- `summary.json`: parser/report metadata and aggregate artifact counts.
-- `summary.md`: first-version Markdown report.
+The shared Python reporter retains mase-agent-moved.csv with initial placement as
+the uncounted t0 anchor. It derives navigation intervals from successful MASE
+transitions, independent of LLM cycles and action matching. Other outputs include
+navigation-intervals.csv, decisions.csv, guidance.csv, strategy-durations.csv,
+events.csv and zone-summary.csv. Definitions and coverage limitations are in the
+[measurement contract](../../ccrs-experiments/docs/MEASUREMENT_CONTRACT.md) and
+[ReAct metrics](../../ccrs-experiments/docs/REACT_METRICS.md).
 
-Metric definitions are maintained in [REACT_METRICS.md](../../ccrs-experiments/docs/REACT_METRICS.md).
+Preserve the full LangSmith tree: decision-time advertised alternatives, exact
+prompt-visible guidance and accepted tool actions support selection measurement.
+Raw same-cycle detections alone do not establish what the LLM saw. Prompt-derived
+DFS-reference rules remain open; reports do not fabricate deterministic LLM rankings.
+The Java companion log provides strategy evaluations that Python traces alone may lack.
 
-## React Advisory Metrics
+[runner.py](../react_agent/runner.py) emits agent.run.finished with timestamp_utc,
+reason and exception type for graph return, exception or interruption. A graph
+return does not establish maze completion; the reporter uses MASE exit arrival.
+Restart the notebook kernel after updating imported code and run its reload cell.
 
-BDI reports use JaCaMo adapter events such as `ccrs.opportunistic.prioritize`
-to measure deterministic option reordering and strict overrules. React CCRS does
-not reorder deterministic AgentSpeak options. It injects advisory prompt context
-and then observes the LLM-selected tool call.
-
-React v1 reports therefore use advisory-follow fields in `decisions.csv`:
-
-- `opportunistic_count`: number of prompt-visible opportunistic CCRS entries.
-- `contingency_guidance_count`: number of prompt-visible
-  contingency-produced opportunistic guidance entries.
-- `top_opportunistic_target`: highest-utility opportunistic target visible in
-  the prompt.
-- `top_contingency_guidance_target`: highest-ranked contingency-produced target
-  visible in the prompt.
-- `followed_top_opportunistic`: selected tool URL exactly matched the top
-  opportunistic target.
-- `followed_top_contingency_guidance`: selected tool URL exactly matched the top
-  contingency-produced target.
-- `followed_any_top_guidance`: either channel-specific followed flag is true.
-
-The per-count rank buckets are written to `advisory-follow.csv`. For each run
-and each observed `opportunistic_count`, the report counts selections of rank 1
-(highest utility), rank 2, rank 3, and so on up to the maximum observed count.
-It also counts selections that matched none of the same-cycle opportunistic
-targets. The rank order is inferred from `opportunistic.csv` detection rows in
-the same run and cycle, sorted by descending `utility`.
-
-Older logs that predate `react.ccrs.opportunistic.selection` remain parseable,
-but `decisions.csv` will be empty and `runs.csv` will mark
-`decision_metric_quality=missing_selection_event`.
-
-## Required React Events
-
-The report parser reads structured React events emitted by
-[audit.py](https://github.com/stefanmhsg/ccrs/blob/master/ccrs-langgraph/src/ccrs_langgraph/audit.py). The reportability events added for
-advisory-follow metrics are:
-
-- `react.ccrs.prompt_context.visible`: emitted before the LLM call when any
-  CCRS context is visible in the prompt.
-- `react.ccrs.opportunistic.selection`: emitted after the LLM response for each
-  selected tool call.
-
-The parser also reads existing opportunistic, contingency, and
-contingency-produced guidance events documented in
-[CCRS LangGraph adapter README.md](https://github.com/stefanmhsg/ccrs/blob/master/ccrs-langgraph/README.md).
+Structured CCRS events come from the external
+[LangGraph adapter](../../ccrs/ccrs-langgraph/README.md), including
+react.ccrs.prompt_context.visible and react.ccrs.opportunistic.selection. The latter
+also records proposals, so accepted navigation choices are reconstructed from the
+full trace rather than counted blindly. New adapter/core UTC and invocation-ID
+instrumentation requires coordinated library versions; source changes alone do not
+update an installed notebook kernel.

@@ -2,8 +2,25 @@ from langchain_core.messages import HumanMessage
 from langsmith import traceable
 from langsmith.run_helpers import get_current_run_tree
 from datetime import datetime, timezone
+from contextlib import contextmanager
 import json
 import logging
+
+
+@contextmanager
+def _terminal_observation(run_name: str):
+    """Log termination without equating graph return, interruption or error with maze success."""
+    reason, exception_type = "graph_returned", None
+    try:
+        yield
+    except BaseException as exc:
+        reason = "exception" if isinstance(exc, Exception) else "interrupted"
+        exception_type = type(exc).__name__
+        raise
+    finally:
+        logging.getLogger(__name__).info(
+            '[METRIC] event=agent.run.finished timestamp_utc=%s reason=%s exception_type=%s run_name=%s',
+            datetime.now(timezone.utc).isoformat(), reason, exception_type or 'null', json.dumps(run_name))
 
 
 def _log_trace_identity(run_name: str) -> None:
@@ -44,7 +61,8 @@ async def run_query_async(graph, q: str, run_name: str, config: dict):
                 print(f"Cycle: {step.get('cycle', {})}")
             printed_message_count = len(messages)
 
-    await _inner()
+    with _terminal_observation(run_name):
+        await _inner()
 
 
 def run_query_sync(graph, q: str, run_name: str, config: dict):
@@ -69,4 +87,5 @@ def run_query_sync(graph, q: str, run_name: str, config: dict):
                 print(f"Cycle: {state.get('cycle', {})}")
             printed_message_count = len(messages)
             
-    _inner()
+    with _terminal_observation(run_name):
+        _inner()
