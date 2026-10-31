@@ -27,3 +27,9 @@
   local copies, forwarding scripts or redirect documents.
 - Use `S:\anaconda\agent\python.exe` for Python validation in this repository unless the user provides a different interpreter.
 - When adding or changing modules imported by notebook sessions, update the reload/import cell in [test_agent.ipynb](test_agent.ipynb). Reload helper modules before modules that import from them by name, so notebook runs do not keep stale objects after code changes.
+- Automated experiments use [experiment_entry.py](experiment_entry.py) through
+  the [Python workflow](../ccrs-experiments/docs/GUIDED_REACT_PYTHON.md). Keep the
+  notebook's experiment launch settings literal and in the launch cell so that
+  Python can freeze them without executing notebook code. Keep main-loop bounds
+  in [execution_control.py](react_agent/execution_control.py); do not substitute
+  a graph recursion limit. No live agent tests during tooling implementation.

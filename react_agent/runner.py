@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from contextlib import contextmanager
 import json
 import logging
+from react_agent.execution_control import IterationLimitReached
 
 
 @contextmanager
@@ -13,6 +14,8 @@ def _terminal_observation(run_name: str):
     reason, exception_type = "graph_returned", None
     try:
         yield
+    except IterationLimitReached:
+        reason = "iteration_limit"
     except BaseException as exc:
         reason = "exception" if isinstance(exc, Exception) else "interrupted"
         exception_type = type(exc).__name__

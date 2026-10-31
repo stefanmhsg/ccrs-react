@@ -10,8 +10,10 @@ The tooling uses the BDI experiment package shape where the data is comparable,
 while documenting React-specific advisory prompt metrics instead of BDI
 deterministic option-reordering metrics.
 
-Use the [guided ReAct procedure](../../ccrs-experiments/docs/GUIDED_REACT.md)
-for registered runs and automatic LangSmith capture. Execute one configuration at
+Use the [Python execution guide](../../ccrs-experiments/docs/GUIDED_REACT_PYTHON.md)
+for default automated registered runs and LangSmith capture. The
+[notebook procedure](../../ccrs-experiments/docs/GUIDED_REACT.md) remains available
+with explicit notebook mode. Execute one configuration at
 a time. The study targets three baseline and three CCRS executions per scenario,
 without individual pair assignments; combined reports remain deferred.
 The manual imports below retain their storage BatchId, which is not a repetition.

@@ -15,6 +15,7 @@ def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Run the ReAct CCRS Agent")
 
     parser.add_argument("--recursion-limit", type=int, help="Override recursion limit")
+    parser.add_argument("--max-iterations", type=int, help="Stop before main ReAct loop N+1; independent of graph recursion limit")
     parser.add_argument("--agent-name", type=str, help="Name of the agent run")
     parser.add_argument("--log-level", type=str, help="Logging level")
     parser.add_argument("--query", type=str, help="User query")
@@ -186,6 +187,7 @@ def main():
     asyncio.run(launch_agent(
         query=query,
         agent_name=args.agent_name,
+        max_iterations=args.max_iterations,
         graph_name=args.graph_name,
         recursion_limit=args.recursion_limit,
         log_level=args.log_level,

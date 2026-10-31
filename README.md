@@ -10,6 +10,23 @@
 
 Can be run either via the commandline tool or the notebook.
 
+Automated experiment collection defaults to a supervised Python process through
+[experiment_entry.py](experiment_entry.py), using the existing launch API and
+settings extracted from the notebook. Follow the orchestration repository's
+[Python execution guide](../ccrs-experiments/docs/GUIDED_REACT_PYTHON.md) for latest
+wheel preparation, scenario-specific maze names, compact monitoring and evidence
+collection. That flow loads .env before agent imports, preserves non-secret
+effective settings and flushes tracing before process exit. The notebook remains
+the maintained source of literal launch configurations and supports interactive runs.
+
+For an authorized short trial, `launch_agent(..., max_iterations=3)` or
+`main.py --max-iterations 3` stops before the fourth main ReAct loop. The first
+three loops can complete their tool/CCRS work. This differs from recursion_limit,
+which counts graph steps; contingency subcalls are not separate main loops.
+The terminal event records iteration_limit, an intentional aborted execution.
+An omitted limit preserves unlimited loops. Experiment tooling sets trial limits
+through init --max-iterations and has a separate process timeout.
+
 ### Install dependencies
 
 ```powershell

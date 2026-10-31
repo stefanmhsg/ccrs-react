@@ -1,4 +1,5 @@
 import logging
+from react_agent.execution_control import check_iteration_limit
 from datetime import datetime, timezone
 from typing import Any
 from langchain_core.runnables import RunnableConfig
@@ -22,6 +23,7 @@ def llm_node(
     config: RunnableConfig,
 ) -> dict[str, Any]:
     
+    check_iteration_limit(state, config)
     configuration = config.get("configurable", {})
     llm_model = configuration.get("llm_model", "gpt-5-mini")
     llm_temperature = configuration.get("llm_temperature", 1.0)

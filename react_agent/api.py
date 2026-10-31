@@ -2,6 +2,8 @@ import os
 import asyncio
 import importlib
 import inspect
+import re
+from pathlib import Path
 from datetime import datetime
 from typing import Optional, Any
 
@@ -39,6 +41,8 @@ async def launch_agent(
     recursion_limit: Optional[int] = None,
     log_level: Optional[str] = None,
     run_mode: Optional[str] = None,
+    run_name: Optional[str] = None,
+    save_graph: bool = True,
     **kwargs: Any
 ):
     """
@@ -51,6 +55,9 @@ async def launch_agent(
         recursion_limit: Recursion limit (overrides settings).
         log_level: Logging level (overrides settings).
         run_mode: "sync" or "async" (overrides settings).
+        run_name: Optional unique log/trace identity; does not change the maze agent name.
+        save_graph: Save a graph rendering for interactive use; disabled by automated collection.
+        max_iterations: Optional positive main-loop bound, passed in kwargs. Independent of recursion_limit.
         **kwargs: Additional configuration to pass to the agent.
     """
     # Determine configuration values, preferring arguments over settings defaults
@@ -62,7 +69,14 @@ async def launch_agent(
     # Set environment variable
     os.environ["LANGCHAIN_PROJECT"] = settings.langchain_project
 
-    run_name = f"{current_agent_name}_{datetime.now():%Y%m%d_%H%M%S}"
+    run_name = run_name or f"{current_agent_name}_{datetime.now():%Y%m%d_%H%M%S_%f}"
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", run_name) or not re.fullmatch(re.escape(current_agent_name) + r"_[A-Za-z0-9_-]+", run_name):
+        raise ValueError("run_name must be a safe filename prefixed by the maze agent name")
+    if (Path("logs") / f"{run_name}.log").exists():
+        raise ValueError("Refusing to overwrite an existing invocation log")
+    limit = kwargs.get("max_iterations")
+    if limit is not None and (type(limit) is not int or limit < 1):
+        raise ValueError("max_iterations must be a positive integer")
 
     # Configure logging
     logger = setup_logging(level=current_log_level, run_name=run_name)
@@ -77,14 +91,15 @@ async def launch_agent(
         raise
 
     # Save the graph visualization
-    try:
-        # Use graph_name for unique files per graph type
-        graph_filename = f"{graph_name}.png"
-        with open(graph_filename, "wb") as f:
-            f.write(graph.get_graph().draw_mermaid_png())
-        logger.info(f"Graph visualization saved to {graph_filename}")
-    except Exception as e:
-        logger.warning(f"Could not save graph visualization: {e}")
+    if save_graph:
+        try:
+            # Use graph_name for unique files per graph type
+            graph_filename = f"{graph_name}.png"
+            with open(graph_filename, "wb") as f:
+                f.write(graph.get_graph().draw_mermaid_png())
+            logger.info(f"Graph visualization saved to {graph_filename}")
+        except Exception as e:
+            logger.warning(f"Could not save graph visualization: {e}")
 
     # Prepare configuration for the run
     run_config = {
