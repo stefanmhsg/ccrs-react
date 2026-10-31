@@ -10,3 +10,4 @@ class AgentState(TypedDict):
     cycle: dict[str, Any]
     current_cell: NotRequired[str | None]
     advertised_navigation_options: NotRequired[dict[str, Any] | None]
+    experiment_progress: NotRequired[dict[str, Any]]

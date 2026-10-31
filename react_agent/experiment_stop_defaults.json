@@ -1,0 +1,11 @@
+{
+  "tool_invocations_without_move": 50,
+  "cycles_per_zone": 1000,
+  "zones": [
+    {"name": "signifier", "entry": "cells/0", "exit": "cells/13/5"},
+    {"name": "stigmergy", "entry": "cells/13/5", "exit": "cells/28/14"},
+    {"name": "mixed", "entry": "cells/28/14", "exit": "cells/36/37"},
+    {"name": "construction-site", "entry": "cells/36/37", "exit": "cells/39/43"},
+    {"name": "social", "entry": "cells/39/43", "exit": "cells/999"}
+  ]
+}

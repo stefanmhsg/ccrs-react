@@ -5,15 +5,20 @@ from datetime import datetime, timezone
 from contextlib import contextmanager
 import json
 import logging
-from react_agent.execution_control import IterationLimitReached
+from react_agent.execution_control import ExperimentLimitReached, IterationLimitReached
 
 
 @contextmanager
 def _terminal_observation(run_name: str):
     """Log termination without equating graph return, interruption or error with maze success."""
     reason, exception_type = "graph_returned", None
+    stop_details = None
     try:
         yield
+    except ExperimentLimitReached as exc:
+        reason = exc.reason
+        stop_details = exc.details
+        logging.getLogger(__name__).info("[REACT-EXPERIMENT-STOP] %s", json.dumps(exc.details, sort_keys=True))
     except IterationLimitReached:
         reason = "iteration_limit"
     except BaseException as exc:
@@ -22,8 +27,8 @@ def _terminal_observation(run_name: str):
         raise
     finally:
         logging.getLogger(__name__).info(
-            '[METRIC] event=agent.run.finished timestamp_utc=%s reason=%s exception_type=%s run_name=%s',
-            datetime.now(timezone.utc).isoformat(), reason, exception_type or 'null', json.dumps(run_name))
+            '[METRIC] event=agent.run.finished timestamp_utc=%s reason=%s exception_type=%s run_name=%s stop_details=%s',
+            datetime.now(timezone.utc).isoformat(), reason, exception_type or 'null', json.dumps(run_name), json.dumps(stop_details, sort_keys=True))
 
 
 def _log_trace_identity(run_name: str) -> None:

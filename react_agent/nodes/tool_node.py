@@ -5,6 +5,8 @@ from langchain_core.runnables import RunnableConfig
 from react_agent.state.state import AgentState
 from react_agent.tools import tools_by_name
 from react_agent.tools.http_result import metadata_from_result
+from react_agent.execution_control import configured_limits, progress_for, record_tool
+from react_agent.nodes.current_cell_node import _is_successful_move_call
 
 
 def _tool_error(message: str, call: dict) -> str:
@@ -65,6 +67,9 @@ def _log_tool_result(metadata: dict) -> None:
 def tool_node(state: AgentState, config: RunnableConfig):
     last = state["messages"][-1]
     outputs = []
+    progress = progress_for(state)
+    limits = configured_limits(config)
+    cycle = int(state.get("cycle", {}).get("number", 0))
 
     logging.debug(f"[TOOL_NODE] Tool node received message: {last}")
 
@@ -119,5 +124,9 @@ def tool_node(state: AgentState, config: RunnableConfig):
                 response_metadata=metadata,
             )
         )
+        # Evaluate after this invocation, so a successful different-cell move
+        # on the final allowed call resets the budget before it can fire.
+        record_tool(progress, call=call, successful_move=_is_successful_move_call(call, outputs[-1]),
+                    cycle=cycle, limits=limits)
 
-    return {"messages": outputs}
+    return {"messages": outputs, "experiment_progress": progress}

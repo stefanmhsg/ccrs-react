@@ -3,6 +3,7 @@ import asyncio
 import importlib
 import inspect
 import re
+import json
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, Any
@@ -10,6 +11,7 @@ from typing import Optional, Any
 from react_agent.utils.settings import settings
 from react_agent.utils.logging_config import setup_logging
 from react_agent.runner import run_query_async, run_query_sync
+from react_agent.execution_control import experiment_limits
 
 def get_graph_builder(graph_name: str):
     try:
@@ -43,6 +45,7 @@ async def launch_agent(
     run_mode: Optional[str] = None,
     run_name: Optional[str] = None,
     save_graph: bool = True,
+    experiment_stop_configuration: Optional[dict] = None,
     **kwargs: Any
 ):
     """
@@ -58,6 +61,7 @@ async def launch_agent(
         run_name: Optional unique log/trace identity; does not change the maze agent name.
         save_graph: Save a graph rendering for interactive use; disabled by automated collection.
         max_iterations: Optional positive main-loop bound, passed in kwargs. Independent of recursion_limit.
+        experiment_stop_configuration: Experiment budgets and ordered zone boundaries; defaults to 50 calls/1000 cycles.
         **kwargs: Additional configuration to pass to the agent.
     """
     # Determine configuration values, preferring arguments over settings defaults
@@ -77,10 +81,12 @@ async def launch_agent(
     limit = kwargs.get("max_iterations")
     if limit is not None and (type(limit) is not int or limit < 1):
         raise ValueError("max_iterations must be a positive integer")
+    stop_limits = experiment_limits(experiment_stop_configuration)
 
     # Configure logging
     logger = setup_logging(level=current_log_level, run_name=run_name)
     logger.info(f"Starting agent {current_agent_name} with graph {graph_name}")
+    logger.info("[REACT-EXPERIMENT-LIMITS] %s", json.dumps(stop_limits, sort_keys=True))
 
     # Build the graph
     try:
@@ -112,7 +118,8 @@ async def launch_agent(
             "llm_seed": settings.llm_seed,
             "llm_message_window_max_messages": settings.llm_message_window_max_messages,
             "llm_message_window_max_tokens": settings.llm_message_window_max_tokens,
-            **kwargs
+            **kwargs,
+            "experiment_stop_configuration": stop_limits,
         }
     }
 

@@ -2,6 +2,8 @@ import logging
 from typing import Any, Mapping
 
 from langchain_core.messages import AIMessage, ToolMessage
+from langchain_core.runnables import RunnableConfig
+from react_agent.execution_control import experiment_budget_node
 
 from ccrs_langgraph.rdf_adapter import CcrsRdfParseError
 from react_agent.nodes.advertised_navigation import parse_advertised_navigation_options
@@ -14,8 +16,11 @@ ENTERS_FROM_PREDICATE = "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#ent
 GRAPH_UPDATED_PREFIX = "Graph updated:"
 
 
-def current_cell_node(state: AgentState) -> dict[str, Any]:
+def current_cell_node(state: AgentState, config: RunnableConfig = None) -> dict[str, Any]:
     """Track the embodied maze cell and current-cell navigation advertisements."""
+    # The executor has accounted for every tool result, including boundary
+    # arrivals. Check here without adding graph steps to the recursion budget.
+    experiment_budget_node(state, config or {})
 
     current_cell = _current_cell_from_latest_tool_batch(state)
     if current_cell is not None:
@@ -151,6 +156,9 @@ def _is_successful_move_call(call: Mapping[str, Any], tool_message: ToolMessage)
     if call.get("name") != "http_post":
         return False
     if tool_message.status != "success":
+        return False
+    metadata = getattr(tool_message, "response_metadata", {}) or {}
+    if metadata.get("http_ok") is False or isinstance(metadata.get("http_status"), int) and metadata["http_status"] >= 400:
         return False
     if not isinstance(tool_message.content, str):
         return False

@@ -25,6 +25,7 @@ from react_agent.nodes.current_cell_node import current_cell_node
 from react_agent.nodes.decision_node import should_continue
 from react_agent.nodes.tool_node import tool_node
 from react_agent.tools import tools
+from react_agent.execution_control import account_control_calls
 
 
 def build_graph(
@@ -62,12 +63,22 @@ def build_graph(
             prompt_template=ccrs_prompt_template,
         ),
     )
-    workflow.add_node(
-        "decision",
-        make_ccrs_decision_node(
-            contingency_escalation_controller=contingency_escalation_controller,
-        ),
-    )
+    ccrs_decision = make_ccrs_decision_node(contingency_escalation_controller=contingency_escalation_controller)
+
+    def experiment_decision(state, config):
+        updates = ccrs_decision(state, config)
+        if updates.get("contingency_situation") is not None:
+            # The library consumes these requests on its escalation route,
+            # bypassing the embedding application's HTTP tool executor.
+            updates.update(account_control_calls(state, config))
+        return updates
+
+    def experiment_stop_control(state, config):
+        updates = stop_confirmation_control_node(state, config)
+        updates.update(account_control_calls(state, config))
+        return updates
+
+    workflow.add_node("decision", experiment_decision)
     workflow.add_node("tools", tool_node)
     workflow.add_node("current_cell", current_cell_node)
     workflow.add_node(
@@ -83,7 +94,7 @@ def build_graph(
             decision_context=stop_decision_context,
         ),
     )
-    workflow.add_node("stop_control", stop_confirmation_control_node)
+    workflow.add_node("stop_control", experiment_stop_control)
 
     workflow.set_entry_point("llm")
     workflow.add_edge("llm", "decision")

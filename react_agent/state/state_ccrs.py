@@ -8,6 +8,7 @@ class CcrsAgentState(CcrsLibraryState):
 
     current_cell: NotRequired[str | None]
     advertised_navigation_options: NotRequired[dict[str, Any] | None]
+    experiment_progress: NotRequired[dict[str, Any]]
 
     # Add use-case-specific channels here when this agent needs state beyond the
     # CCRS library contract, for example experiment or scenario-specific fields.

@@ -24,8 +24,27 @@ For an authorized short trial, `launch_agent(..., max_iterations=3)` or
 three loops can complete their tool/CCRS work. This differs from recursion_limit,
 which counts graph steps; contingency subcalls are not separate main loops.
 The terminal event records iteration_limit, an intentional aborted execution.
-An omitted limit preserves unlimited loops. Experiment tooling sets trial limits
+An omitted limit leaves no explicit total-loop cap. The experiment stop budgets
+below still apply. Experiment tooling sets trial limits
 through init --max-iterations and has a separate process timeout.
+
+Full baseline and CCRS experiments also terminate after 50 agent-requested tool
+invocations without a successful move to a different cell, or 1000 program cycles
+without completing the current zone. Defaults and ordered boundaries are in
+[experiment_stop_defaults.json](react_agent/experiment_stop_defaults.json).
+[execution_control.py](react_agent/execution_control.py) maintains counters in
+graph state. GETs, failed calls and CCRS escalation/confirmation calls count;
+initial placement, self-posts and non-navigation interactions do not reset the
+tool counter. A successful different-cell navigation POST resets it, including
+on the 50th call. No subsequent call from that batch runs if the guard fires.
+
+The first zone's budget starts at program cycle zero, including bootstrap.
+Cycles use the existing state counter, including CCRS stop-confirmation cycles.
+Zone completion resets the budget only upon first reaching the next ordered
+boundary; movement within a zone and backtracking do not reset it. Reaching that
+boundary on cycle 1000 is allowed. Both backends log no_movement_tool_limit or
+zone_cycle_limit with counter/zone evidence and finish automatically. Python
+tooling then verifies shutdown and follows its normal capture/report workflow.
 
 ### Install dependencies
 

@@ -33,7 +33,9 @@ def main(argv=None):
     from react_agent.api import launch_agent
     from react_agent.prompts import user_query
     from react_agent.utils.settings import settings
+    from react_agent.execution_control import experiment_limits
     parameters = dict(spec["parameters"])
+    parameters["experiment_stop_configuration"] = experiment_limits(parameters.get("experiment_stop_configuration"))
     query = spec["query"]
     if query.get("reference") not in (None, "USER_QUERY", "USER_QUERY_CCRS"):
         raise ValueError("Unknown application query reference")
