@@ -49,7 +49,8 @@ class Settings(BaseSettings):
     llm_message_window_max_messages: int | None = Field(None) # None disables trimming; e.g. 60 keeps the last N non-preserved messages.
     llm_message_window_max_tokens: int | None = Field(None) # None disables trimming; e.g. 350000 limits non-preserved history to approximately N tokens.
 
-    recursion_limit: int = Field(20000)
+    # Full runs must leave headroom for every zone's experiment cycle budget.
+    recursion_limit: int = Field(100000)
 
     stop_no_suggestion_invocation_threshold: int = Field(2)
     stop_low_confidence_invocation_threshold: int = Field(3)

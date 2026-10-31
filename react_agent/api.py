@@ -11,7 +11,7 @@ from typing import Optional, Any
 from react_agent.utils.settings import settings
 from react_agent.utils.logging_config import setup_logging
 from react_agent.runner import run_query_async, run_query_sync
-from react_agent.execution_control import experiment_limits
+from react_agent.execution_control import experiment_limits, validate_execution_limits
 
 def get_graph_builder(graph_name: str):
     try:
@@ -66,7 +66,7 @@ async def launch_agent(
     """
     # Determine configuration values, preferring arguments over settings defaults
     current_agent_name = agent_name or settings.agent_name
-    current_recursion_limit = recursion_limit or settings.recursion_limit
+    current_recursion_limit = settings.recursion_limit if recursion_limit is None else recursion_limit
     current_log_level = log_level or settings.log_level
     current_run_mode = run_mode or settings.run_mode
     
@@ -82,6 +82,7 @@ async def launch_agent(
     if limit is not None and (type(limit) is not int or limit < 1):
         raise ValueError("max_iterations must be a positive integer")
     stop_limits = experiment_limits(experiment_stop_configuration)
+    validate_execution_limits(graph_name, current_recursion_limit, limit, stop_limits)
 
     # Configure logging
     logger = setup_logging(level=current_log_level, run_name=run_name)

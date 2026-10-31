@@ -14,8 +14,8 @@ from react_agent.utils.settings import settings
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Run the ReAct CCRS Agent")
 
-    parser.add_argument("--recursion-limit", type=int, help="Override recursion limit")
-    parser.add_argument("--max-iterations", type=int, help="Stop before main ReAct loop N+1; independent of graph recursion limit")
+    parser.add_argument("--recursion-limit", type=int, help="Override graph-step safety limit; full runs require headroom for all zone budgets")
+    parser.add_argument("--max-iterations", type=int, help="Explicit bounded trial: stop before main ReAct loop N+1; omit for full experiments")
     parser.add_argument("--agent-name", type=str, help="Name of the agent run")
     parser.add_argument("--log-level", type=str, help="Logging level")
     parser.add_argument("--query", type=str, help="User query")

@@ -28,6 +28,14 @@ An omitted limit leaves no explicit total-loop cap. The experiment stop budgets
 below still apply. Experiment tooling sets trial limits
 through init --max-iterations and has a separate process timeout.
 
+Full runs leave max_iterations unset. The default recursion_limit is 100,000;
+launch validation rejects insufficient graph-step headroom before graph/model
+execution. With five zones and 1000 cycles per zone, the minimum is 15,100 steps
+for baseline and 25,100 for CCRS. It is recalculated for custom zone budgets.
+An explicit max_iterations selects a bounded trial and permits smaller execution
+caps. CLI full runs also reject a leftover notebook max_iterations cap unless
+the run explicitly requests that trial limit.
+
 Full baseline and CCRS experiments also terminate after 50 agent-requested tool
 invocations without a successful move to a different cell, or 1000 program cycles
 without completing the current zone. Defaults and ordered boundaries are in

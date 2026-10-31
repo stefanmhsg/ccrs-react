@@ -56,6 +56,35 @@ def configured_limits(config: dict) -> dict:
     return experiment_limits(config.get("configurable", {}).get("experiment_stop_configuration"))
 
 
+def minimum_full_run_recursion(graph_name: str, limits: dict) -> int:
+    """Reserve all zone cycles plus routing/termination margin for known graphs.
+
+    A baseline cycle uses at most three graph steps; CCRS uses at most five.
+    Confirmation loops increment the same program-cycle counter and use fewer
+    steps per cycle. No additional budget-check graph nodes are introduced.
+    """
+    steps = {"graph": 3, "graph_ccrs": 5}.get(graph_name)
+    if steps is None:
+        raise ValueError("Cannot establish full-run recursion headroom for an unknown graph")
+    return len(limits["zones"]) * limits["cycles_per_zone"] * steps + 100
+
+
+def validate_execution_limits(graph_name: str, recursion_limit: int, max_iterations: int | None, limits: dict) -> None:
+    if type(recursion_limit) is not int or recursion_limit < 1:
+        raise ValueError("recursion_limit must be a positive integer")
+    if max_iterations is not None:
+        if type(max_iterations) is not int or max_iterations < 1:
+            raise ValueError("max_iterations must be a positive integer")
+        return  # Explicit bounded trial; its execution caps are intentional.
+    if graph_name in ("graph", "graph_ccrs"):
+        minimum = minimum_full_run_recursion(graph_name, limits)
+        if recursion_limit < minimum:
+            raise ValueError(
+                f"Full {graph_name} experiments require recursion_limit >= {minimum} to avoid "
+                f"preempting the zone-cycle budgets; received {recursion_limit}. "
+                "Raise the recursion limit. For an intentional short trial, set max_iterations explicitly.")
+
+
 def cell_id(value) -> str | None:
     if not isinstance(value, str):
         return None
